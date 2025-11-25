@@ -1,0 +1,86 @@
+/build
+/out
+/build-debug
+/build-release
+/build-reldbg
+
+/tags
+/TAGS
+/GPATH
+/GRTAGS
+/GSYMS
+/GTAGS
+.gitusers
+autom4te.cache
+cscope.files
+cscope.out
+autoconf/aclocal.m4
+autoconf/autom4te.cache
+/compile_commands.json
+# Visual Studio built-in CMake configuration
+/CMakeSettings.json
+# CLion project configuration
+/.idea
+# Qt Creator project configuration
+/CMakeLists.txt.user
+
+projects/*
+!projects/*.*
+!projects/Makefile
+runtimes/*
+!runtimes/*.*
+# Sphinx build tree, if building in-source dir.
+docs/_build
+# VS2017 and VSCode config files.
+.vscode
+.vs
+
+# ClangD cache dir.
+.cache
+
+# CCache cache dir.
+.ccache
+
+*~
+# Merge files created by git.
+*.orig
+# Byte compiled python modules.
+*.pyc
+# vim swap files
+.*.sw?
+.sw?
+#OS X specific files.
+.DS_store
+
+cscope.files
+cscope.out
+.clang_complete
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
