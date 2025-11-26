@@ -1,41 +1,51 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "Lexer/Lexer.h"
+#include "Support/Error.h"
+
+using namespace rcc;
+
 int main(int Argc, char **Argv) {
   if (Argc != 2) {
-    fprintf(stderr, "%s: invalid number of arguments\n", Argv[0]);
+    errorf("%s: invalid number of arguments", Argv[0]);
     return 1;
   }
 
-  //   .global main
-  // main:
-  //   li a0, Argv[1]
-  //   ret
+  Lexer TheLexer;
+  auto TokList = TheLexer.tokenize(Argv[1]);
+  const Token *Tok = TokList.get();
+  if (!Tok)
+    errorf("tokenize failed");
+
   printf("  .global main\n");
   printf("main:\n");
 
   // add-expr: num { ('+' | '-') num }
   char *P = Argv[1];
-  printf("  li a0, %ld\n", strtol(P, &P, 10));
+  printf("  li a0, %d\n", Tok->getNumber());
+  Tok = Tok->getNext();
 
-  while (*P) {
-    if (*P == '+') {
-      ++P; // Eat '+'.
+  while (Tok && Tok->isNot(Token::TK_EOF)) {
+    if (Tok->equals("+")) {
+      Tok = Tok->getNext(); // Eat '+'.
       // addi rd, rs1, imm => rd = rs1 + imm.
       // Note: imm is a sign-extended 12-bit immediate.
-      printf("  addi a0, a0, %ld\n", strtol(P, &P, 10));
+      printf("  addi a0, a0, %d\n", Tok->getNumber());
+      Tok = Tok->getNext();
       continue;
     }
 
-    if (*P == '-') {
-      ++P; // Eat '-'.
+    if (Tok->equals("-")) {
+      Tok = Tok->getNext(); // Eat '-'.
       // Note: No `subi` instruction.
       // Use `add rd, rs1, -imm` instruction instead of the `subi` instruction.
-      printf("  addi a0, a0, -%ld\n", strtol(P, &P, 10));
+      printf("  addi a0, a0, -%d\n", Tok->getNumber());
+      Tok = Tok->getNext();
       continue;
     }
 
-    fprintf(stderr, "unexpected character: '%c'\n", *P);
+    errorf("unexpected character: '%c'", *P);
     return 1;
   }
 

@@ -116,6 +116,7 @@ endif ()
 option(ENABLE_LIT_TESTS "Enable lit tests" ON)
 option(ENABLE_UNIT_TESTS "Enable unit tests" OFF)
 
+add_subdirectory(lib)
 add_subdirectory(tools)
 
 if (ENABLE_LIT_TESTS)
