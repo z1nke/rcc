@@ -13,3 +13,8 @@ target_include_directories(Lexer
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/include
 )
+
+target_link_libraries(Lexer
+  PRIVATE
+  Basic
+)

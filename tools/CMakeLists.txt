@@ -15,6 +15,6 @@ target_include_directories(rcc
 
 target_link_libraries(rcc
   PRIVATE
+  Basic
   Lexer
-  Support
 )

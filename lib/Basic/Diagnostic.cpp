@@ -1,4 +1,4 @@
-#include "Support/Error.h"
+#include "Basic/Diagnostic.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -28,9 +28,24 @@
 
 namespace rcc {
 
-[[noreturn]] void errorf(const char *Fmt, ...) {
+[[noreturn]] void Diagnostic::fatalAt(const char *Loc, const char *Fmt, ...) {
+  const char *Start = SM.getStart();
+  fprintf(stderr, "%s\n", Start);
+  int Offset = Loc - SM.getStart();
+  fprintf(stderr, "%*s", Offset, "^ ");
   va_list AP;
   va_start(AP, Fmt);
+  vfatal(Loc, Fmt, AP);
+}
+
+[[noreturn]] void Diagnostic::Diagnostic::fatal(const char *Fmt, ...) {
+  va_list AP;
+  va_start(AP, Fmt);
+  vfatal(nullptr, Fmt, AP);
+}
+
+[[noreturn]] void Diagnostic::vfatal(const char *Loc, const char *Fmt,
+                                     std::va_list AP) {
 #if HAS_COLOR
   const bool HasColor = ISATTY(FILENO(stderr));
   if (HasColor)

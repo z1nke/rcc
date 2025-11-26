@@ -1,8 +1,7 @@
-#ifndef RCC_LEXER_TOKEN_H
-#define RCC_LEXER_TOKEN_H
+#ifndef RCC_LEX_TOKEN_H
+#define RCC_LEX_TOKEN_H
 
 #include <memory>
-#include <string_view>
 
 namespace rcc {
 
@@ -26,13 +25,15 @@ public:
 
   std::unique_ptr<Token> takeNext() { return std::move(Next); }
 
-  int getNumber() const;
+  int getVal() const;
 
   bool is(TokenKind TK) const { return TK == Kind; }
   bool isNot(TokenKind TK) const { return TK != Kind; }
-  bool equals(const char *Tok) const {
-    return std::string_view(Loc, Len) == Tok;
-  }
+  bool equals(const char *Tok) const;
+
+  const char *getLoc() const { return Loc; }
+  TokenKind getKind() const { return Kind; }
+  const char *getKindStr() const;
 
 private:
   const char *Loc = nullptr;

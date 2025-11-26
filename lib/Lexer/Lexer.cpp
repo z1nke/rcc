@@ -1,12 +1,13 @@
-#include "Lexer/Lexer.h"
-#include "Support/Error.h"
+#include "Lex/Lexer.h"
+#include "Basic/Diagnostic.h"
 
 #include <cctype>
 #include <cstdlib>
 
 namespace rcc {
 
-std::unique_ptr<Token> Lexer::tokenize(char *P) {
+std::unique_ptr<Token> Lexer::tokenize() {
+  char *P = Diag.getSourceManager().getStart();
   Token Dummy;
   Token *Curr = &Dummy;
 
@@ -34,7 +35,7 @@ std::unique_ptr<Token> Lexer::tokenize(char *P) {
       continue;
     }
 
-    errorf("invalid character: %c", *P);
+    Diag.fatalAt(P, "invalid character: %c", *P);
   }
 
   Curr->newNext(Token::TK_EOF, P, P);
