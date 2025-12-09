@@ -16,10 +16,22 @@ static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
     return BinaryOperator::BO_Add;
   case Token::TK_Minus:
     return BinaryOperator::BO_Sub;
-  case Token::TK_Mul:
+  case Token::TK_Star:
     return BinaryOperator::BO_Mul;
-  case Token::TK_Div:
+  case Token::TK_Slash:
     return BinaryOperator::BO_Div;
+  case Token::TK_EqualEqual:
+    return BinaryOperator::BO_EQ;
+  case Token::TK_NotEqual:
+    return BinaryOperator::BO_NE;
+  case Token::TK_Less:
+    return BinaryOperator::BO_LT;
+  case Token::TK_LessEqual:
+    return BinaryOperator::BO_LE;
+  case Token::TK_Greater:
+    return BinaryOperator::BO_GT;
+  case Token::TK_GreaterEqual:
+    return BinaryOperator::BO_GE;
   default:
     RCC_UNREACHABLE("Unknown binary operator");
   }
@@ -27,44 +39,38 @@ static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
 
 // expr eof
 Expr *Parser::parse() {
-  Expr *E = parseExpression();
+  Expr *E = parseExpr();
   if (CurTok->isNot(Token::TK_EOF))
     Diag.fatalAt(CurTok->getLoc(), "extra token");
   return E;
 }
 
-// expr: mul-expr { ('+' | '-' mul-expr) }
-Expr *Parser::parseExpression() {
-  Expr *LHS = parseMulExpression();
-  while (true) {
-    if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus)) {
-      auto Op = getBinaryOpcode(CurTok->getKind());
-      CurTok = CurTok->takeNext(); // Eat '+' or '-'.
-      Expr *RHS = parseMulExpression();
-      LHS = BinaryOperator::create(Ctx, LHS, RHS, Op);
-      continue;
-    }
+// expr: equality-expr
+Expr *Parser::parseExpr() { return parseEqualityExpr(); }
 
-    return LHS;
-  }
-  return nullptr;
+// equality-expr: relational-expr { ('==' | '!=') relational-expr }
+Expr *Parser::parseEqualityExpr() {
+  return parseBinaryOperator<&Parser::parseRalationalExpr, Token::TK_EqualEqual,
+                             Token::TK_NotEqual>();
+}
+
+// relational-expr: add-expr { ('<' | '<=' | '>' | '>=') add-expr }
+Expr *Parser::parseRalationalExpr() {
+  return parseBinaryOperator<&Parser::parseAddExpr, Token::TK_Less,
+                             Token::TK_LessEqual, Token::TK_Greater,
+                             Token::TK_GreaterEqual>();
+}
+
+// add-expr: mul-expr { ('+' | '-') mul-expr }
+Expr *Parser::parseAddExpr() {
+  return parseBinaryOperator<&Parser::parseMulExpr, Token::TK_Plus,
+                             Token::TK_Minus>();
 }
 
 // mul-expr: unary-expr { ('*' | '/') unary-expr }
-Expr *Parser::parseMulExpression() {
-  Expr *LHS = parseUnaryExpression();
-  while (true) {
-    if (CurTok->isOneOf(Token::TK_Mul, Token::TK_Div)) {
-      auto Op = getBinaryOpcode(CurTok->getKind());
-      CurTok = CurTok->takeNext(); // Eat '*' or '/'.
-      Expr *RHS = parseUnaryExpression();
-      LHS = BinaryOperator::create(Ctx, LHS, RHS, Op);
-      continue;
-    }
-
-    return LHS;
-  }
-  return nullptr;
+Expr *Parser::parseMulExpr() {
+  return parseBinaryOperator<&Parser::parseUnaryExpr, Token::TK_Star,
+                             Token::TK_Slash>();
 }
 
 static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
@@ -79,21 +85,21 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
 }
 
 // unary-expr = ('+' | '-') (unary-expr | primary-expr)
-Expr *Parser::parseUnaryExpression() {
+Expr *Parser::parseUnaryExpr() {
   if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
     CurTok = CurTok->takeNext();
-    Expr *SubExpr = parseUnaryExpression();
+    Expr *SubExpr = parseUnaryExpr();
     return UnaryOperator::create(Ctx, SubExpr, Op);
   }
 
-  return parsePrimaryExpression();
+  return parsePrimaryExpr();
 }
 
 // primary-expr: paren-expr | num
-Expr *Parser::parsePrimaryExpression() {
+Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
-    return parseParenExpression();
+    return parseParenExpr();
 
   if (CurTok->is(Token::TK_Num)) {
     auto Val = CurTok->getVal();
@@ -106,17 +112,35 @@ Expr *Parser::parsePrimaryExpression() {
 }
 
 // paren-expr = '(' expr ')'
-Expr *Parser::parseParenExpression() {
+Expr *Parser::parseParenExpr() {
   if (CurTok->isNot(Token::TK_LParen))
     Diag.fatalAt(CurTok->getLoc(), "expect '('");
 
   CurTok = CurTok->takeNext(); // Eat '('.
-  Expr *E = parseExpression();
+  Expr *E = parseExpr();
 
   if (CurTok->isNot(Token::TK_RParen))
     Diag.fatalAt(CurTok->getLoc(), "expect ')'");
   CurTok = CurTok->takeNext(); // Eat ')'.
   return E;
+}
+
+template <auto ParseOperand, Token::TokenKind... Tks>
+Expr *Parser::parseBinaryOperator() {
+  Expr *LHS = (this->*ParseOperand)();
+  while (true) {
+    if (CurTok->isOneOf(Tks...)) {
+      auto Op = getBinaryOpcode(CurTok->getKind());
+      CurTok = CurTok->takeNext();
+      Expr *RHS = (this->*ParseOperand)();
+      LHS = BinaryOperator::create(Ctx, LHS, RHS, Op);
+      continue;
+    }
+
+    return LHS;
+  }
+
+  return nullptr;
 }
 
 } // namespace rcc

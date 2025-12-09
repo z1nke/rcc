@@ -18,15 +18,19 @@ public:
 
   Expr *parse();
 
-  Expr *parseExpression();
+private:
+  Expr *parseExpr();
+  Expr *parseEqualityExpr();
+  Expr *parseRalationalExpr();
+  Expr *parseAddExpr();
+  Expr *parseMulExpr();
+  Expr *parseUnaryExpr();
+  Expr *parsePrimaryExpr();
+  Expr *parseParenExpr();
 
-  Expr *parseMulExpression();
-
-  Expr *parseUnaryExpression();
-
-  Expr *parsePrimaryExpression();
-
-  Expr *parseParenExpression();
+private:
+  template <auto ParseOperand, Token::TokenKind... TKS>
+  Expr *parseBinaryOperator();
 
 private:
   std::unique_ptr<Token> CurTok;

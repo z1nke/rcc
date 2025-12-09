@@ -56,6 +56,12 @@ public:
     BO_Sub,
     BO_Mul,
     BO_Div,
+    BO_EQ,
+    BO_NE,
+    BO_LT,
+    BO_GT,
+    BO_LE,
+    BO_GE,
   };
 
   static BinaryOperator *create(ASTContext &Ctx, Expr *LHS, Expr *RHS,

@@ -28,9 +28,9 @@ const char *Token::getKindStr() const {
     return "+";
   case TK_Minus:
     return "-";
-  case TK_Mul:
+  case TK_Star:
     return "*";
-  case TK_Div:
+  case TK_Slash:
     return "/";
   case TK_LParen:
     return "(";

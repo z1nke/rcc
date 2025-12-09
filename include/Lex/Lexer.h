@@ -12,7 +12,8 @@ public:
 
   std::unique_ptr<Token> tokenize();
 
-  void lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P);
+  void lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P,
+                     int Len = 1);
 
   void lexNumericLiteral(Token *&Curr, char *&P);
 

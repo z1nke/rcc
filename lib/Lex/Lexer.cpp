@@ -1,6 +1,7 @@
 #include "Lex/Lexer.h"
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceManager.h"
+#include "Basic/Unreachable.h"
 
 #include <cctype>
 #include <cstdlib>
@@ -45,16 +46,42 @@ std::unique_ptr<Token> Lexer::tokenize() {
       lexPunctuator(Curr, Token::TK_Minus, P);
       break;
     case '*':
-      lexPunctuator(Curr, Token::TK_Mul, P);
+      lexPunctuator(Curr, Token::TK_Star, P);
       break;
     case '/':
-      lexPunctuator(Curr, Token::TK_Div, P);
+      lexPunctuator(Curr, Token::TK_Slash, P);
       break;
     case '(':
       lexPunctuator(Curr, Token::TK_LParen, P);
       break;
     case ')':
       lexPunctuator(Curr, Token::TK_RParen, P);
+      break;
+    case '=':
+      if (*(P + 1) == '=') {
+        lexPunctuator(Curr, Token::TK_EqualEqual, P, 2);
+        break;
+      }
+      RCC_UNREACHABLE("Not supported 'equal' token");
+      break;
+    case '!':
+      if (*(P + 1) == '=') {
+        lexPunctuator(Curr, Token::TK_NotEqual, P, 2);
+        break;
+      }
+      RCC_UNREACHABLE("Not supported 'not' token");
+      break;
+    case '<':
+      if (*(P + 1) == '=')
+        lexPunctuator(Curr, Token::TK_LessEqual, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Less, P);
+      break;
+    case '>':
+      if (*(P + 1) == '=')
+        lexPunctuator(Curr, Token::TK_GreaterEqual, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Greater, P);
       break;
     default:
       Diag.fatalAt(P, "invalid character: %c", *P);
@@ -73,10 +100,11 @@ void Lexer::lexNumericLiteral(Token *&Curr, char *&P) {
   Curr = Curr->getNext();
 }
 
-void Lexer::lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P) {
-  Curr->newNext(Kind, P, P + 1);
+void Lexer::lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P,
+                          int Len) {
+  Curr->newNext(Kind, P, P + Len);
   Curr = Curr->getNext();
-  ++P;
+  P += Len;
 }
 
 } // namespace rcc

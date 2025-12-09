@@ -44,12 +44,60 @@ void CodeGen::genExpr(const Expr *E) {
 }
 
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
+  // a0 op a1
   genExpr(BO->getRHS());
   push();
-  genExpr(BO->getLHS()); // a0 = lhs
-  pop("a1");             // a1 = rhs
-  const char *Op = getBinaryOpcodeInstName(BO->getOpcode());
-  printf("  %s a0, a0, a1\n", Op);
+  genExpr(BO->getLHS());
+  pop("a1");
+
+  auto Op = BO->getOpcode();
+  switch (Op) {
+  case BinaryOperator::BO_Add:
+  case BinaryOperator::BO_Sub:
+  case BinaryOperator::BO_Mul:
+  case BinaryOperator::BO_Div:
+    printf("  %s a0, a0, a1\n", getBinaryOpcodeInstName(Op));
+    break;
+  case BinaryOperator::BO_EQ:
+    // a0 = a0 ^ a1
+    // a0 = (a0 == 0) ? 1 : 0
+    printf("  xor a0, a0, a1\n");
+    printf("  seqz a0, a0\n");
+    break;
+  case BinaryOperator::BO_NE:
+    // a0 = a0 ^ a1
+    // a0 = (a0 != 0) ? 1 : 0
+    printf("  xor a0, a0, a1\n");
+    printf("  snez a0, a0\n");
+    break;
+  case BinaryOperator::BO_LT:
+    // a0 = a0 < a1.
+    // TODO: In the future, we will need to handle unsigned comparisons.
+    //
+    printf("  slt a0, a0, a1\n");
+    break;
+  case BinaryOperator::BO_LE:
+    // a0 <= a1  <=>  !(a1 < a0)
+    // a0 = a1 < a0
+    // a0 = !a0
+    printf("  slt a0, a1, a0\n");
+    printf("  xori a0, a0, 1\n");
+    break;
+  case BinaryOperator::BO_GT:
+    // a0 > a1  <=>  a1 < a0
+    printf("  slt a0, a1, a0\n");
+    break;
+  case BinaryOperator::BO_GE:
+    // a0 >= a1  <=>  !(a0 < a1)
+    // a0 = a0 < a1
+    // a0 = !a0
+    printf("  slt a0, a0, a1\n");
+    printf("  xori a0, a0, 1\n");
+    break;
+  default:
+    RCC_UNREACHABLE("[CodeGen] Unknown binary opcode");
+    break;
+  }
 }
 
 void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
@@ -62,7 +110,7 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     printf("  neg a0, a0\n");
     break;
   default:
-    RCC_UNREACHABLE("Unknown unary opcode");
+    RCC_UNREACHABLE("[CodeGen] Unknown unary opcode");
   }
 }
 
