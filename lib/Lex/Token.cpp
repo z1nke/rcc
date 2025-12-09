@@ -22,12 +22,22 @@ bool Token::equals(const char *Tok) const {
 
 const char *Token::getKindStr() const {
   switch (Kind) {
-  case TK_PUNCT:
-    return "punct";
-  case TK_NUM:
-    return "number";
   case TK_EOF:
     return "eof";
+  case TK_Plus:
+    return "+";
+  case TK_Minus:
+    return "-";
+  case TK_Mul:
+    return "*";
+  case TK_Div:
+    return "/";
+  case TK_LParen:
+    return "(";
+  case TK_RParen: 
+    return ")";
+  case TK_NUM:
+    return "number";
   case TK_UNKNOWN:
     return "unknown";
   default:

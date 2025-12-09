@@ -1,12 +1,11 @@
 #ifndef RCC_BASIC_DIAGNOSTIC_H
 #define RCC_BASIC_DIAGNOSTIC_H
 
-#include "Basic/SourceManager.h"
-
 #include <cstdarg>
 
 namespace rcc {
 
+class SourceManager;
 class Token;
 
 class Diagnostic {

@@ -8,9 +8,14 @@ namespace rcc {
 class Token {
 public:
   enum TokenKind {
-    TK_PUNCT,
-    TK_NUM,
     TK_EOF,
+    TK_Plus,
+    TK_Minus,
+    TK_Mul,
+    TK_Div,
+    TK_LParen,
+    TK_RParen,
+    TK_NUM,
     TK_UNKNOWN,
   };
 
@@ -28,6 +33,12 @@ public:
   int getVal() const;
 
   bool is(TokenKind TK) const { return TK == Kind; }
+
+  bool isOneOf(TokenKind K1, TokenKind K2) const { return is(K1) || is(K2); }
+  template <typename... Ts> bool isOneOf(TokenKind K1, Ts... Ks) const {
+    return is(K1) || isOneOf(Ks...);
+  }
+
   bool isNot(TokenKind TK) const { return TK != Kind; }
   bool equals(const char *Tok) const;
 

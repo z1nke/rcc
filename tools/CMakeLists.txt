@@ -15,6 +15,9 @@ target_include_directories(rcc
 
 target_link_libraries(rcc
   PRIVATE
+  AST
   Basic
+  CodeGen
   Lexer
+  Parser
 )

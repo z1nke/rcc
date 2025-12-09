@@ -1,4 +1,5 @@
 #include "Basic/Diagnostic.h"
+#include "Basic/SourceManager.h"
 
 #include <cstdarg>
 #include <cstdio>

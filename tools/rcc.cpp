@@ -1,27 +1,15 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "AST/AST.h"
+#include "AST/ASTContext.h"
 #include "Basic/Diagnostic.h"
+#include "Basic/SourceManager.h"
+#include "CodeGen/CodeGen.h"
 #include "Lex/Lexer.h"
+#include "Parse/Parser.h"
 
 using namespace rcc;
-
-static int getNumber(const Token *Tok, Diagnostic &Diag) {
-  if (Tok->isNot(Token::TK_NUM))
-    Diag.fatalAt(Tok->getLoc(), "expect a number");
-  return Tok->getVal();
-}
-
-static const Token *skip(const Token *Tok, Token::TokenKind Kind,
-                         const char *Expect, Diagnostic &Diag) {
-  if (Tok->isNot(Kind))
-    Diag.fatalAt(Tok->getLoc(), "expect token kind is %s", Tok->getKindStr());
-
-  if (!Tok->equals(Expect))
-    Diag.fatalAt(Tok->getLoc(), "expect %s", Expect);
-
-  return Tok->getNext();
-}
 
 int main(int Argc, char **Argv) {
   SourceManager SM;
@@ -42,28 +30,11 @@ int main(int Argc, char **Argv) {
   printf("  .global main\n");
   printf("main:\n");
 
-  // add-expr: num { ('+' | '-') num }
-
-  printf("  li a0, %d\n", getNumber(Tok, Diag));
-  Tok = Tok->getNext();
-
-  while (Tok && Tok->isNot(Token::TK_EOF)) {
-    if (Tok->equals("+")) {
-      Tok = Tok->getNext(); // Eat '+'.
-      // addi rd, rs1, imm => rd = rs1 + imm.
-      // Note: imm is a sign-extended 12-bit immediate.
-      printf("  addi a0, a0, %d\n", Tok->getVal());
-      Tok = Tok->getNext();
-      continue;
-    }
-
-    Tok = skip(Tok, Token::TK_PUNCT, "-", Diag); // Eat '-'.
-    // Note: No `subi` instruction.
-    // Use `add rd, rs1, -imm` instruction instead of the `subi` instruction.
-    printf("  addi a0, a0, -%d\n", Tok->getVal());
-    Tok = Tok->getNext();
-  }
-
+  ASTContext Ctx(Diag);
+  Parser P(std::move(TokList), Ctx);
+  Expr *E = P.parse();
+  CodeGen CG(Diag);
+  CG.genExpr(E);
   printf("  ret\n");
   return 0;
 }
