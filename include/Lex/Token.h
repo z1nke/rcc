@@ -15,8 +15,8 @@ public:
     TK_Div,
     TK_LParen,
     TK_RParen,
-    TK_NUM,
-    TK_UNKNOWN,
+    TK_Num,
+    TK_Unknown,
   };
 
   constexpr Token() = default;
@@ -49,7 +49,7 @@ public:
 private:
   const char *Loc = nullptr;
   std::unique_ptr<Token> Next;
-  TokenKind Kind = TK_UNKNOWN;
+  TokenKind Kind = TK_Unknown;
   int Val = 0;
   int Len = 0;
 };

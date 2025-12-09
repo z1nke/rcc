@@ -50,14 +50,14 @@ Expr *Parser::parseExpression() {
   return nullptr;
 }
 
-// mul-expr: primary-expr { ('*' | '/') primary-expr }
+// mul-expr: unary-expr { ('*' | '/') unary-expr }
 Expr *Parser::parseMulExpression() {
-  Expr *LHS = parsePrimaryExpression();
+  Expr *LHS = parseUnaryExpression();
   while (true) {
     if (CurTok->isOneOf(Token::TK_Mul, Token::TK_Div)) {
       auto Op = getBinaryOpcode(CurTok->getKind());
       CurTok = CurTok->takeNext(); // Eat '*' or '/'.
-      Expr *RHS = parsePrimaryExpression();
+      Expr *RHS = parseUnaryExpression();
       LHS = BinaryOperator::create(Ctx, LHS, RHS, Op);
       continue;
     }
@@ -67,12 +67,35 @@ Expr *Parser::parseMulExpression() {
   return nullptr;
 }
 
+static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
+  switch (Kind) {
+  case Token::TK_Plus:
+    return UnaryOperator::UO_Plus;
+  case Token::TK_Minus:
+    return UnaryOperator::UO_Minus;
+  default:
+    RCC_UNREACHABLE("Unknown binary operator");
+  }
+}
+
+// unary-expr = ('+' | '-') (unary-expr | primary-expr)
+Expr *Parser::parseUnaryExpression() {
+  if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus)) {
+    auto Op = getUnaryOpcode(CurTok->getKind());
+    CurTok = CurTok->takeNext();
+    Expr *SubExpr = parseUnaryExpression();
+    return UnaryOperator::create(Ctx, SubExpr, Op);
+  }
+
+  return parsePrimaryExpression();
+}
+
 // primary-expr: paren-expr | num
 Expr *Parser::parsePrimaryExpression() {
   if (CurTok->is(Token::TK_LParen))
     return parseParenExpression();
 
-  if (CurTok->is(Token::TK_NUM)) {
+  if (CurTok->is(Token::TK_Num)) {
     auto Val = CurTok->getVal();
     CurTok = CurTok->takeNext(); // Eat the number.
     return IntergerLiteral::create(Ctx, Val);

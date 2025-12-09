@@ -22,6 +22,8 @@ public:
 
   Expr *parseMulExpression();
 
+  Expr *parseUnaryExpression();
+
   Expr *parsePrimaryExpression();
 
   Expr *parseParenExpression();

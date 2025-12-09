@@ -69,7 +69,7 @@ std::unique_ptr<Token> Lexer::tokenize() {
 void Lexer::lexNumericLiteral(Token *&Curr, char *&P) {
   const char *Start = P;
   int Val = std::strtoul(P, &P, 10);
-  Curr->newNext(Token::TK_NUM, Start, P, Val);
+  Curr->newNext(Token::TK_Num, Start, P, Val);
   Curr = Curr->getNext();
 }
 

@@ -12,7 +12,7 @@ void Token::newNext(TokenKind Kind, const char *Start, const char *End,
 }
 
 int Token::getVal() const {
-  assert(Kind == TK_NUM && "expect a number");
+  assert(Kind == TK_Num && "expect a number");
   return Val;
 }
 
@@ -36,9 +36,9 @@ const char *Token::getKindStr() const {
     return "(";
   case TK_RParen: 
     return ")";
-  case TK_NUM:
+  case TK_Num:
     return "number";
-  case TK_UNKNOWN:
+  case TK_Unknown:
     return "unknown";
   default:
     RCC_UNREACHABLE("Unknown token kind");

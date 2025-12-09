@@ -25,7 +25,7 @@ static const char *getBinaryOpcodeInstName(BinaryOperator::Opcode Op) {
   }
 }
 
-void CodeGen::genExpr(Expr *E) {
+void CodeGen::genExpr(const Expr *E) {
   if (const auto *IL = dyn_cast<IntergerLiteral>(E)) {
     // li a0, imm
     printf("  li a0, %d\n", static_cast<int>(IL->getVal()));
@@ -33,13 +33,36 @@ void CodeGen::genExpr(Expr *E) {
   }
 
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    genExpr(BO->getRHS());
-    push();
-    genExpr(BO->getLHS()); // a0 = lhs
-    pop("a1");             // a1 = rhs
-    const char *Op = getBinaryOpcodeInstName(BO->getOpcode());
-    printf("  %s a0, a0, a1\n", Op);
+    genBinaryOperator(BO);
     return;
+  }
+
+  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+    genUnaryOperator(UO);
+    return;
+  }
+}
+
+void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
+  genExpr(BO->getRHS());
+  push();
+  genExpr(BO->getLHS()); // a0 = lhs
+  pop("a1");             // a1 = rhs
+  const char *Op = getBinaryOpcodeInstName(BO->getOpcode());
+  printf("  %s a0, a0, a1\n", Op);
+}
+
+void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
+  switch (UO->getOpcode()) {
+  case UnaryOperator::UO_Plus:
+    genExpr(UO->getSubExpr());
+    break;
+  case UnaryOperator::UO_Minus:
+    genExpr(UO->getSubExpr());
+    printf("  neg a0, a0\n");
+    break;
+  default:
+    RCC_UNREACHABLE("Unknown unary opcode");
   }
 }
 

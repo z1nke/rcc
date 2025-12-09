@@ -10,6 +10,7 @@ class ASTContext;
 class Expr {
 public:
   enum ExprKind {
+    EK_UnaryOperator,
     EK_BinaryOperator,
     EK_IntergerLiteral,
   };
@@ -20,6 +21,32 @@ public:
 
 private:
   ExprKind Kind;
+};
+
+class UnaryOperator : public Expr {
+public:
+  enum Opcode {
+    UO_Plus,
+    UO_Minus,
+  };
+
+  static UnaryOperator *create(ASTContext &Ctx, Expr *SubExpr, Opcode Op);
+
+  Expr *getSubExpr() const { return SubExpr; }
+
+  Opcode getOpcode() const { return Kind; }
+
+  static bool classof(const Expr *E) {
+    return E->getKind() == EK_UnaryOperator;
+  }
+
+protected:
+  UnaryOperator(ASTContext &Ctx, Expr *SubExpr, Opcode Op);
+
+private:
+  ASTContext &Ctx;
+  Expr *SubExpr;
+  Opcode Kind;
 };
 
 class BinaryOperator : public Expr {

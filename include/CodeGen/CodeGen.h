@@ -4,6 +4,8 @@
 namespace rcc {
 
 class Expr;
+class BinaryOperator;
+class UnaryOperator;
 
 class Diagnostic;
 
@@ -11,7 +13,12 @@ class CodeGen {
 public:
   CodeGen(Diagnostic &Diag);
 
-  void genExpr(Expr *E);
+  void genExpr(const Expr *E);
+
+private:
+  void genBinaryOperator(const BinaryOperator *BO);
+
+  void genUnaryOperator(const UnaryOperator *UO);
 
 private:
   void push();
