@@ -5,6 +5,7 @@
 
 namespace rcc {
 
+class Stmt;
 class Expr;
 class Lexer;
 class ASTContext;
@@ -16,9 +17,10 @@ public:
 
   ~Parser();
 
-  Expr *parse();
+  Stmt *parse();
 
 private:
+  Stmt *parseStmt();
   Expr *parseExpr();
   Expr *parseEqualityExpr();
   Expr *parseRalationalExpr();

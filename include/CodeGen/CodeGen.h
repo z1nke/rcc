@@ -3,6 +3,7 @@
 
 namespace rcc {
 
+class Stmt;
 class Expr;
 class BinaryOperator;
 class UnaryOperator;
@@ -13,11 +14,12 @@ class CodeGen {
 public:
   CodeGen(Diagnostic &Diag);
 
-  void genExpr(const Expr *E);
+  void codegen(const Stmt *Stmts);
 
 private:
+  void genStmt(const Stmt *S);
+  void genExpr(const Expr *E);
   void genBinaryOperator(const BinaryOperator *BO);
-
   void genUnaryOperator(const UnaryOperator *UO);
 
 private:

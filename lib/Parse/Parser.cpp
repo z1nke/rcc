@@ -10,38 +10,25 @@ Parser::Parser(std::unique_ptr<Token> CurTok, ASTContext &Ctx)
 
 Parser::~Parser() = default;
 
-static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
-  switch (Kind) {
-  case Token::TK_Plus:
-    return BinaryOperator::BO_Add;
-  case Token::TK_Minus:
-    return BinaryOperator::BO_Sub;
-  case Token::TK_Star:
-    return BinaryOperator::BO_Mul;
-  case Token::TK_Slash:
-    return BinaryOperator::BO_Div;
-  case Token::TK_EqualEqual:
-    return BinaryOperator::BO_EQ;
-  case Token::TK_NotEqual:
-    return BinaryOperator::BO_NE;
-  case Token::TK_Less:
-    return BinaryOperator::BO_LT;
-  case Token::TK_LessEqual:
-    return BinaryOperator::BO_LE;
-  case Token::TK_Greater:
-    return BinaryOperator::BO_GT;
-  case Token::TK_GreaterEqual:
-    return BinaryOperator::BO_GE;
-  default:
-    RCC_UNREACHABLE("Unknown binary operator");
+// expr eof
+Stmt *Parser::parse() {
+  Stmt Head;
+  Stmt *CurStmt = &Head;
+
+  while (CurTok->isNot(Token::TK_EOF)) {
+    CurStmt->setNext(parseStmt());
+    CurStmt = CurStmt->getNext();
   }
+
+  return Head.getNext();
 }
 
-// expr eof
-Expr *Parser::parse() {
+// stmt: expr ';'
+Stmt *Parser::parseStmt() {
   Expr *E = parseExpr();
-  if (CurTok->isNot(Token::TK_EOF))
-    Diag.fatalAt(CurTok->getLoc(), "extra token");
+  if (CurTok->isNot(Token::TK_Semicolon))
+    Diag.fatalAt(CurTok->getLoc(), "expect ';'");
+  CurTok = CurTok->takeNext();
   return E;
 }
 
@@ -122,7 +109,34 @@ Expr *Parser::parseParenExpr() {
   if (CurTok->isNot(Token::TK_RParen))
     Diag.fatalAt(CurTok->getLoc(), "expect ')'");
   CurTok = CurTok->takeNext(); // Eat ')'.
-  return E;
+  return ParenExpr::create(Ctx, E);
+}
+
+static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
+  switch (Kind) {
+  case Token::TK_Plus:
+    return BinaryOperator::BO_Add;
+  case Token::TK_Minus:
+    return BinaryOperator::BO_Sub;
+  case Token::TK_Star:
+    return BinaryOperator::BO_Mul;
+  case Token::TK_Slash:
+    return BinaryOperator::BO_Div;
+  case Token::TK_EqualEqual:
+    return BinaryOperator::BO_EQ;
+  case Token::TK_NotEqual:
+    return BinaryOperator::BO_NE;
+  case Token::TK_Less:
+    return BinaryOperator::BO_LT;
+  case Token::TK_LessEqual:
+    return BinaryOperator::BO_LE;
+  case Token::TK_Greater:
+    return BinaryOperator::BO_GT;
+  case Token::TK_GreaterEqual:
+    return BinaryOperator::BO_GE;
+  default:
+    RCC_UNREACHABLE("Unknown binary operator");
+  }
 }
 
 template <auto ParseOperand, Token::TokenKind... Tks>

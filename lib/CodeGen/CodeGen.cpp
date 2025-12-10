@@ -4,25 +4,33 @@
 #include "Basic/Diagnostic.h"
 #include "Basic/Unreachable.h"
 
+#include <cassert>
 #include <cstdio>
 
 namespace rcc {
 
 CodeGen::CodeGen(Diagnostic &Diag) : Diag(Diag) {}
 
-static const char *getBinaryOpcodeInstName(BinaryOperator::Opcode Op) {
-  switch (Op) {
-  case BinaryOperator::BO_Add:
-    return "add";
-  case BinaryOperator::BO_Sub:
-    return "sub";
-  case BinaryOperator::BO_Mul:
-    return "mul";
-  case BinaryOperator::BO_Div:
-    return "div";
-  default:
-    RCC_UNREACHABLE("Unknown binary opcode");
+void CodeGen::codegen(const Stmt *Stmts) {
+  printf("  .globl main\n");
+  printf("main:\n");
+
+  for (const Stmt *S = Stmts; S; S = S->getNext()) {
+    //S->dump();
+    genStmt(S);
+    assert(Depth == 0);
   }
+
+  printf("  ret\n");
+}
+
+void CodeGen::genStmt(const Stmt *S) {
+  if (const auto *E = dyn_cast<Expr>(S)) {
+    genExpr(E);
+    return;
+  }
+
+  Diag.fatal("invalid statement");
 }
 
 void CodeGen::genExpr(const Expr *E) {
@@ -40,6 +48,28 @@ void CodeGen::genExpr(const Expr *E) {
   if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
     genUnaryOperator(UO);
     return;
+  }
+
+  if (const auto *Paren = dyn_cast<ParenExpr>(E)) {
+    genExpr(Paren->getSubExpr());
+    return;
+  }
+
+  RCC_UNREACHABLE("[CodeGen] Unknown expression kind");
+}
+
+static const char *getBinaryOpcodeInstName(BinaryOperator::Opcode Op) {
+  switch (Op) {
+  case BinaryOperator::BO_Add:
+    return "add";
+  case BinaryOperator::BO_Sub:
+    return "sub";
+  case BinaryOperator::BO_Mul:
+    return "mul";
+  case BinaryOperator::BO_Div:
+    return "div";
+  default:
+    RCC_UNREACHABLE("Unknown binary opcode");
   }
 }
 

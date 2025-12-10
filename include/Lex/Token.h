@@ -22,6 +22,7 @@ public:
     TK_LessEqual,
     TK_Greater,
     TK_GreaterEqual,
+    TK_Semicolon,
     TK_Unknown,
   };
 

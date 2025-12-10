@@ -27,14 +27,10 @@ int main(int Argc, char **Argv) {
   if (!Tok)
     Diag.fatal("tokenize failed");
 
-  printf("  .global main\n");
-  printf("main:\n");
-
   ASTContext Ctx(Diag);
   Parser P(std::move(TokList), Ctx);
-  Expr *E = P.parse();
+  Stmt *S = P.parse();
   CodeGen CG(Diag);
-  CG.genExpr(E);
-  printf("  ret\n");
+  CG.codegen(S);
   return 0;
 }
