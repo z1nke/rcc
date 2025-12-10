@@ -15,12 +15,37 @@ void CodeGen::codegen(const Stmt *Stmts) {
   printf("  .globl main\n");
   printf("main:\n");
 
+  // stack frame
+  //-------------------------------// sp
+  //              fp                  fp = sp-8
+  //-------------------------------// fp
+  //              'a'                 fp-8
+  //              'b'                 fp-16
+  //              ...
+  //              'z'                 fp-208
+  //-------------------------------// sp=sp-8-208
+  //           eval-expression
+  //-------------------------------//
+
+  // push sp
+  printf("  addi sp, sp, -8\n");
+  printf("  sd fp, 0(sp)\n");
+  // fp = sp
+  printf("  mv fp, sp\n");
+  // sp -= 208
+  printf("  addi sp, sp, -208\n");
+
   for (const Stmt *S = Stmts; S; S = S->getNext()) {
-    //S->dump();
+    // S->dump();
     genStmt(S);
     assert(Depth == 0);
   }
 
+  // sp = fp
+  printf("  mv sp, fp\n");
+  // pop fp
+  printf("  ld fp, 0(sp)\n");
+  printf("  addi sp, sp, 8\n");
   printf("  ret\n");
 }
 
@@ -34,28 +59,29 @@ void CodeGen::genStmt(const Stmt *S) {
 }
 
 void CodeGen::genExpr(const Expr *E) {
-  if (const auto *IL = dyn_cast<IntergerLiteral>(E)) {
+  switch (E->getKind()) {
+  case Stmt::SK_UnaryOperator:
+    genUnaryOperator(cast<UnaryOperator>(E));
+    break;
+  case Stmt::SK_BinaryOperator:
+    genBinaryOperator(cast<BinaryOperator>(E));
+    break;
+  case Stmt::SK_IntergerLiteral:
     // li a0, imm
-    printf("  li a0, %d\n", static_cast<int>(IL->getVal()));
-    return;
+    printf("  li a0, %ld\n", cast<IntergerLiteral>(E)->getVal());
+    break;
+  case Stmt::SK_ParenExpr:
+    genExpr(cast<ParenExpr>(E)->getSubExpr());
+    break;
+  case Stmt::SK_DeclRefExpr:
+    // a0 = addr
+    genAddr(cast<DeclRefExpr>(E));
+    // a0 = *a0
+    printf("  ld a0, 0(a0)\n");
+    break;
+  default:
+    RCC_UNREACHABLE("[CodeGen] Unknown expression kind");
   }
-
-  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    genBinaryOperator(BO);
-    return;
-  }
-
-  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
-    genUnaryOperator(UO);
-    return;
-  }
-
-  if (const auto *Paren = dyn_cast<ParenExpr>(E)) {
-    genExpr(Paren->getSubExpr());
-    return;
-  }
-
-  RCC_UNREACHABLE("[CodeGen] Unknown expression kind");
 }
 
 static const char *getBinaryOpcodeInstName(BinaryOperator::Opcode Op) {
@@ -74,6 +100,22 @@ static const char *getBinaryOpcodeInstName(BinaryOperator::Opcode Op) {
 }
 
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
+  if (BO->getOpcode() == BinaryOperator::BO_Assign) {
+    const auto *DRE = dyn_cast<DeclRefExpr>(BO->getLHS());
+    if (!DRE)
+      Diag.fatal("not a lvalue");
+
+    genAddr(DRE);
+    push();
+    // a0 = rhs
+    genExpr(BO->getRHS());
+    // a1 = addrof(lhs)
+    pop("a1");
+    // *(a1) = a0
+    printf("  sd a0, 0(a1)\n");
+    return;
+  }
+
   // a0 op a1
   genExpr(BO->getRHS());
   push();
@@ -142,6 +184,12 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   default:
     RCC_UNREACHABLE("[CodeGen] Unknown unary opcode");
   }
+}
+
+void CodeGen::genAddr(const DeclRefExpr *DRE) {
+  char Name = DRE->getName();
+  int Offset = (Name - 'a' + 1) * 8;
+  printf("  addi a0, fp, %d\n", -Offset);
 }
 
 void CodeGen::push() {

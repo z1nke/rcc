@@ -32,8 +32,19 @@ Stmt *Parser::parseStmt() {
   return E;
 }
 
-// expr: equality-expr
-Expr *Parser::parseExpr() { return parseEqualityExpr(); }
+// expr: assign-expr
+Expr *Parser::parseExpr() { return parseAssign(); }
+
+// assign-expr: equality-expr { '=' assign-expr }
+Expr *Parser::parseAssign() {
+  Expr *LHS = parseEqualityExpr();
+  if (CurTok->is(Token::TK_Equal)) {
+    CurTok = CurTok->takeNext();
+    LHS = BinaryOperator::create(Ctx, LHS, parseAssign(),
+                                 BinaryOperator::BO_Assign);
+  }
+  return LHS;
+}
 
 // equality-expr: relational-expr { ('==' | '!=') relational-expr }
 Expr *Parser::parseEqualityExpr() {
@@ -83,7 +94,7 @@ Expr *Parser::parseUnaryExpr() {
   return parsePrimaryExpr();
 }
 
-// primary-expr: paren-expr | num
+// primary-expr: paren-expr | ident | num
 Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
     return parseParenExpr();
@@ -92,6 +103,12 @@ Expr *Parser::parsePrimaryExpr() {
     auto Val = CurTok->getVal();
     CurTok = CurTok->takeNext(); // Eat the number.
     return IntergerLiteral::create(Ctx, Val);
+  }
+
+  if (CurTok->is(Token::TK_Ident)) {
+    char Name = *CurTok->getLoc();
+    CurTok = CurTok->takeNext();
+    return DeclRefExpr::create(Ctx, Name);
   }
 
   Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");

@@ -22,6 +22,7 @@ public:
 private:
   Stmt *parseStmt();
   Expr *parseExpr();
+  Expr *parseAssign();
   Expr *parseEqualityExpr();
   Expr *parseRalationalExpr();
   Expr *parseAddExpr();

@@ -1,4 +1,4 @@
-#include "AST/AST.h"
+#include "AST/Stmt.h"
 #include "AST/ASTContext.h"
 #include "Basic/Casting.h"
 #include "Basic/Unreachable.h"
@@ -8,6 +8,18 @@
 namespace rcc {
 
 void Stmt::setNext(Stmt *Next) { this->Next = Next; }
+
+DeclStmt *DeclStmt::create(ASTContext &Ctx, std::vector<Decl *> Decls) {
+  void *Mem = Ctx.Allocate(sizeof(DeclStmt), alignof(DeclStmt));
+  return new (Mem) DeclStmt(Ctx, std::move(Decls));
+}
+
+void DeclStmt::dump() const {
+  // TODO: Impl.
+}
+
+DeclStmt::DeclStmt(ASTContext &Ctx, std::vector<Decl *> Decls)
+    : Ctx(Ctx), Decls(std::move(Decls)) {}
 
 UnaryOperator::UnaryOperator(ASTContext &Ctx, Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator), Ctx(Ctx), SubExpr(SubExpr), Kind(Op) {}
@@ -36,6 +48,15 @@ void Stmt::dump() const {
     return;
   }
 
+  switch (getKind()) {
+  case SK_DeclStmt:
+    cast<DeclStmt>(this)->dump();
+    break;
+  default:
+    RCC_UNREACHABLE("Unknown stmt kind");
+    break;
+  }
+
   // TODO: Other statement kind.
 }
 
@@ -55,7 +76,7 @@ void Expr::dump() const {
     cast<ParenExpr>(this)->dump();
     break;
   default:
-    RCC_UNREACHABLE("Unknown stmt kind");
+    RCC_UNREACHABLE("Unknown expr kind");
     break;
   }
 }
@@ -87,6 +108,8 @@ std::string_view BinaryOperator::getOpcodeStr() const {
     return "*";
   case BO_Div:
     return "/";
+  case BO_Assign:
+    return "=";
   case BO_EQ:
     return "==";
   case BO_NE:
@@ -135,6 +158,18 @@ void ParenExpr::dump() const {
   printf("ParenExpr\n");
   printf("`-");
   SubExpr->dump();
+}
+
+DeclRefExpr::DeclRefExpr(ASTContext &Ctx, char Name)
+    : Expr(SK_DeclRefExpr), Ctx(Ctx), Name(Name) {}
+
+DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, char Name) {
+  void *Mem = Ctx.Allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
+  return new (Mem) DeclRefExpr(Ctx, Name);
+}
+
+void DeclRefExpr::dump() const {
+  // TODO: Impl.
 }
 
 } // namespace rcc

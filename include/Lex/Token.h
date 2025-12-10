@@ -15,7 +15,7 @@ public:
     TK_Slash,
     TK_LParen,
     TK_RParen,
-    TK_Num,
+    TK_Equal,
     TK_EqualEqual,
     TK_NotEqual,
     TK_Less,
@@ -23,6 +23,8 @@ public:
     TK_Greater,
     TK_GreaterEqual,
     TK_Semicolon,
+    TK_Num,
+    TK_Ident,
     TK_Unknown,
   };
 
@@ -47,8 +49,6 @@ public:
   }
 
   bool isNot(TokenKind TK) const { return TK != Kind; }
-  bool equals(const char *Tok) const;
-
   const char *getLoc() const { return Loc; }
   TokenKind getKind() const { return Kind; }
   const char *getKindStr() const;

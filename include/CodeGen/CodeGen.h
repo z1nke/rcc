@@ -7,7 +7,7 @@ class Stmt;
 class Expr;
 class BinaryOperator;
 class UnaryOperator;
-
+class DeclRefExpr;
 class Diagnostic;
 
 class CodeGen {
@@ -21,6 +21,7 @@ private:
   void genExpr(const Expr *E);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
+  void genAddr(const DeclRefExpr *DRE);
 
 private:
   void push();

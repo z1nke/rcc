@@ -20,25 +20,19 @@ std::unique_ptr<Token> Lexer::tokenize() {
       continue;
     }
 
-    switch (*P) {
-    case ' ':
-    case '\t':
-    case '\n':
-    case '\r':
-      ++P;
-      break;
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
+    if (*P >= '0' && *P <= '9') {
       lexNumericLiteral(Curr, P);
-      break;
+      continue;
+    }
+
+    if (*P >= 'a' && *P <= 'z') {
+      Curr->newNext(Token::TK_Ident, P, P + 1);
+      Curr = Curr->getNext();
+      ++P;
+      continue;
+    }
+
+    switch (*P) {
     case '+':
       lexPunctuator(Curr, Token::TK_Plus, P);
       break;
@@ -58,11 +52,10 @@ std::unique_ptr<Token> Lexer::tokenize() {
       lexPunctuator(Curr, Token::TK_RParen, P);
       break;
     case '=':
-      if (*(P + 1) == '=') {
+      if (*(P + 1) == '=')
         lexPunctuator(Curr, Token::TK_EqualEqual, P, 2);
-        break;
-      }
-      RCC_UNREACHABLE("Not supported 'equal' token");
+      else
+        lexPunctuator(Curr, Token::TK_Equal, P);
       break;
     case '!':
       if (*(P + 1) == '=') {

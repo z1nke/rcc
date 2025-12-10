@@ -1,5 +1,6 @@
 add_library(AST
-  AST.cpp
+  Decl.cpp
+  Stmt.cpp
 )
 
 set_target_properties(AST

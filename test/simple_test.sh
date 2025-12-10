@@ -4,7 +4,7 @@ assert() {
   input="$2"
 
   ./bin/rcc "$input" > tmp.s || exit
-  riscv64-unknown-linux-gnu-gcc -static -o -static -o tmp tmp.s
+  riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s
   qemu-riscv64 ./tmp
   actual="$?"
 
@@ -58,8 +58,14 @@ assert 1 '5==2+3;'
 assert 0 '6==4+3;'
 assert 1 '0*9+5*2==4+4*(6/3)-2;'
 
-# [9]
+# [9] Accept multiple statements
 assert 3 '1; 2; 3;'
 assert 12 '12+23;12+99/3;78-66;'
+
+# [10] Single-letter local variable.
+assert 3 'a=3; a;'
+assert 8 'a=3; z=5; a+z;'
+assert 6 'a=b=3; a+b;'
+assert 5 'a=3;b=4;a=1;a+b;'
 
 echo OK
