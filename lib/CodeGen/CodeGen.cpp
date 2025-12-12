@@ -69,6 +69,12 @@ void CodeGen::genStmt(const Stmt *S) {
   }
 
   switch (S->getKind()) {
+  case Stmt::SK_CompoundStmt: {
+    const Stmt *Body = cast<CompoundStmt>(S)->getBody();
+    for (const Stmt *SubStmt = Body; SubStmt; SubStmt = SubStmt->getNext())
+      genStmt(SubStmt);
+    break;
+  }
   case Stmt::SK_ReturnStmt:
     genExpr(cast<ReturnStmt>(S)->getRetValue());
     printf("  j .L.return\n");

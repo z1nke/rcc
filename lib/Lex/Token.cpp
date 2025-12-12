@@ -52,6 +52,10 @@ const char *Token::getKindStr() const {
     return ">=";
   case TK_Semicolon:
     return ";";
+  case TK_LBrace:
+    return "{";
+  case TK_RBRace:
+    return "}";
   case TK_Ident:
     return "identifier";
   case TK_Return:

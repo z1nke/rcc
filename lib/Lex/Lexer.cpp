@@ -91,6 +91,12 @@ std::unique_ptr<Token> Lexer::tokenize() {
     case ';':
       lexPunctuator(Curr, Token::TK_Semicolon, P);
       break;
+    case '{':
+      lexPunctuator(Curr, Token::TK_LBrace, P);
+      break;
+    case '}':
+      lexPunctuator(Curr, Token::TK_RBRace, P);
+      break;
     default:
       Diag.fatalAt(P, "invalid character: %c", *P);
       break;

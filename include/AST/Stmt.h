@@ -17,6 +17,7 @@ public:
     NoStmtKind = 0,
     SK_DeclStmt,
     SK_ReturnStmt,
+    SK_CompoundStmt,
     SK_UnaryOperator,
     SK_BinaryOperator,
     SK_IntergerLiteral,
@@ -47,11 +48,27 @@ public:
   void dump() const;
 
 protected:
-  DeclStmt(ASTContext &Ctx, std::vector<Decl *> Decls);
+  DeclStmt(std::vector<Decl *> Decls);
 
 private:
-  ASTContext &Ctx;
   std::vector<Decl *> Decls;
+};
+
+class CompoundStmt : public Stmt {
+public:
+  static CompoundStmt *create(ASTContext &Ctx, Stmt *Body);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_CompoundStmt; }
+
+  void dump() const;
+
+  Stmt *getBody() const { return Body; }
+
+protected:
+  CompoundStmt(Stmt *Body);
+
+private:
+  Stmt *Body;
 };
 
 class Expr : public Stmt {
@@ -76,10 +93,9 @@ public:
   Expr *getRetValue() const { return RetVal; }
 
 protected:
-  ReturnStmt(ASTContext &Ctx, Expr *RetVal);
+  ReturnStmt(Expr *RetVal);
 
 private:
-  ASTContext &Ctx;
   Expr *RetVal;
 };
 
@@ -104,10 +120,9 @@ public:
   void dump() const;
 
 protected:
-  UnaryOperator(ASTContext &Ctx, Expr *SubExpr, Opcode Op);
+  UnaryOperator(Expr *SubExpr, Opcode Op);
 
 private:
-  ASTContext &Ctx;
   Expr *SubExpr;
   Opcode Kind;
 };
@@ -143,10 +158,9 @@ public:
   void dump() const;
 
 protected:
-  BinaryOperator(ASTContext &Ctx, Expr *LHS, Expr *RHS, Opcode Op);
+  BinaryOperator(Expr *LHS, Expr *RHS, Opcode Op);
 
 private:
-  ASTContext &Ctx;
   Expr *LHS;
   Expr *RHS;
   Opcode Kind;
@@ -165,10 +179,9 @@ public:
   std::int64_t getVal() const { return Val; }
 
 protected:
-  IntergerLiteral(ASTContext &Ctx, std::int64_t Val);
+  IntergerLiteral(std::int64_t Val);
 
 private:
-  ASTContext &Ctx;
   // FIXME: Support different integer types.
   std::int64_t Val;
 };
@@ -184,10 +197,9 @@ public:
   Expr *getSubExpr() const { return SubExpr; }
 
 protected:
-  ParenExpr(ASTContext &Ctx, Expr *SubExpr);
+  ParenExpr(Expr *SubExpr);
 
 private:
-  ASTContext &Ctx;
   Expr *SubExpr;
 };
 
@@ -202,10 +214,9 @@ public:
   Decl *getDecl() const { return D; }
 
 protected:
-  DeclRefExpr(ASTContext &Ctx, Decl *D);
+  DeclRefExpr(Decl *D);
 
 private:
-  ASTContext &Ctx;
   Decl *D;
 };
 

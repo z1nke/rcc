@@ -9,37 +9,47 @@ namespace rcc {
 
 void Stmt::setNext(Stmt *Next) { this->Next = Next; }
 
-DeclStmt::DeclStmt(ASTContext &Ctx, std::vector<Decl *> Decls)
-    : Stmt(SK_DeclStmt), Ctx(Ctx), Decls(std::move(Decls)) {}
+DeclStmt::DeclStmt(std::vector<Decl *> Decls)
+    : Stmt(SK_DeclStmt), Decls(std::move(Decls)) {}
 
 DeclStmt *DeclStmt::create(ASTContext &Ctx, std::vector<Decl *> Decls) {
   void *Mem = Ctx.Allocate(sizeof(DeclStmt), alignof(DeclStmt));
-  return new (Mem) DeclStmt(Ctx, std::move(Decls));
+  return new (Mem) DeclStmt(std::move(Decls));
 }
 
 void DeclStmt::dump() const {
   // TODO: Impl.
 }
 
-ReturnStmt::ReturnStmt(ASTContext &Ctx, Expr *RetVal)
-    : Stmt(SK_ReturnStmt), Ctx(Ctx), RetVal(RetVal) {}
+CompoundStmt::CompoundStmt(Stmt *Body) : Stmt(SK_CompoundStmt), Body(Body) {}
+
+CompoundStmt *CompoundStmt::create(ASTContext &Ctx, Stmt *Body) {
+  void *Mem = Ctx.Allocate(sizeof(CompoundStmt), alignof(CompoundStmt));
+  return new (Mem) CompoundStmt(Body);
+}
+
+void CompoundStmt::dump() const {
+  // TODO: Impl.
+}
+
+ReturnStmt::ReturnStmt(Expr *RetVal) : Stmt(SK_ReturnStmt), RetVal(RetVal) {}
 
 ReturnStmt *ReturnStmt::create(ASTContext &Ctx, Expr *RetVal) {
   void *Mem = Ctx.Allocate(sizeof(ReturnStmt), alignof(ReturnStmt));
-  return new (Mem) ReturnStmt(Ctx, RetVal);
+  return new (Mem) ReturnStmt(RetVal);
 }
 
 void ReturnStmt::dump() const {
   // TODO: Impl.
 }
 
-UnaryOperator::UnaryOperator(ASTContext &Ctx, Expr *SubExpr, Opcode Op)
-    : Expr(SK_UnaryOperator), Ctx(Ctx), SubExpr(SubExpr), Kind(Op) {}
+UnaryOperator::UnaryOperator(Expr *SubExpr, Opcode Op)
+    : Expr(SK_UnaryOperator), SubExpr(SubExpr), Kind(Op) {}
 
 UnaryOperator *UnaryOperator::create(ASTContext &Ctx, Expr *SubExpr,
                                      Opcode Op) {
   void *Mem = Ctx.Allocate(sizeof(UnaryOperator), alignof(UnaryOperator));
-  return new (Mem) UnaryOperator(Ctx, SubExpr, Op);
+  return new (Mem) UnaryOperator(SubExpr, Op);
 }
 
 std::string_view UnaryOperator::getOpcodeStr() const {
@@ -63,6 +73,9 @@ void Stmt::dump() const {
   switch (getKind()) {
   case SK_DeclStmt:
     cast<DeclStmt>(this)->dump();
+    break;
+  case SK_CompoundStmt:
+    cast<CompoundStmt>(this)->dump();
     break;
   case SK_ReturnStmt:
     cast<ReturnStmt>(this)->dump();
@@ -103,14 +116,14 @@ void UnaryOperator::dump() const {
   SubExpr->dump();
 }
 
-BinaryOperator::BinaryOperator(ASTContext &Ctx, Expr *LHS, Expr *RHS, Opcode Op)
-    : Expr(SK_BinaryOperator), Ctx(Ctx), LHS(std::move(LHS)),
-      RHS(std::move(RHS)), Kind(Op) {}
+BinaryOperator::BinaryOperator(Expr *LHS, Expr *RHS, Opcode Op)
+    : Expr(SK_BinaryOperator), LHS(std::move(LHS)), RHS(std::move(RHS)),
+      Kind(Op) {}
 
 BinaryOperator *BinaryOperator::create(ASTContext &Ctx, Expr *LHS, Expr *RHS,
                                        Opcode Op) {
   void *Mem = Ctx.Allocate(sizeof(BinaryOperator), alignof(BinaryOperator));
-  return new (Mem) BinaryOperator(Ctx, LHS, RHS, Op);
+  return new (Mem) BinaryOperator(LHS, RHS, Op);
 }
 
 std::string_view BinaryOperator::getOpcodeStr() const {
@@ -151,22 +164,21 @@ void BinaryOperator::dump() const {
   RHS->dump();
 }
 
-IntergerLiteral::IntergerLiteral(ASTContext &Ctx, std::int64_t Val)
-    : Expr(SK_IntergerLiteral), Ctx(Ctx), Val(Val) {}
+IntergerLiteral::IntergerLiteral(std::int64_t Val)
+    : Expr(SK_IntergerLiteral), Val(Val) {}
 
 IntergerLiteral *IntergerLiteral::create(ASTContext &Ctx, std::int64_t Val) {
   void *Mem = Ctx.Allocate(sizeof(IntergerLiteral), alignof(IntergerLiteral));
-  return new (Mem) IntergerLiteral(Ctx, Val);
+  return new (Mem) IntergerLiteral(Val);
 }
 
 void IntergerLiteral::dump() const { printf("IntegerLiteral %ld\n", Val); }
 
-ParenExpr::ParenExpr(ASTContext &Ctx, Expr *SubExpr)
-    : Expr(SK_ParenExpr), Ctx(Ctx), SubExpr(SubExpr) {}
+ParenExpr::ParenExpr(Expr *SubExpr) : Expr(SK_ParenExpr), SubExpr(SubExpr) {}
 
 ParenExpr *ParenExpr::create(ASTContext &Ctx, Expr *SubExpr) {
   void *Mem = Ctx.Allocate(sizeof(ParenExpr), alignof(ParenExpr));
-  return new (Mem) ParenExpr(Ctx, SubExpr);
+  return new (Mem) ParenExpr(SubExpr);
 }
 
 void ParenExpr::dump() const {
@@ -175,12 +187,11 @@ void ParenExpr::dump() const {
   SubExpr->dump();
 }
 
-DeclRefExpr::DeclRefExpr(ASTContext &Ctx, Decl *D)
-    : Expr(SK_DeclRefExpr), Ctx(Ctx), D(D) {}
+DeclRefExpr::DeclRefExpr(Decl *D) : Expr(SK_DeclRefExpr), D(D) {}
 
 DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, Decl *D) {
   void *Mem = Ctx.Allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
-  return new (Mem) DeclRefExpr(Ctx, D);
+  return new (Mem) DeclRefExpr(D);
 }
 
 void DeclRefExpr::dump() const {

@@ -24,6 +24,8 @@ public:
     TK_Greater,
     TK_GreaterEqual,
     TK_Semicolon,
+    TK_LBrace,
+    TK_RBRace,
     TK_Num,
     TK_Ident,
     TK_Return,

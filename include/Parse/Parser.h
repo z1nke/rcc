@@ -25,6 +25,7 @@ public:
 
 private:
   Stmt *parseStmt();
+  Stmt *parseCompoundStmt();
   Stmt *parseExprStmt();
   Expr *parseExpr();
   Expr *parseAssign();
@@ -45,6 +46,7 @@ private:
 
   void expect(Token::TokenKind Kind, const char *Prompt);
   void skip(Token::TokenKind Kind, const char *Prompt);
+  bool tryConsume(Token::TokenKind Kind);
 
 private:
   std::unique_ptr<Token> CurTok;

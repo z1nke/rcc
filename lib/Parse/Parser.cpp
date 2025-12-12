@@ -26,16 +26,31 @@ FunctionDecl *Parser::parse() {
   return FD;
 }
 
-// stmt: return-stmt | expr-stmt
+// stmt: return-stmt | compound-stmt | expr-stmt
 Stmt *Parser::parseStmt() {
-  if (CurTok->is(Token::TK_Return)) {
-    CurTok = CurTok->takeNext();
+  if (tryConsume(Token::TK_Return)) {
     auto *RetStmt = ReturnStmt::create(Ctx, parseExpr());
     skip(Token::TK_Semicolon, ";");
     return RetStmt;
   }
 
+  if (tryConsume(Token::TK_LBrace))
+    return parseCompoundStmt();
+
   return parseExprStmt();
+}
+
+// compound-stmt: '{' stmt* '}'
+Stmt *Parser::parseCompoundStmt() {
+  Stmt Head(Stmt::NoStmtKind);
+  Stmt *CurStmt = &Head;
+  while (CurTok->isNot(Token::TK_RBRace)) {
+    CurStmt->setNext(parseStmt());
+    CurStmt = CurStmt->getNext();
+  }
+
+  skip(Token::TK_RBRace, "}");
+  return CompoundStmt::create(Ctx, Head.getNext());
 }
 
 // expr-stmt: expr ';'
@@ -51,8 +66,7 @@ Expr *Parser::parseExpr() { return parseAssign(); }
 // assign-expr: equality-expr { '=' assign-expr }
 Expr *Parser::parseAssign() {
   Expr *LHS = parseEqualityExpr();
-  if (CurTok->is(Token::TK_Equal)) {
-    CurTok = CurTok->takeNext();
+  if (tryConsume(Token::TK_Equal)) {
     LHS = BinaryOperator::create(Ctx, LHS, parseAssign(),
                                  BinaryOperator::BO_Assign);
   }
@@ -138,7 +152,6 @@ Expr *Parser::parsePrimaryExpr() {
 Expr *Parser::parseParenExpr() {
   skip(Token::TK_LParen, "(");
   Expr *E = parseExpr();
-
   skip(Token::TK_RParen, ")");
   return ParenExpr::create(Ctx, E);
 }
@@ -205,6 +218,15 @@ void Parser::expect(Token::TokenKind Kind, const char *Prompt) {
 void Parser::skip(Token::TokenKind Kind, const char *Prompt) {
   expect(Kind, Prompt);
   CurTok = CurTok->takeNext();
+}
+
+bool Parser::tryConsume(Token::TokenKind Kind) {
+  if (CurTok->is(Kind)) {
+    CurTok = CurTok->takeNext();
+    return true;
+  }
+
+  return false;
 }
 
 } // namespace rcc
