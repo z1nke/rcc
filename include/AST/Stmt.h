@@ -9,6 +9,7 @@ namespace rcc {
 
 class ASTContext;
 class Decl;
+class VarDecl;
 
 class Stmt {
 public:
@@ -175,22 +176,20 @@ private:
 
 class DeclRefExpr : public Expr {
 public:
-  static DeclRefExpr *create(ASTContext &Ctx, char Name);
+  static DeclRefExpr *create(ASTContext &Ctx, Decl *D);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_DeclRefExpr; }
 
   void dump() const;
 
-  // Decl *getDecl() const { return D; }
-  char getName() const { return Name; }
+  Decl *getDecl() const { return D; }
 
 protected:
-  DeclRefExpr(ASTContext &Ctx, char Name);
+  DeclRefExpr(ASTContext &Ctx, Decl *D);
 
 private:
   ASTContext &Ctx;
-  // Only support single letter local variables.
-  char Name;
+  Decl *D;
 };
 
 } // namespace rcc

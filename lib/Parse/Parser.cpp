@@ -1,6 +1,7 @@
 #include "Parse/Parser.h"
-#include "AST/AST.h"
 #include "AST/ASTContext.h"
+#include "AST/Decl.h"
+#include "AST/Stmt.h"
 #include "Basic/Unreachable.h"
 
 namespace rcc {
@@ -11,7 +12,7 @@ Parser::Parser(std::unique_ptr<Token> CurTok, ASTContext &Ctx)
 Parser::~Parser() = default;
 
 // expr eof
-Stmt *Parser::parse() {
+FunctionDecl *Parser::parse() {
   Stmt Head;
   Stmt *CurStmt = &Head;
 
@@ -20,7 +21,9 @@ Stmt *Parser::parse() {
     CurStmt = CurStmt->getNext();
   }
 
-  return Head.getNext();
+  auto *FD = FunctionDecl::create(Ctx, Head.getNext());
+  FD->setLocalVars(std::move(LocalVars));
+  return FD;
 }
 
 // stmt: expr ';'
@@ -106,9 +109,15 @@ Expr *Parser::parsePrimaryExpr() {
   }
 
   if (CurTok->is(Token::TK_Ident)) {
-    char Name = *CurTok->getLoc();
+    std::string_view Ident = CurTok->getIdentifer();
     CurTok = CurTok->takeNext();
-    return DeclRefExpr::create(Ctx, Name);
+    VarDecl *Var = findVar(Ident);
+    if (!Var) {
+      VarDecl *NewVar = VarDecl::create(Ctx, std::string(Ident));
+      LocalVars.push_back(NewVar);
+      return DeclRefExpr::create(Ctx, NewVar);
+    }
+    return DeclRefExpr::create(Ctx, Var);
   }
 
   Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");
@@ -169,6 +178,15 @@ Expr *Parser::parseBinaryOperator() {
     }
 
     return LHS;
+  }
+
+  return nullptr;
+}
+
+VarDecl *Parser::findVar(std::string_view Ident) {
+  for (VarDecl *Var : LocalVars) {
+    if (Var->getName() == Ident)
+      return Var;
   }
 
   return nullptr;

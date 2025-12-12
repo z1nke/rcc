@@ -1,5 +1,7 @@
 #include "CodeGen/CodeGen.h"
-#include "AST/AST.h"
+#include "AST/Decl.h"
+#include "AST/Stmt.h"
+#include "Basic/Allocator.h"
 #include "Basic/Casting.h"
 #include "Basic/Diagnostic.h"
 #include "Basic/Unreachable.h"
@@ -11,20 +13,31 @@ namespace rcc {
 
 CodeGen::CodeGen(Diagnostic &Diag) : Diag(Diag) {}
 
-void CodeGen::codegen(const Stmt *Stmts) {
+// Returns stack size.
+static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
+  int Offset = 0;
+  for (auto *Var : FD->getLocalVars()) {
+    Offset += 8;
+    Var->setOffset(-Offset);
+  }
+
+  return alignTo(Offset, 16);
+}
+
+void CodeGen::codegen(const FunctionDecl *FD) {
+  std::size_t StackSize = assignLVarOffsets(FD);
   printf("  .globl main\n");
   printf("main:\n");
 
   // stack frame
   //-------------------------------// sp
-  //              fp                  fp = sp-8
-  //-------------------------------// fp
-  //              'a'                 fp-8
-  //              'b'                 fp-16
-  //              ...
-  //              'z'                 fp-208
-  //-------------------------------// sp=sp-8-208
-  //           eval-expression
+  //              fp
+  //-------------------------------// fp = sp-8
+  //                                       |
+  //          local vars              stack-size
+  //                                       |
+  //-------------------------------// sp = sp-8-StackSize
+  //        eval-expression
   //-------------------------------//
 
   // push sp
@@ -32,11 +45,10 @@ void CodeGen::codegen(const Stmt *Stmts) {
   printf("  sd fp, 0(sp)\n");
   // fp = sp
   printf("  mv fp, sp\n");
-  // sp -= 208
-  printf("  addi sp, sp, -208\n");
+  // sp -= StackSize
+  printf("  addi sp, sp, -%ld\n", StackSize);
 
-  for (const Stmt *S = Stmts; S; S = S->getNext()) {
-    // S->dump();
+  for (const Stmt *S = FD->getBody(); S; S = S->getNext()) {
     genStmt(S);
     assert(Depth == 0);
   }
@@ -187,9 +199,11 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
 }
 
 void CodeGen::genAddr(const DeclRefExpr *DRE) {
-  char Name = DRE->getName();
-  int Offset = (Name - 'a' + 1) * 8;
-  printf("  addi a0, fp, %d\n", -Offset);
+  const auto *Var = dyn_cast<VarDecl>(DRE->getDecl());
+  if (!Var)
+    Diag.fatal("expect a variable");
+
+  printf("  addi a0, fp, %d\n", -Var->getOffset());
 }
 
 void CodeGen::push() {

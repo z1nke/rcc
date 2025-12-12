@@ -160,12 +160,12 @@ void ParenExpr::dump() const {
   SubExpr->dump();
 }
 
-DeclRefExpr::DeclRefExpr(ASTContext &Ctx, char Name)
-    : Expr(SK_DeclRefExpr), Ctx(Ctx), Name(Name) {}
+DeclRefExpr::DeclRefExpr(ASTContext &Ctx, Decl *D)
+    : Expr(SK_DeclRefExpr), Ctx(Ctx), D(D) {}
 
-DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, char Name) {
+DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, Decl *D) {
   void *Mem = Ctx.Allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
-  return new (Mem) DeclRefExpr(Ctx, Name);
+  return new (Mem) DeclRefExpr(Ctx, D);
 }
 
 void DeclRefExpr::dump() const {

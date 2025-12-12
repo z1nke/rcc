@@ -8,6 +8,14 @@
 
 namespace rcc {
 
+static bool isIdent0(char C) {
+  return std::isalpha(C) || C == '_';
+}
+
+static bool isIdent1(char C) {
+  return isIdent0(C) || std::isdigit(C);
+}
+
 std::unique_ptr<Token> Lexer::tokenize() {
   char *P = Diag.getSourceManager().getStart();
   Token Dummy;
@@ -25,10 +33,13 @@ std::unique_ptr<Token> Lexer::tokenize() {
       continue;
     }
 
-    if (*P >= 'a' && *P <= 'z') {
-      Curr->newNext(Token::TK_Ident, P, P + 1);
+    if (isIdent0(*P)) {
+      const char *Start = P;
+      do {
+        ++P;
+      } while (isIdent1(*P));
+      Curr->newNext(Token::TK_Ident, Start, P);
       Curr = Curr->getNext();
-      ++P;
       continue;
     }
 

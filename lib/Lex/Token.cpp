@@ -2,6 +2,7 @@
 #include "Basic/Unreachable.h"
 
 #include <cassert>
+#include <cstdio>
 
 namespace rcc {
 
@@ -56,6 +57,18 @@ const char *Token::getKindStr() const {
   default:
     RCC_UNREACHABLE("Unknown token kind");
     break;
+  }
+}
+
+std::string_view Token::getIdentifer() const {
+  assert(Kind == TK_Ident);
+  return std::string_view(Loc, Len);
+}
+
+void Token::dump() const {
+  printf("%s \n", getKindStr());
+  if (Next) {
+    Next->dump();
   }
 }
 

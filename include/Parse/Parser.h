@@ -3,11 +3,15 @@
 
 #include "Lex/Token.h"
 
+#include <vector>
+
 namespace rcc {
 
 class Stmt;
 class Expr;
 class Lexer;
+class FunctionDecl;
+class VarDecl;
 class ASTContext;
 class Diagnostic;
 
@@ -17,7 +21,7 @@ public:
 
   ~Parser();
 
-  Stmt *parse();
+  FunctionDecl *parse();
 
 private:
   Stmt *parseStmt();
@@ -35,10 +39,13 @@ private:
   template <auto ParseOperand, Token::TokenKind... TKS>
   Expr *parseBinaryOperator();
 
+  VarDecl *findVar(std::string_view Ident);
+
 private:
   std::unique_ptr<Token> CurTok;
   ASTContext &Ctx;
   Diagnostic &Diag;
+  std::vector<VarDecl *> LocalVars;
 };
 
 } // namespace rcc

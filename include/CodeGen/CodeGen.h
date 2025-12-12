@@ -3,6 +3,7 @@
 
 namespace rcc {
 
+class FunctionDecl;
 class Stmt;
 class Expr;
 class BinaryOperator;
@@ -14,7 +15,7 @@ class CodeGen {
 public:
   CodeGen(Diagnostic &Diag);
 
-  void codegen(const Stmt *Stmts);
+  void codegen(const FunctionDecl *FD);
 
 private:
   void genStmt(const Stmt *S);

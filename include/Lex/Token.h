@@ -2,6 +2,7 @@
 #define RCC_LEX_TOKEN_H
 
 #include <memory>
+#include <string_view>
 
 namespace rcc {
 
@@ -37,6 +38,8 @@ public:
 
   Token *getNext() const { return Next.get(); }
 
+  std::string_view getIdentifer() const;
+
   std::unique_ptr<Token> takeNext() { return std::move(Next); }
 
   int getVal() const;
@@ -52,6 +55,8 @@ public:
   const char *getLoc() const { return Loc; }
   TokenKind getKind() const { return Kind; }
   const char *getKindStr() const;
+
+  void dump() const;
 
 private:
   const char *Loc = nullptr;

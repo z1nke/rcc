@@ -1,8 +1,8 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "AST/AST.h"
 #include "AST/ASTContext.h"
+#include "AST/Decl.h"
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceManager.h"
 #include "CodeGen/CodeGen.h"
@@ -27,9 +27,11 @@ int main(int Argc, char **Argv) {
   if (!Tok)
     Diag.fatal("tokenize failed");
 
+  //TokList->dump();
+
   ASTContext Ctx(Diag);
   Parser P(std::move(TokList), Ctx);
-  Stmt *S = P.parse();
+  FunctionDecl *S = P.parse();
   CodeGen CG(Diag);
   CG.codegen(S);
   return 0;
