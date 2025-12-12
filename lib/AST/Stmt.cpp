@@ -9,6 +9,9 @@ namespace rcc {
 
 void Stmt::setNext(Stmt *Next) { this->Next = Next; }
 
+DeclStmt::DeclStmt(ASTContext &Ctx, std::vector<Decl *> Decls)
+    : Stmt(SK_DeclStmt), Ctx(Ctx), Decls(std::move(Decls)) {}
+
 DeclStmt *DeclStmt::create(ASTContext &Ctx, std::vector<Decl *> Decls) {
   void *Mem = Ctx.Allocate(sizeof(DeclStmt), alignof(DeclStmt));
   return new (Mem) DeclStmt(Ctx, std::move(Decls));
@@ -18,8 +21,17 @@ void DeclStmt::dump() const {
   // TODO: Impl.
 }
 
-DeclStmt::DeclStmt(ASTContext &Ctx, std::vector<Decl *> Decls)
-    : Ctx(Ctx), Decls(std::move(Decls)) {}
+ReturnStmt::ReturnStmt(ASTContext &Ctx, Expr *RetVal)
+    : Stmt(SK_ReturnStmt), Ctx(Ctx), RetVal(RetVal) {}
+
+ReturnStmt *ReturnStmt::create(ASTContext &Ctx, Expr *RetVal) {
+  void *Mem = Ctx.Allocate(sizeof(ReturnStmt), alignof(ReturnStmt));
+  return new (Mem) ReturnStmt(Ctx, RetVal);
+}
+
+void ReturnStmt::dump() const {
+  // TODO: Impl.
+}
 
 UnaryOperator::UnaryOperator(ASTContext &Ctx, Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator), Ctx(Ctx), SubExpr(SubExpr), Kind(Op) {}
@@ -51,6 +63,9 @@ void Stmt::dump() const {
   switch (getKind()) {
   case SK_DeclStmt:
     cast<DeclStmt>(this)->dump();
+    break;
+  case SK_ReturnStmt:
+    cast<ReturnStmt>(this)->dump();
     break;
   default:
     RCC_UNREACHABLE("Unknown stmt kind");

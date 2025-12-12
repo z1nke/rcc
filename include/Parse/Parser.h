@@ -25,6 +25,7 @@ public:
 
 private:
   Stmt *parseStmt();
+  Stmt *parseExprStmt();
   Expr *parseExpr();
   Expr *parseAssign();
   Expr *parseEqualityExpr();
@@ -40,6 +41,10 @@ private:
   Expr *parseBinaryOperator();
 
   VarDecl *findVar(std::string_view Ident);
+  Token::TokenKind getKeyword(std::string_view Ident) const;
+
+  void expect(Token::TokenKind Kind, const char *Prompt);
+  void skip(Token::TokenKind Kind, const char *Prompt);
 
 private:
   std::unique_ptr<Token> CurTok;

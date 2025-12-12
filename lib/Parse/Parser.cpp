@@ -13,7 +13,7 @@ Parser::~Parser() = default;
 
 // expr eof
 FunctionDecl *Parser::parse() {
-  Stmt Head;
+  Stmt Head(Stmt::NoStmtKind);
   Stmt *CurStmt = &Head;
 
   while (CurTok->isNot(Token::TK_EOF)) {
@@ -26,12 +26,22 @@ FunctionDecl *Parser::parse() {
   return FD;
 }
 
-// stmt: expr ';'
+// stmt: return-stmt | expr-stmt
 Stmt *Parser::parseStmt() {
+  if (CurTok->is(Token::TK_Return)) {
+    CurTok = CurTok->takeNext();
+    auto *RetStmt = ReturnStmt::create(Ctx, parseExpr());
+    skip(Token::TK_Semicolon, ";");
+    return RetStmt;
+  }
+
+  return parseExprStmt();
+}
+
+// expr-stmt: expr ';'
+Stmt *Parser::parseExprStmt() {
   Expr *E = parseExpr();
-  if (CurTok->isNot(Token::TK_Semicolon))
-    Diag.fatalAt(CurTok->getLoc(), "expect ';'");
-  CurTok = CurTok->takeNext();
+  skip(Token::TK_Semicolon, ";");
   return E;
 }
 
@@ -126,15 +136,10 @@ Expr *Parser::parsePrimaryExpr() {
 
 // paren-expr = '(' expr ')'
 Expr *Parser::parseParenExpr() {
-  if (CurTok->isNot(Token::TK_LParen))
-    Diag.fatalAt(CurTok->getLoc(), "expect '('");
-
-  CurTok = CurTok->takeNext(); // Eat '('.
+  skip(Token::TK_LParen, "(");
   Expr *E = parseExpr();
 
-  if (CurTok->isNot(Token::TK_RParen))
-    Diag.fatalAt(CurTok->getLoc(), "expect ')'");
-  CurTok = CurTok->takeNext(); // Eat ')'.
+  skip(Token::TK_RParen, ")");
   return ParenExpr::create(Ctx, E);
 }
 
@@ -190,6 +195,16 @@ VarDecl *Parser::findVar(std::string_view Ident) {
   }
 
   return nullptr;
+}
+
+void Parser::expect(Token::TokenKind Kind, const char *Prompt) {
+  if (CurTok->isNot(Kind))
+    Diag.fatalAt(CurTok->getLoc(), "expect '%s'", Prompt);
+}
+
+void Parser::skip(Token::TokenKind Kind, const char *Prompt) {
+  expect(Kind, Prompt);
+  CurTok = CurTok->takeNext();
 }
 
 } // namespace rcc

@@ -16,6 +16,7 @@ public:
   enum StmtKind {
     NoStmtKind = 0,
     SK_DeclStmt,
+    SK_ReturnStmt,
     SK_UnaryOperator,
     SK_BinaryOperator,
     SK_IntergerLiteral,
@@ -26,8 +27,6 @@ public:
   };
 
   Stmt(StmtKind Kind) : Kind(Kind) {}
-
-  constexpr Stmt() = default;
 
   StmtKind getKind() const { return Kind; }
   Stmt *getNext() const { return Next; }
@@ -64,6 +63,24 @@ public:
   }
 
   void dump() const;
+};
+
+class ReturnStmt : public Stmt {
+public:
+  static ReturnStmt *create(ASTContext &Ctx, Expr *RetVal);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_ReturnStmt; }
+
+  void dump() const;
+
+  Expr *getRetValue() const { return RetVal; }
+
+protected:
+  ReturnStmt(ASTContext &Ctx, Expr *RetVal);
+
+private:
+  ASTContext &Ctx;
+  Expr *RetVal;
 };
 
 class UnaryOperator : public Expr {

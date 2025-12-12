@@ -54,6 +54,8 @@ const char *Token::getKindStr() const {
     return ";";
   case TK_Ident:
     return "identifier";
+  case TK_Return:
+    return "return";
   default:
     RCC_UNREACHABLE("Unknown token kind");
     break;

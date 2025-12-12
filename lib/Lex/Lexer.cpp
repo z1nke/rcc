@@ -8,12 +8,12 @@
 
 namespace rcc {
 
-static bool isIdent0(char C) {
-  return std::isalpha(C) || C == '_';
-}
+static bool isIdent0(char C) { return std::isalpha(C) || C == '_'; }
 
-static bool isIdent1(char C) {
-  return isIdent0(C) || std::isdigit(C);
+static bool isIdent1(char C) { return isIdent0(C) || std::isdigit(C); }
+
+Lexer::Lexer(Diagnostic &Diag) : Diag(Diag) {
+  Keywords = {{"return", Token::TK_Return}};
 }
 
 std::unique_ptr<Token> Lexer::tokenize() {
@@ -38,7 +38,8 @@ std::unique_ptr<Token> Lexer::tokenize() {
       do {
         ++P;
       } while (isIdent1(*P));
-      Curr->newNext(Token::TK_Ident, Start, P);
+      auto Kind = getTokenKindOfIdent(Start, P);
+      Curr->newNext(Kind, Start, P);
       Curr = Curr->getNext();
       continue;
     }
@@ -112,6 +113,20 @@ void Lexer::lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P,
   Curr->newNext(Kind, P, P + Len);
   Curr = Curr->getNext();
   P += Len;
+}
+
+Token::TokenKind Lexer::getTokenKindOfIdent(std::string_view Ident) {
+  auto Iter = Keywords.find(Ident);
+  if (Iter == Keywords.end())
+    return Token::TK_Ident;
+
+  return Iter->second;
+}
+
+Token::TokenKind Lexer::getTokenKindOfIdent(const char *Start,
+                                            const char *End) {
+  std::string_view Ident(Start, End - Start);
+  return getTokenKindOfIdent(Ident);
 }
 
 } // namespace rcc

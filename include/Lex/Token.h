@@ -26,6 +26,7 @@ public:
     TK_Semicolon,
     TK_Num,
     TK_Ident,
+    TK_Return,
     TK_Unknown,
   };
 

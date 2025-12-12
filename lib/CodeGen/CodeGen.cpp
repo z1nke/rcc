@@ -53,6 +53,7 @@ void CodeGen::codegen(const FunctionDecl *FD) {
     assert(Depth == 0);
   }
 
+  printf(".L.return:\n");
   // sp = fp
   printf("  mv sp, fp\n");
   // pop fp
@@ -67,7 +68,14 @@ void CodeGen::genStmt(const Stmt *S) {
     return;
   }
 
-  Diag.fatal("invalid statement");
+  switch (S->getKind()) {
+  case Stmt::SK_ReturnStmt:
+    genExpr(cast<ReturnStmt>(S)->getRetValue());
+    printf("  j .L.return\n");
+    break;
+  default:
+    Diag.fatal("invalid statement: %d", S->getKind());
+  }
 }
 
 void CodeGen::genExpr(const Expr *E) {
