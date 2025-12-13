@@ -29,6 +29,8 @@ public:
     TK_Num,
     TK_Ident,
     TK_Return,
+    TK_If,
+    TK_Else,
     TK_Unknown,
   };
 

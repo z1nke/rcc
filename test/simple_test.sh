@@ -83,4 +83,12 @@ assert 3 '{ {1; {2;} return 3;} }'
 # [14] Support null statement
 assert 5 '{ ;;; return 5; }'
 
+# [15] Support if/else statement
+assert 3 '{ if (0) return 2; return 3; }'
+assert 3 '{ if (1-1) return 2; return 3; }'
+assert 2 '{ if (1) return 2; return 3; }'
+assert 2 '{ if (2-1) return 2; return 3; }'
+assert 4 '{ if (0) { 1; 2; return 3; } else { return 4; } }'
+assert 3 '{ if (1) { 1; 2; return 3; } else { return 4; } }'
+
 echo OK

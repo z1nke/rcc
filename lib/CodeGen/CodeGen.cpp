@@ -81,9 +81,31 @@ void CodeGen::genStmt(const Stmt *S) {
     break;
   case Stmt::SK_NullStmt:
     break;
+  case Stmt::SK_IfStmt:
+    genIfStmt(cast<IfStmt>(S));
+    break;
   default:
     Diag.fatal("invalid statement: %d", S->getKind());
   }
+}
+
+void CodeGen::genIfStmt(const IfStmt *S) {
+  genExpr(S->getCond());
+  int Count = getCount();
+  //    if a0 == 0, jump to .L.else.C
+  //    then-stmt
+  //    goto .L.end.C
+  // .L.else.C:
+  //    else-stmt
+  // .L.end.C:
+  //    ...
+  printf("  beqz a0, .L.else.%d\n", Count);
+  genStmt(S->getThen());
+  printf("  j .L.end.%d\n", Count);
+  printf(".L.else.%d:\n", Count);
+  if (const auto *Else = S->getElse())
+    genStmt(Else);
+  printf(".L.end.%d:\n", Count);
 }
 
 void CodeGen::genExpr(const Expr *E) {
@@ -232,6 +254,11 @@ void CodeGen::pop(const char *Reg) {
   printf("  ld %s, 0(sp)\n", Reg); // load from stack to Reg
   printf("  addi sp, sp, 8\n");    // sp += 8
   --Depth;
+}
+
+int CodeGen::getCount() const {
+  static int Count = 1;
+  return Count++;
 }
 
 } // namespace rcc

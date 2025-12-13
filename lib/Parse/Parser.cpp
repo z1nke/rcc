@@ -26,7 +26,11 @@ FunctionDecl *Parser::parse() {
   return FD;
 }
 
-// stmt: return-stmt | compound-stmt | null-stmt | expr-stmt
+// stmt: return-stmt 
+//     | compound-stmt
+//     | if-stmt 
+//     | null-stmt
+//     | expr-stmt
 Stmt *Parser::parseStmt() {
   if (tryConsume(Token::TK_Return)) {
     auto *RetStmt = ReturnStmt::create(Ctx, parseExpr());
@@ -39,6 +43,9 @@ Stmt *Parser::parseStmt() {
 
   if (tryConsume(Token::TK_Semicolon))
     return NullStmt::create(Ctx);
+
+  if (tryConsume(Token::TK_If))
+    return parseIfStmt();
 
   return parseExprStmt();
 }
@@ -54,6 +61,19 @@ Stmt *Parser::parseCompoundStmt() {
 
   skip(Token::TK_RBRace, "}");
   return CompoundStmt::create(Ctx, Head.getNext());
+}
+
+// if-stmt: 'if' '(' expr ')' stmt { 'else' stmt }
+Stmt *Parser::parseIfStmt() {
+  skip(Token::TK_LParen, "(");
+  Expr *Cond = parseExpr();
+  skip(Token::TK_RParen, ")");
+  Stmt *Then = parseStmt();
+  Stmt *Else = nullptr;
+  if (tryConsume(Token::TK_Else))
+    Else = parseStmt();
+
+  return IfStmt::create(Ctx, Cond, Then, Else);
 }
 
 // expr-stmt: expr ';'

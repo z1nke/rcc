@@ -6,6 +6,7 @@ namespace rcc {
 class FunctionDecl;
 class Stmt;
 class Expr;
+class IfStmt;
 class BinaryOperator;
 class UnaryOperator;
 class DeclRefExpr;
@@ -19,6 +20,7 @@ public:
 
 private:
   void genStmt(const Stmt *S);
+  void genIfStmt(const IfStmt *S);
   void genExpr(const Expr *E);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
@@ -26,8 +28,8 @@ private:
 
 private:
   void push();
-
   void pop(const char *Reg);
+  int getCount() const;
 
 private:
   Diagnostic &Diag;

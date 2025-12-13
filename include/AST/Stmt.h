@@ -19,6 +19,7 @@ public:
     SK_ReturnStmt,
     SK_CompoundStmt,
     SK_NullStmt,
+    SK_IfStmt,
     SK_UnaryOperator,
     SK_BinaryOperator,
     SK_IntergerLiteral,
@@ -110,6 +111,28 @@ public:
 
 protected:
   NullStmt();
+};
+
+class IfStmt : public Stmt {
+public:
+  static IfStmt *create(ASTContext &Ctx, Expr *Cond, Stmt *Then,
+                        Stmt *Else = nullptr);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_IfStmt; }
+
+  void dump() const;
+
+  Expr *getCond() const { return Cond; }
+  Stmt *getThen() const { return Then; }
+  Stmt *getElse() const { return Else; }
+
+protected:
+  IfStmt(Expr *Cond, Stmt *Then, Stmt *Else);
+
+private:
+  Expr *Cond;
+  Stmt *Then;
+  Stmt *Else;
 };
 
 class UnaryOperator : public Expr {

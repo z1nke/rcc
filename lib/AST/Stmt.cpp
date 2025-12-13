@@ -52,6 +52,18 @@ void NullStmt::dump() const {}
 
 NullStmt::NullStmt() : Stmt(SK_NullStmt) {}
 
+IfStmt *IfStmt::create(ASTContext &Ctx, Expr *Cond, Stmt *Then, Stmt *Else) {
+  void *Mem = Ctx.Allocate(sizeof(IfStmt), alignof(IfStmt));
+  return new (Mem) IfStmt(Cond, Then, Else);
+}
+
+void IfStmt::dump() const {
+  // TODO: Impl.
+}
+
+IfStmt::IfStmt(Expr *Cond, Stmt *Then, Stmt *Else)
+    : Stmt(SK_IfStmt), Cond(Cond), Then(Then), Else(Else) {}
+
 UnaryOperator::UnaryOperator(Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator), SubExpr(SubExpr), Kind(Op) {}
 
@@ -92,12 +104,13 @@ void Stmt::dump() const {
   case SK_NullStmt:
     cast<NullStmt>(this)->dump();
     break;
+  case SK_IfStmt:
+    cast<IfStmt>(this)->dump();
+    break;
   default:
     RCC_UNREACHABLE("Unknown stmt kind");
     break;
   }
-
-  // TODO: Other statement kind.
 }
 
 void Expr::dump() const {
