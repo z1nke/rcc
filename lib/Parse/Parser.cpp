@@ -2,6 +2,7 @@
 #include "AST/ASTContext.h"
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
+#include "Basic/Casting.h"
 #include "Basic/Unreachable.h"
 
 namespace rcc {
@@ -26,15 +27,15 @@ FunctionDecl *Parser::parse() {
   return FD;
 }
 
-// stmt: return-stmt 
+// stmt: return-stmt
 //     | compound-stmt
-//     | if-stmt 
+//     | if-stmt
 //     | null-stmt
 //     | expr-stmt
 Stmt *Parser::parseStmt() {
   if (tryConsume(Token::TK_Return)) {
     auto *RetStmt = ReturnStmt::create(Ctx, parseExpr());
-    skip(Token::TK_Semicolon, ";");
+    skip(Token::TK_Semicolon);
     return RetStmt;
   }
 
@@ -46,6 +47,9 @@ Stmt *Parser::parseStmt() {
 
   if (tryConsume(Token::TK_If))
     return parseIfStmt();
+
+  if (tryConsume(Token::TK_For))
+    return parseForStmt();
 
   return parseExprStmt();
 }
@@ -59,15 +63,15 @@ Stmt *Parser::parseCompoundStmt() {
     CurStmt = CurStmt->getNext();
   }
 
-  skip(Token::TK_RBRace, "}");
+  skip(Token::TK_RBRace);
   return CompoundStmt::create(Ctx, Head.getNext());
 }
 
 // if-stmt: 'if' '(' expr ')' stmt { 'else' stmt }
 Stmt *Parser::parseIfStmt() {
-  skip(Token::TK_LParen, "(");
+  skip(Token::TK_LParen);
   Expr *Cond = parseExpr();
-  skip(Token::TK_RParen, ")");
+  skip(Token::TK_RParen);
   Stmt *Then = parseStmt();
   Stmt *Else = nullptr;
   if (tryConsume(Token::TK_Else))
@@ -76,10 +80,31 @@ Stmt *Parser::parseIfStmt() {
   return IfStmt::create(Ctx, Cond, Then, Else);
 }
 
+// for-stmt: 'for' '(' { init-stmt } { cond-expr } ';' { inc-expr } ')' stmt
+Stmt *Parser::parseForStmt() {
+  skip(Token::TK_LParen);
+  Stmt *Init = parseStmt();
+  if (isa<NullStmt>(Init))
+    Init = nullptr;
+
+  Expr *Cond = nullptr;
+  if (CurTok->isNot(Token::TK_Semicolon))
+    Cond = parseExpr();
+  skip(Token::TK_Semicolon);
+
+  Expr *Inc = nullptr;
+  if (CurTok->isNot(Token::TK_RParen))
+    Inc = parseExpr();
+  skip(Token::TK_RParen);
+
+  Stmt *Body = parseStmt();
+  return ForStmt::create(Ctx, Init, Cond, Inc, Body);
+}
+
 // expr-stmt: expr ';'
 Stmt *Parser::parseExprStmt() {
   Expr *E = parseExpr();
-  skip(Token::TK_Semicolon, ";");
+  skip(Token::TK_Semicolon);
   return E;
 }
 
@@ -173,9 +198,9 @@ Expr *Parser::parsePrimaryExpr() {
 
 // paren-expr = '(' expr ')'
 Expr *Parser::parseParenExpr() {
-  skip(Token::TK_LParen, "(");
+  skip(Token::TK_LParen);
   Expr *E = parseExpr();
-  skip(Token::TK_RParen, ")");
+  skip(Token::TK_RParen);
   return ParenExpr::create(Ctx, E);
 }
 
@@ -238,8 +263,8 @@ void Parser::expect(Token::TokenKind Kind, const char *Prompt) {
     Diag.fatalAt(CurTok->getLoc(), "expect '%s'", Prompt);
 }
 
-void Parser::skip(Token::TokenKind Kind, const char *Prompt) {
-  expect(Kind, Prompt);
+void Parser::skip(Token::TokenKind Kind) {
+  expect(Kind, Token::getKindStr(Kind));
   CurTok = CurTok->takeNext();
 }
 

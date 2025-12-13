@@ -43,6 +43,8 @@ void ReturnStmt::dump() const {
   // TODO: Impl.
 }
 
+NullStmt::NullStmt() : Stmt(SK_NullStmt) {}
+
 NullStmt *NullStmt::create(ASTContext &Ctx) {
   void *Mem = Ctx.Allocate(sizeof(NullStmt), alignof(NullStmt));
   return new (Mem) NullStmt();
@@ -50,7 +52,8 @@ NullStmt *NullStmt::create(ASTContext &Ctx) {
 
 void NullStmt::dump() const {}
 
-NullStmt::NullStmt() : Stmt(SK_NullStmt) {}
+IfStmt::IfStmt(Expr *Cond, Stmt *Then, Stmt *Else)
+    : Stmt(SK_IfStmt), Cond(Cond), Then(Then), Else(Else) {}
 
 IfStmt *IfStmt::create(ASTContext &Ctx, Expr *Cond, Stmt *Then, Stmt *Else) {
   void *Mem = Ctx.Allocate(sizeof(IfStmt), alignof(IfStmt));
@@ -61,8 +64,18 @@ void IfStmt::dump() const {
   // TODO: Impl.
 }
 
-IfStmt::IfStmt(Expr *Cond, Stmt *Then, Stmt *Else)
-    : Stmt(SK_IfStmt), Cond(Cond), Then(Then), Else(Else) {}
+ForStmt::ForStmt(Stmt *Init, Expr *Cond, Expr *Inc, Stmt *Body)
+    : Stmt(SK_ForStmt), Init(Init), Cond(Cond), Inc(Inc), Body(Body) {}
+
+ForStmt *ForStmt::create(ASTContext &Ctx, Stmt *Init, Expr *Cond, Expr *Inc,
+                         Stmt *Body) {
+  void *Mem = Ctx.Allocate(sizeof(ForStmt), alignof(ForStmt));
+  return new (Mem) ForStmt(Init, Cond, Inc, Body);
+}
+
+void ForStmt::dump() const {
+  // TODO: Impl.
+}
 
 UnaryOperator::UnaryOperator(Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator), SubExpr(SubExpr), Kind(Op) {}
@@ -106,6 +119,9 @@ void Stmt::dump() const {
     break;
   case SK_IfStmt:
     cast<IfStmt>(this)->dump();
+    break;
+  case SK_ForStmt:
+    cast<ForStmt>(this)->dump();
     break;
   default:
     RCC_UNREACHABLE("Unknown stmt kind");

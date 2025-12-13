@@ -31,6 +31,7 @@ public:
     TK_Return,
     TK_If,
     TK_Else,
+    TK_For,
     TK_Unknown,
   };
 
@@ -60,6 +61,7 @@ public:
   const char *getLoc() const { return Loc; }
   TokenKind getKind() const { return Kind; }
   const char *getKindStr() const;
+  static const char *getKindStr(TokenKind Kind);
 
   void dump() const;
 

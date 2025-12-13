@@ -15,7 +15,8 @@ static bool isIdent1(char C) { return isIdent0(C) || std::isdigit(C); }
 Lexer::Lexer(Diagnostic &Diag) : Diag(Diag) {
   Keywords = {{"return", Token::TK_Return},
               {"if", Token::TK_If},
-              {"else", Token::TK_Else}};
+              {"else", Token::TK_Else},
+              {"for", Token::TK_For}};
 }
 
 std::unique_ptr<Token> Lexer::tokenize() {

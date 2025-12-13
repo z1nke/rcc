@@ -27,6 +27,7 @@ private:
   Stmt *parseStmt();
   Stmt *parseCompoundStmt();
   Stmt *parseIfStmt();
+  Stmt *parseForStmt();
   Stmt *parseExprStmt();
   Expr *parseExpr();
   Expr *parseAssign();
@@ -46,7 +47,7 @@ private:
   Token::TokenKind getKeyword(std::string_view Ident) const;
 
   void expect(Token::TokenKind Kind, const char *Prompt);
-  void skip(Token::TokenKind Kind, const char *Prompt);
+  void skip(Token::TokenKind Kind);
   bool tryConsume(Token::TokenKind Kind);
 
 private:

@@ -7,6 +7,7 @@ class FunctionDecl;
 class Stmt;
 class Expr;
 class IfStmt;
+class ForStmt;
 class BinaryOperator;
 class UnaryOperator;
 class DeclRefExpr;
@@ -20,7 +21,8 @@ public:
 
 private:
   void genStmt(const Stmt *S);
-  void genIfStmt(const IfStmt *S);
+  void genIfStmt(const IfStmt *If);
+  void genForStmt(const ForStmt *For);
   void genExpr(const Expr *E);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);

@@ -84,15 +84,18 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_IfStmt:
     genIfStmt(cast<IfStmt>(S));
     break;
+  case Stmt::SK_ForStmt:
+    genForStmt(cast<ForStmt>(S));
+    break;
   default:
     Diag.fatal("invalid statement: %d", S->getKind());
   }
 }
 
-void CodeGen::genIfStmt(const IfStmt *S) {
-  genExpr(S->getCond());
+void CodeGen::genIfStmt(const IfStmt *If) {
   int Count = getCount();
-  //    if a0 == 0, jump to .L.else.C
+  genExpr(If->getCond());
+  //    if a0 == 0, goto .L.else.C
   //    then-stmt
   //    goto .L.end.C
   // .L.else.C:
@@ -100,11 +103,36 @@ void CodeGen::genIfStmt(const IfStmt *S) {
   // .L.end.C:
   //    ...
   printf("  beqz a0, .L.else.%d\n", Count);
-  genStmt(S->getThen());
+  genStmt(If->getThen());
   printf("  j .L.end.%d\n", Count);
   printf(".L.else.%d:\n", Count);
-  if (const auto *Else = S->getElse())
+  if (const auto *Else = If->getElse())
     genStmt(Else);
+  printf(".L.end.%d:\n", Count);
+}
+
+void CodeGen::genForStmt(const ForStmt *For) {
+  int Count = getCount();
+  //   init-stmt
+  // .L.begin.C:
+  //   cond-expr
+  //   if a0 == 0 goto .L.end.C
+  //   body-stmt
+  //   inc-expr
+  //   goto .L.begin.C
+  // .L.end.C:
+  //   ...
+  if (const auto *Init = For->getInit())
+    genStmt(Init);
+  printf(".L.begin.%d:\n", Count);
+  if (const auto *Cond = For->getCond()) {
+    genExpr(Cond);
+    printf("  beqz a0, .L.end.%d\n", Count);
+  }
+  genStmt(For->getBody());
+  if (const auto *Inc = For->getInc())
+    genExpr(Inc);
+  printf("  j .L.begin.%d\n", Count);
   printf(".L.end.%d:\n", Count);
 }
 

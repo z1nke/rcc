@@ -20,6 +20,7 @@ public:
     SK_CompoundStmt,
     SK_NullStmt,
     SK_IfStmt,
+    SK_ForStmt,
     SK_UnaryOperator,
     SK_BinaryOperator,
     SK_IntergerLiteral,
@@ -133,6 +134,30 @@ private:
   Expr *Cond;
   Stmt *Then;
   Stmt *Else;
+};
+
+class ForStmt : public Stmt {
+public:
+  static ForStmt *create(ASTContext &Ctx, Stmt *Init, Expr *Cond, Expr *Inc,
+                         Stmt *Body);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_ForStmt; }
+
+  void dump() const;
+
+  Stmt *getInit() const { return Init; }
+  Expr *getCond() const { return Cond; }
+  Expr *getInc() const { return Inc; }
+  Stmt *getBody() const { return Body; }
+
+protected:
+  ForStmt(Stmt *Init, Expr *Cond, Expr *Inc, Stmt *Body);
+
+private:
+  Stmt *Init;
+  Expr *Cond;
+  Expr *Inc;
+  Stmt *Body;
 };
 
 class UnaryOperator : public Expr {

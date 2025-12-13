@@ -16,7 +16,21 @@ int Token::getVal() const {
   return Val;
 }
 
-const char *Token::getKindStr() const {
+const char *Token::getKindStr() const { return getKindStr(Kind); }
+
+std::string_view Token::getIdentifer() const {
+  assert(Kind == TK_Ident);
+  return std::string_view(Loc, Len);
+}
+
+void Token::dump() const {
+  printf("%s \n", getKindStr());
+  if (Next) {
+    Next->dump();
+  }
+}
+
+const char *Token::getKindStr(TokenKind Kind) {
   switch (Kind) {
   case TK_EOF:
     return "eof";
@@ -64,21 +78,11 @@ const char *Token::getKindStr() const {
     return "if";
   case TK_Else:
     return "else";
+  case TK_For:
+    return "for";
   default:
     RCC_UNREACHABLE("Unknown token kind");
     break;
-  }
-}
-
-std::string_view Token::getIdentifer() const {
-  assert(Kind == TK_Ident);
-  return std::string_view(Loc, Len);
-}
-
-void Token::dump() const {
-  printf("%s \n", getKindStr());
-  if (Next) {
-    Next->dump();
   }
 }
 
