@@ -18,6 +18,7 @@ public:
     SK_DeclStmt,
     SK_ReturnStmt,
     SK_CompoundStmt,
+    SK_NullStmt,
     SK_UnaryOperator,
     SK_BinaryOperator,
     SK_IntergerLiteral,
@@ -97,6 +98,18 @@ protected:
 
 private:
   Expr *RetVal;
+};
+
+class NullStmt : public Stmt {
+public:
+  static NullStmt *create(ASTContext &Ctx);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_NullStmt; }
+
+  void dump() const;
+
+protected:
+  NullStmt();
 };
 
 class UnaryOperator : public Expr {

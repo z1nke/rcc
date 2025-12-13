@@ -77,4 +77,10 @@ assert 1 '{ return 1; 2; 3; }'
 assert 2 '{ 1; return 2; 3; }'
 assert 3 '{ 1; 2; return 3; }'
 
+# [13] Support {...}
+assert 3 '{ {1; {2;} return 3;} }'
+
+# [14] Support null statement
+assert 5 '{ ;;; return 5; }'
+
 echo OK

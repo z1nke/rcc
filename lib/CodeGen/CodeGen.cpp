@@ -79,6 +79,8 @@ void CodeGen::genStmt(const Stmt *S) {
     genExpr(cast<ReturnStmt>(S)->getRetValue());
     printf("  j .L.return\n");
     break;
+  case Stmt::SK_NullStmt:
+    break;
   default:
     Diag.fatal("invalid statement: %d", S->getKind());
   }

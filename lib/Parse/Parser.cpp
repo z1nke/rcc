@@ -26,7 +26,7 @@ FunctionDecl *Parser::parse() {
   return FD;
 }
 
-// stmt: return-stmt | compound-stmt | expr-stmt
+// stmt: return-stmt | compound-stmt | null-stmt | expr-stmt
 Stmt *Parser::parseStmt() {
   if (tryConsume(Token::TK_Return)) {
     auto *RetStmt = ReturnStmt::create(Ctx, parseExpr());
@@ -36,6 +36,9 @@ Stmt *Parser::parseStmt() {
 
   if (tryConsume(Token::TK_LBrace))
     return parseCompoundStmt();
+
+  if (tryConsume(Token::TK_Semicolon))
+    return NullStmt::create(Ctx);
 
   return parseExprStmt();
 }

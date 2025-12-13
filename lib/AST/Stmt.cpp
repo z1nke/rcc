@@ -43,6 +43,15 @@ void ReturnStmt::dump() const {
   // TODO: Impl.
 }
 
+NullStmt *NullStmt::create(ASTContext &Ctx) {
+  void *Mem = Ctx.Allocate(sizeof(NullStmt), alignof(NullStmt));
+  return new (Mem) NullStmt();
+}
+
+void NullStmt::dump() const {}
+
+NullStmt::NullStmt() : Stmt(SK_NullStmt) {}
+
 UnaryOperator::UnaryOperator(Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator), SubExpr(SubExpr), Kind(Op) {}
 
@@ -79,6 +88,9 @@ void Stmt::dump() const {
     break;
   case SK_ReturnStmt:
     cast<ReturnStmt>(this)->dump();
+    break;
+  case SK_NullStmt:
+    cast<NullStmt>(this)->dump();
     break;
   default:
     RCC_UNREACHABLE("Unknown stmt kind");
