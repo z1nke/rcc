@@ -87,6 +87,9 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_ForStmt:
     genForStmt(cast<ForStmt>(S));
     break;
+  case Stmt::SK_WhileStmt:
+    genWhileStmt(cast<WhileStmt>(S));
+    break;
   default:
     Diag.fatal("invalid statement: %d", S->getKind());
   }
@@ -132,6 +135,23 @@ void CodeGen::genForStmt(const ForStmt *For) {
   genStmt(For->getBody());
   if (const auto *Inc = For->getInc())
     genExpr(Inc);
+  printf("  j .L.begin.%d\n", Count);
+  printf(".L.end.%d:\n", Count);
+}
+
+void CodeGen::genWhileStmt(const WhileStmt *While) {
+  int Count = getCount();
+  // .L.begin.C:
+  //   cond-expr
+  //   if a0 == 0 goto .L.end.C
+  //   body-stmt
+  //   goto .L.begin.C
+  // .L.end.C:
+  //   ...
+  printf(".L.begin.%d:\n", Count);
+  genExpr(While->getCond());
+  printf("  beqz a0, .L.end.%d\n", Count);
+  genStmt(While->getBody());
   printf("  j .L.begin.%d\n", Count);
   printf(".L.end.%d:\n", Count);
 }

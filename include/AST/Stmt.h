@@ -21,6 +21,7 @@ public:
     SK_NullStmt,
     SK_IfStmt,
     SK_ForStmt,
+    SK_WhileStmt,
     SK_UnaryOperator,
     SK_BinaryOperator,
     SK_IntergerLiteral,
@@ -157,6 +158,25 @@ private:
   Stmt *Init;
   Expr *Cond;
   Expr *Inc;
+  Stmt *Body;
+};
+
+class WhileStmt : public Stmt {
+public:
+  static WhileStmt *create(ASTContext &Ctx, Expr *Cond, Stmt *Body);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_WhileStmt; }
+
+  void dump() const;
+
+  Expr *getCond() const { return Cond; }
+  Stmt *getBody() const { return Body; }
+
+protected:
+  WhileStmt(Expr *Cond, Stmt *Body);
+
+private:
+  Expr *Cond;
   Stmt *Body;
 };
 

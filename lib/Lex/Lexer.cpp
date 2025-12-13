@@ -16,7 +16,8 @@ Lexer::Lexer(Diagnostic &Diag) : Diag(Diag) {
   Keywords = {{"return", Token::TK_Return},
               {"if", Token::TK_If},
               {"else", Token::TK_Else},
-              {"for", Token::TK_For}};
+              {"for", Token::TK_For},
+              {"while", Token::TK_While}};
 }
 
 std::unique_ptr<Token> Lexer::tokenize() {

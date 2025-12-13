@@ -80,6 +80,8 @@ const char *Token::getKindStr(TokenKind Kind) {
     return "else";
   case TK_For:
     return "for";
+  case TK_While:
+    return "while";
   default:
     RCC_UNREACHABLE("Unknown token kind");
     break;

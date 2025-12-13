@@ -51,6 +51,9 @@ Stmt *Parser::parseStmt() {
   if (tryConsume(Token::TK_For))
     return parseForStmt();
 
+  if (tryConsume(Token::TK_While))
+    return parseWhileStmt();
+
   return parseExprStmt();
 }
 
@@ -99,6 +102,15 @@ Stmt *Parser::parseForStmt() {
 
   Stmt *Body = parseStmt();
   return ForStmt::create(Ctx, Init, Cond, Inc, Body);
+}
+
+// while-stmt: 'while' '(' cond-expr ')' stmt
+Stmt *Parser::parseWhileStmt() {
+  skip(Token::TK_LParen);
+  Expr *Cond = parseExpr();
+  skip(Token::TK_RParen);
+  Stmt *Body = parseStmt();
+  return WhileStmt::create(Ctx, Cond, Body);
 }
 
 // expr-stmt: expr ';'

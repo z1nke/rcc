@@ -32,6 +32,7 @@ public:
     TK_If,
     TK_Else,
     TK_For,
+    TK_While,
     TK_Unknown,
   };
 

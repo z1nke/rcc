@@ -28,6 +28,7 @@ private:
   Stmt *parseCompoundStmt();
   Stmt *parseIfStmt();
   Stmt *parseForStmt();
+  Stmt *parseWhileStmt();
   Stmt *parseExprStmt();
   Expr *parseExpr();
   Expr *parseAssign();

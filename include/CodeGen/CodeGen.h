@@ -8,6 +8,7 @@ class Stmt;
 class Expr;
 class IfStmt;
 class ForStmt;
+class WhileStmt;
 class BinaryOperator;
 class UnaryOperator;
 class DeclRefExpr;
@@ -23,6 +24,7 @@ private:
   void genStmt(const Stmt *S);
   void genIfStmt(const IfStmt *If);
   void genForStmt(const ForStmt *For);
+  void genWhileStmt(const WhileStmt *While);
   void genExpr(const Expr *E);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);

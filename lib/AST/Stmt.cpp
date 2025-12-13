@@ -77,6 +77,18 @@ void ForStmt::dump() const {
   // TODO: Impl.
 }
 
+WhileStmt::WhileStmt(Expr *Cond, Stmt *Body)
+    : Stmt(SK_WhileStmt), Cond(Cond), Body(Body) {}
+
+WhileStmt *WhileStmt::create(ASTContext &Ctx, Expr *Cond, Stmt *Body) {
+  void *Mem = Ctx.Allocate(sizeof(WhileStmt), alignof(WhileStmt));
+  return new (Mem) WhileStmt(Cond, Body);
+}
+
+void WhileStmt::dump() const {
+  // TODO: Impl
+}
+
 UnaryOperator::UnaryOperator(Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator), SubExpr(SubExpr), Kind(Op) {}
 
