@@ -1,11 +1,14 @@
 #ifndef RCC_AST_DECL_H
 #define RCC_AST_DECL_H
 
+#include "Basic/SourceLocation.h"
+
 #include <string>
 #include <vector>
 
 namespace rcc {
 
+class Token;
 class ASTContext;
 class Stmt;
 
@@ -17,17 +20,21 @@ public:
     DK_Function,
   };
 
-  Decl(DeclKind Kind) : Kind(Kind) {}
+  Decl(DeclKind Kind, SourceLocation BegLoc, SourceLocation EndLoc)
+      : Kind(Kind), BegLoc(BegLoc), EndLoc(EndLoc) {}
 
   DeclKind getKind() const { return Kind; }
 
 private:
   DeclKind Kind;
+  SourceLocation BegLoc;
+  SourceLocation EndLoc;
 };
 
 class VarDecl : public Decl {
 public:
-  static VarDecl *create(ASTContext &Ctx, std::string Name);
+  static VarDecl *create(ASTContext &Ctx, SourceLocation BegLoc,
+                         SourceLocation EndLoc, std::string Name);
 
   static bool classof(const Decl *D) { return D->getKind() == DK_Var; }
 
@@ -38,7 +45,8 @@ public:
   void setOffset(int Offset) { this->Offset = Offset; }
 
 protected:
-  VarDecl(ASTContext &Ctx, std::string Name);
+  VarDecl(ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc,
+          std::string Name);
 
 private:
   ASTContext &Ctx;
@@ -49,7 +57,8 @@ private:
 
 class FunctionDecl : public Decl {
 public:
-  static FunctionDecl *create(ASTContext &Ctx, Stmt *Body);
+  static FunctionDecl *create(ASTContext &Ctx, SourceLocation BegLoc,
+                              SourceLocation EndLoc, Stmt *Body);
 
   Stmt *getBody() const { return Body; }
 
@@ -60,7 +69,8 @@ public:
   const std::vector<VarDecl *> &getLocalVars() const { return LocalVars; }
 
 protected:
-  FunctionDecl(ASTContext &Ctx, Stmt *Body);
+  FunctionDecl(ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc,
+               Stmt *Body);
 
 private:
   ASTContext &Ctx;

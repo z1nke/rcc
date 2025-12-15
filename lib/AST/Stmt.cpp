@@ -9,93 +9,113 @@ namespace rcc {
 
 void Stmt::setNext(Stmt *Next) { this->Next = Next; }
 
-DeclStmt::DeclStmt(std::vector<Decl *> Decls)
-    : Stmt(SK_DeclStmt), Decls(std::move(Decls)) {}
+DeclStmt::DeclStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                   std::vector<Decl *> Decls)
+    : Stmt(SK_DeclStmt, BegLoc, EndLoc), Decls(std::move(Decls)) {}
 
-DeclStmt *DeclStmt::create(ASTContext &Ctx, std::vector<Decl *> Decls) {
+DeclStmt *DeclStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc, std::vector<Decl *> Decls) {
   void *Mem = Ctx.Allocate(sizeof(DeclStmt), alignof(DeclStmt));
-  return new (Mem) DeclStmt(std::move(Decls));
+  return new (Mem) DeclStmt(BegLoc, EndLoc, std::move(Decls));
 }
 
 void DeclStmt::dump() const {
   // TODO: Impl.
 }
 
-CompoundStmt::CompoundStmt(Stmt *Body) : Stmt(SK_CompoundStmt), Body(Body) {}
+CompoundStmt::CompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                           Stmt *Body)
+    : Stmt(SK_CompoundStmt, BegLoc, EndLoc), Body(Body) {}
 
-CompoundStmt *CompoundStmt::create(ASTContext &Ctx, Stmt *Body) {
+CompoundStmt *CompoundStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                   SourceLocation EndLoc, Stmt *Body) {
   void *Mem = Ctx.Allocate(sizeof(CompoundStmt), alignof(CompoundStmt));
-  return new (Mem) CompoundStmt(Body);
+  return new (Mem) CompoundStmt(BegLoc, EndLoc, Body);
 }
 
 void CompoundStmt::dump() const {
   // TODO: Impl.
 }
 
-ReturnStmt::ReturnStmt(Expr *RetVal) : Stmt(SK_ReturnStmt), RetVal(RetVal) {}
+ReturnStmt::ReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                       Expr *RetVal)
+    : Stmt(SK_ReturnStmt, BegLoc, EndLoc), RetVal(RetVal) {}
 
-ReturnStmt *ReturnStmt::create(ASTContext &Ctx, Expr *RetVal) {
+ReturnStmt *ReturnStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                               SourceLocation EndLoc, Expr *RetVal) {
   void *Mem = Ctx.Allocate(sizeof(ReturnStmt), alignof(ReturnStmt));
-  return new (Mem) ReturnStmt(RetVal);
+  return new (Mem) ReturnStmt(BegLoc, EndLoc, RetVal);
 }
 
 void ReturnStmt::dump() const {
   // TODO: Impl.
 }
 
-NullStmt::NullStmt() : Stmt(SK_NullStmt) {}
+NullStmt::NullStmt(SourceLocation BegLoc, SourceLocation EndLoc)
+    : Stmt(SK_NullStmt, BegLoc, EndLoc) {}
 
-NullStmt *NullStmt::create(ASTContext &Ctx) {
+NullStmt *NullStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc) {
   void *Mem = Ctx.Allocate(sizeof(NullStmt), alignof(NullStmt));
-  return new (Mem) NullStmt();
+  return new (Mem) NullStmt(BegLoc, EndLoc);
 }
 
 void NullStmt::dump() const {}
 
-IfStmt::IfStmt(Expr *Cond, Stmt *Then, Stmt *Else)
-    : Stmt(SK_IfStmt), Cond(Cond), Then(Then), Else(Else) {}
+IfStmt::IfStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
+               Stmt *Then, Stmt *Else)
+    : Stmt(SK_IfStmt, BegLoc, EndLoc), Cond(Cond), Then(Then), Else(Else) {}
 
-IfStmt *IfStmt::create(ASTContext &Ctx, Expr *Cond, Stmt *Then, Stmt *Else) {
+IfStmt *IfStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                       SourceLocation EndLoc, Expr *Cond, Stmt *Then,
+                       Stmt *Else) {
   void *Mem = Ctx.Allocate(sizeof(IfStmt), alignof(IfStmt));
-  return new (Mem) IfStmt(Cond, Then, Else);
+  return new (Mem) IfStmt(BegLoc, EndLoc, Cond, Then, Else);
 }
 
 void IfStmt::dump() const {
   // TODO: Impl.
 }
 
-ForStmt::ForStmt(Stmt *Init, Expr *Cond, Expr *Inc, Stmt *Body)
-    : Stmt(SK_ForStmt), Init(Init), Cond(Cond), Inc(Inc), Body(Body) {}
+ForStmt::ForStmt(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *Init,
+                 Expr *Cond, Expr *Inc, Stmt *Body)
+    : Stmt(SK_ForStmt, BegLoc, EndLoc), Init(Init), Cond(Cond), Inc(Inc),
+      Body(Body) {}
 
-ForStmt *ForStmt::create(ASTContext &Ctx, Stmt *Init, Expr *Cond, Expr *Inc,
-                         Stmt *Body) {
+ForStmt *ForStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                         SourceLocation EndLoc, Stmt *Init, Expr *Cond,
+                         Expr *Inc, Stmt *Body) {
   void *Mem = Ctx.Allocate(sizeof(ForStmt), alignof(ForStmt));
-  return new (Mem) ForStmt(Init, Cond, Inc, Body);
+  return new (Mem) ForStmt(BegLoc, EndLoc, Init, Cond, Inc, Body);
 }
 
 void ForStmt::dump() const {
   // TODO: Impl.
 }
 
-WhileStmt::WhileStmt(Expr *Cond, Stmt *Body)
-    : Stmt(SK_WhileStmt), Cond(Cond), Body(Body) {}
+WhileStmt::WhileStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
+                     Stmt *Body)
+    : Stmt(SK_WhileStmt, BegLoc, EndLoc), Cond(Cond), Body(Body) {}
 
-WhileStmt *WhileStmt::create(ASTContext &Ctx, Expr *Cond, Stmt *Body) {
+WhileStmt *WhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                             SourceLocation EndLoc, Expr *Cond, Stmt *Body) {
   void *Mem = Ctx.Allocate(sizeof(WhileStmt), alignof(WhileStmt));
-  return new (Mem) WhileStmt(Cond, Body);
+  return new (Mem) WhileStmt(BegLoc, EndLoc, Cond, Body);
 }
 
 void WhileStmt::dump() const {
   // TODO: Impl
 }
 
-UnaryOperator::UnaryOperator(Expr *SubExpr, Opcode Op)
-    : Expr(SK_UnaryOperator), SubExpr(SubExpr), Kind(Op) {}
+UnaryOperator::UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
+                             Expr *SubExpr, Opcode Op)
+    : Expr(SK_UnaryOperator, BegLoc, EndLoc), SubExpr(SubExpr), Kind(Op) {}
 
-UnaryOperator *UnaryOperator::create(ASTContext &Ctx, Expr *SubExpr,
+UnaryOperator *UnaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                     SourceLocation EndLoc, Expr *SubExpr,
                                      Opcode Op) {
   void *Mem = Ctx.Allocate(sizeof(UnaryOperator), alignof(UnaryOperator));
-  return new (Mem) UnaryOperator(SubExpr, Op);
+  return new (Mem) UnaryOperator(BegLoc, EndLoc, SubExpr, Op);
 }
 
 std::string_view UnaryOperator::getOpcodeStr() const {
@@ -169,14 +189,18 @@ void UnaryOperator::dump() const {
   SubExpr->dump();
 }
 
-BinaryOperator::BinaryOperator(Expr *LHS, Expr *RHS, Opcode Op)
-    : Expr(SK_BinaryOperator), LHS(std::move(LHS)), RHS(std::move(RHS)),
-      Kind(Op) {}
+BinaryOperator::BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
+                               SourceLocation OpLoc, Expr *LHS, Expr *RHS,
+                               Opcode Op)
+    : Expr(SK_BinaryOperator, BegLoc, EndLoc), LHS(std::move(LHS)),
+      RHS(std::move(RHS)), Kind(Op) {}
 
-BinaryOperator *BinaryOperator::create(ASTContext &Ctx, Expr *LHS, Expr *RHS,
-                                       Opcode Op) {
+BinaryOperator *BinaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                       SourceLocation EndLoc,
+                                       SourceLocation OpLoc, Expr *LHS,
+                                       Expr *RHS, Opcode Op) {
   void *Mem = Ctx.Allocate(sizeof(BinaryOperator), alignof(BinaryOperator));
-  return new (Mem) BinaryOperator(LHS, RHS, Op);
+  return new (Mem) BinaryOperator(BegLoc, EndLoc, OpLoc, LHS, RHS, Op);
 }
 
 std::string_view BinaryOperator::getOpcodeStr() const {
@@ -217,21 +241,27 @@ void BinaryOperator::dump() const {
   RHS->dump();
 }
 
-IntergerLiteral::IntergerLiteral(std::int64_t Val)
-    : Expr(SK_IntergerLiteral), Val(Val) {}
+IntergerLiteral::IntergerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                                 std::int64_t Val)
+    : Expr(SK_IntergerLiteral, BegLoc, EndLoc), Val(Val) {}
 
-IntergerLiteral *IntergerLiteral::create(ASTContext &Ctx, std::int64_t Val) {
+IntergerLiteral *IntergerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                         SourceLocation EndLoc,
+                                         std::int64_t Val) {
   void *Mem = Ctx.Allocate(sizeof(IntergerLiteral), alignof(IntergerLiteral));
-  return new (Mem) IntergerLiteral(Val);
+  return new (Mem) IntergerLiteral(BegLoc, EndLoc, Val);
 }
 
 void IntergerLiteral::dump() const { printf("IntegerLiteral %ld\n", Val); }
 
-ParenExpr::ParenExpr(Expr *SubExpr) : Expr(SK_ParenExpr), SubExpr(SubExpr) {}
+ParenExpr::ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                     Expr *SubExpr)
+    : Expr(SK_ParenExpr, BegLoc, EndLoc), SubExpr(SubExpr) {}
 
-ParenExpr *ParenExpr::create(ASTContext &Ctx, Expr *SubExpr) {
+ParenExpr *ParenExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                             SourceLocation EndLoc, Expr *SubExpr) {
   void *Mem = Ctx.Allocate(sizeof(ParenExpr), alignof(ParenExpr));
-  return new (Mem) ParenExpr(SubExpr);
+  return new (Mem) ParenExpr(BegLoc, EndLoc, SubExpr);
 }
 
 void ParenExpr::dump() const {
@@ -240,11 +270,13 @@ void ParenExpr::dump() const {
   SubExpr->dump();
 }
 
-DeclRefExpr::DeclRefExpr(Decl *D) : Expr(SK_DeclRefExpr), D(D) {}
+DeclRefExpr::DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc, Decl *D)
+    : Expr(SK_DeclRefExpr, BegLoc, EndLoc), D(D) {}
 
-DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, Decl *D) {
+DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                 SourceLocation EndLoc, Decl *D) {
   void *Mem = Ctx.Allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
-  return new (Mem) DeclRefExpr(D);
+  return new (Mem) DeclRefExpr(BegLoc, EndLoc, D);
 }
 
 void DeclRefExpr::dump() const {

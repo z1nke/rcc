@@ -6,11 +6,6 @@
 
 namespace rcc {
 
-void Token::newNext(TokenKind Kind, const char *Start, const char *End,
-                    int Val) {
-  Next = std::make_unique<Token>(Kind, Start, End, Val);
-}
-
 int Token::getVal() const {
   assert(Kind == TK_Num && "expect a number");
   return Val;

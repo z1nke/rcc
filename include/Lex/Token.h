@@ -1,7 +1,6 @@
 #ifndef RCC_LEX_TOKEN_H
 #define RCC_LEX_TOKEN_H
 
-#include <memory>
 #include <string_view>
 
 namespace rcc {
@@ -41,14 +40,10 @@ public:
   Token(TokenKind Kind, const char *Start, const char *End, int Val = 0)
       : Loc(Start), Kind(Kind), Val(Val), Len(End - Start) {}
 
-  void newNext(TokenKind Kind, const char *Start, const char *End, int Val = 0);
-
-  Token *getNext() const { return Next.get(); }
+  Token *getNext() const { return Next; }
+  void setNext(Token *Next) { this->Next = Next; }
 
   std::string_view getIdentifer() const;
-
-  std::unique_ptr<Token> takeNext() { return std::move(Next); }
-
   int getVal() const;
 
   bool is(TokenKind TK) const { return TK == Kind; }
@@ -60,6 +55,8 @@ public:
 
   bool isNot(TokenKind TK) const { return TK != Kind; }
   const char *getLoc() const { return Loc; }
+  int getLen() const { return Len; }
+
   TokenKind getKind() const { return Kind; }
   const char *getKindStr() const;
   static const char *getKindStr(TokenKind Kind);
@@ -68,7 +65,7 @@ public:
 
 private:
   const char *Loc = nullptr;
-  std::unique_ptr<Token> Next;
+  Token *Next = nullptr;
   TokenKind Kind = TK_Unknown;
   int Val = 0;
   int Len = 0;

@@ -13,11 +13,12 @@ class Lexer;
 class FunctionDecl;
 class VarDecl;
 class ASTContext;
+class SourceManager;
 class Diagnostic;
 
 class Parser {
 public:
-  Parser(std::unique_ptr<Token> CurTok, ASTContext &Ctx);
+  Parser(Token *CurTok, ASTContext &Ctx, SourceManager &SM);
 
   ~Parser();
 
@@ -25,6 +26,8 @@ public:
 
 private:
   Stmt *parseStmt();
+  Stmt *parseNullStmt();
+  Stmt *parseReturnStmt();
   Stmt *parseCompoundStmt();
   Stmt *parseIfStmt();
   Stmt *parseForStmt();
@@ -49,11 +52,13 @@ private:
 
   void expect(Token::TokenKind Kind, const char *Prompt);
   void skip(Token::TokenKind Kind);
+  void skip();
   bool tryConsume(Token::TokenKind Kind);
 
 private:
-  std::unique_ptr<Token> CurTok;
+  Token *CurTok;
   ASTContext &Ctx;
+  SourceManager &SM;
   Diagnostic &Diag;
   std::vector<VarDecl *> LocalVars;
 };

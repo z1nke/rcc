@@ -12,25 +12,21 @@
 using namespace rcc;
 
 int main(int Argc, char **Argv) {
-  SourceManager SM;
-  Diagnostic Diag(SM);
-
   if (Argc != 2) {
-    Diag.fatal("%s: invalid number of arguments", Argv[0]);
+    fprintf(stderr, "%s: invalid number of arguments", Argv[0]);
     return 1;
   }
 
+  char *CodeStr = Argv[1];
+  SourceManager SM(CodeStr);
+  Diagnostic Diag(SM);
   Lexer TheLexer(Diag);
-  SM.setStart(Argv[1]);
-  auto TokList = TheLexer.tokenize();
-  const Token *Tok = TokList.get();
-  if (!Tok)
+  Token *Toks = TheLexer.tokenize(CodeStr);
+  if (!Toks)
     Diag.fatal("tokenize failed");
 
-  //TokList->dump();
-
   ASTContext Ctx(Diag);
-  Parser P(std::move(TokList), Ctx);
+  Parser P(Toks, Ctx, SM);
   FunctionDecl *S = P.parse();
   CodeGen CG(Diag);
   CG.codegen(S);

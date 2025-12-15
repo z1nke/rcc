@@ -91,7 +91,7 @@ void CodeGen::genStmt(const Stmt *S) {
     genWhileStmt(cast<WhileStmt>(S));
     break;
   default:
-    Diag.fatal("invalid statement: %d", S->getKind());
+    Diag.fatalAt(S->getBeginLoc(), "invalid statement: %d", S->getKind());
   }
 }
 
@@ -178,7 +178,7 @@ void CodeGen::genExpr(const Expr *E) {
     printf("  ld a0, 0(a0)\n");
     break;
   default:
-    RCC_UNREACHABLE("[CodeGen] Unknown expression kind");
+    Diag.fatalAt(E->getBeginLoc(), "invalid expression");
   }
 }
 
@@ -201,7 +201,7 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   if (BO->getOpcode() == BinaryOperator::BO_Assign) {
     const auto *DRE = dyn_cast<DeclRefExpr>(BO->getLHS());
     if (!DRE)
-      Diag.fatal("not a lvalue");
+      Diag.fatalAt(DRE->getBeginLoc(), "not a lvalue");
 
     genAddr(DRE);
     push();
@@ -265,8 +265,8 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     printf("  xori a0, a0, 1\n");
     break;
   default:
-    RCC_UNREACHABLE("[CodeGen] Unknown binary opcode");
-    break;
+    Diag.fatalAt(BO->getOpLocation(), "invalid binary opcode: %d",
+                 BO->getOpcode());
   }
 }
 
@@ -280,7 +280,8 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     printf("  neg a0, a0\n");
     break;
   default:
-    RCC_UNREACHABLE("[CodeGen] Unknown unary opcode");
+    Diag.fatalAt(UO->getBeginLoc(), "invalid unary opcode: %d",
+                 UO->getOpcode());
   }
 }
 

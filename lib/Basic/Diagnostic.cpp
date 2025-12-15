@@ -1,6 +1,7 @@
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceManager.h"
 
+#include <cassert>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -30,10 +31,14 @@
 namespace rcc {
 
 [[noreturn]] void Diagnostic::fatalAt(const char *Loc, const char *Fmt, ...) {
-  const char *Start = SM.getStart();
-  fprintf(stderr, "%s\n", Start);
-  int Offset = Loc - SM.getStart();
-  fprintf(stderr, "%*s", Offset, "^ ");
+  va_list AP;
+  va_start(AP, Fmt);
+  vfatal(Loc, Fmt, AP);
+}
+
+[[noreturn]] void Diagnostic::fatalAt(SourceLocation SL, const char *Fmt, ...) {
+  assert(SL.isValid());
+  const char *Loc = SM.getLoc(SL);
   va_list AP;
   va_start(AP, Fmt);
   vfatal(Loc, Fmt, AP);
@@ -47,6 +52,11 @@ namespace rcc {
 
 [[noreturn]] void Diagnostic::vfatal(const char *Loc, const char *Fmt,
                                      std::va_list AP) {
+  const char *Start = SM.getBegin();
+  fprintf(stderr, "%s\n", Start);
+  int Offset = Loc - SM.getBegin();
+  fprintf(stderr, "%*s^ ", Offset, "");
+
 #if HAS_COLOR
   const bool HasColor = ISATTY(FILENO(stderr));
   if (HasColor)

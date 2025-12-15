@@ -20,8 +20,7 @@ Lexer::Lexer(Diagnostic &Diag) : Diag(Diag) {
               {"while", Token::TK_While}};
 }
 
-std::unique_ptr<Token> Lexer::tokenize() {
-  char *P = Diag.getSourceManager().getStart();
+Token *Lexer::tokenize(char *P) {
   Token Dummy;
   Token *Curr = &Dummy;
 
@@ -43,7 +42,7 @@ std::unique_ptr<Token> Lexer::tokenize() {
         ++P;
       } while (isIdent1(*P));
       auto Kind = getTokenKindOfIdent(Start, P);
-      Curr->newNext(Kind, Start, P);
+      Curr->setNext(newToken(Kind, Start, P));
       Curr = Curr->getNext();
       continue;
     }
@@ -107,20 +106,20 @@ std::unique_ptr<Token> Lexer::tokenize() {
     }
   }
 
-  Curr->newNext(Token::TK_EOF, P, P);
-  return Dummy.takeNext();
+  Curr->setNext(newToken(Token::TK_EOF, P, P));
+  return Dummy.getNext();
 }
 
 void Lexer::lexNumericLiteral(Token *&Curr, char *&P) {
   const char *Start = P;
   int Val = std::strtoul(P, &P, 10);
-  Curr->newNext(Token::TK_Num, Start, P, Val);
+  Curr->setNext(newToken(Token::TK_Num, Start, P, Val));
   Curr = Curr->getNext();
 }
 
 void Lexer::lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P,
                           int Len) {
-  Curr->newNext(Kind, P, P + Len);
+  Curr->setNext(newToken(Kind, P, P + Len));
   Curr = Curr->getNext();
   P += Len;
 }
@@ -137,6 +136,12 @@ Token::TokenKind Lexer::getTokenKindOfIdent(const char *Start,
                                             const char *End) {
   std::string_view Ident(Start, End - Start);
   return getTokenKindOfIdent(Ident);
+}
+
+Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
+                       const char *End, int Val) {
+  void *Mem = TokAlloc.Allocate(sizeof(Token), alignof(Token));
+  return new (Mem) Token(Kind, Start, End, Val);
 }
 
 } // namespace rcc

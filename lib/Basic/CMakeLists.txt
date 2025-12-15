@@ -1,5 +1,6 @@
 add_library(Basic
   Diagnostic.cpp
+  SourceManager.cpp
   Unreachable.cpp
 )
 

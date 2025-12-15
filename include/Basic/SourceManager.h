@@ -1,20 +1,22 @@
 #ifndef RCC_BASIC_SOURCEMANAGER_H
 #define RCC_BASIC_SOURCEMANAGER_H
 
+#include "Basic/SourceLocation.h"
 namespace rcc {
 
+class Token;
 class SourceManager {
 public:
-  SourceManager() = default;
+  SourceManager(const char *Begin) : Begin(Begin) {}
 
-  SourceManager(char *Start) : Start(Start) {}
+  const char *getBegin() const { return Begin; }
+  const char *getLoc(SourceLocation Loc) const;
 
-  char *getStart() const { return Start; }
-
-  void setStart(char *Start) { this->Start = Start; }
+  SourceLocation createBeginLocation(const Token *Tok);
+  SourceLocation createEndLocation(const Token *Tok);
 
 private:
-  char *Start = nullptr;
+  const char *Begin = nullptr;
 };
 
 } // namespace rcc

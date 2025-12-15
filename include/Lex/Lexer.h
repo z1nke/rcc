@@ -1,11 +1,13 @@
 #ifndef RCC_LEX_LEXER_H
 #define RCC_LEX_LEXER_H
 
+#include "Basic/Allocator.h"
 #include "Basic/Diagnostic.h"
 #include "Lex/Token.h"
 
-#include <unordered_map>
 #include <optional>
+#include <unordered_map>
+#include <vector>
 
 namespace rcc {
 
@@ -13,7 +15,7 @@ class Lexer {
 public:
   Lexer(Diagnostic &Diag);
 
-  std::unique_ptr<Token> tokenize();
+  Token *tokenize(char *P);
 
 private:
   void lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P,
@@ -24,8 +26,13 @@ private:
   Token::TokenKind getTokenKindOfIdent(std::string_view Ident);
   Token::TokenKind getTokenKindOfIdent(const char *Start, const char *End);
 
+  Token *newToken(Token::TokenKind Kind, const char *Start, const char *End,
+                  int Val = 0);
+
 private:
   Diagnostic &Diag;
+  std::vector<Token *> CachedToks;
+  BumpPtrAllocator TokAlloc;
   std::unordered_map<std::string_view, Token::TokenKind> Keywords;
 };
 

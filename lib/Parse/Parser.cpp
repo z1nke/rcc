@@ -3,12 +3,13 @@
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
 #include "Basic/Casting.h"
+#include "Basic/SourceManager.h"
 #include "Basic/Unreachable.h"
 
 namespace rcc {
 
-Parser::Parser(std::unique_ptr<Token> CurTok, ASTContext &Ctx)
-    : CurTok(std::move(CurTok)), Ctx(Ctx), Diag(Ctx.getDiagnostic()) {}
+Parser::Parser(Token *CurTok, ASTContext &Ctx, SourceManager &SM)
+    : CurTok(CurTok), Ctx(Ctx), SM(SM), Diag(Ctx.getDiagnostic()) {}
 
 Parser::~Parser() = default;
 
@@ -17,12 +18,14 @@ FunctionDecl *Parser::parse() {
   Stmt Head(Stmt::NoStmtKind);
   Stmt *CurStmt = &Head;
 
+  auto BegLoc = SM.createBeginLocation(CurTok);
   while (CurTok->isNot(Token::TK_EOF)) {
     CurStmt->setNext(parseStmt());
     CurStmt = CurStmt->getNext();
   }
 
-  auto *FD = FunctionDecl::create(Ctx, Head.getNext());
+  auto EndLoc = CurStmt->getEndLoc();
+  auto *FD = FunctionDecl::create(Ctx, BegLoc, EndLoc, Head.getNext());
   FD->setLocalVars(std::move(LocalVars));
   return FD;
 }
@@ -33,32 +36,51 @@ FunctionDecl *Parser::parse() {
 //     | null-stmt
 //     | expr-stmt
 Stmt *Parser::parseStmt() {
-  if (tryConsume(Token::TK_Return)) {
-    auto *RetStmt = ReturnStmt::create(Ctx, parseExpr());
-    skip(Token::TK_Semicolon);
-    return RetStmt;
-  }
-
-  if (tryConsume(Token::TK_LBrace))
+  switch (CurTok->getKind()) {
+  case Token::TK_Semicolon:
+    return parseNullStmt();
+  case Token::TK_Return:
+    return parseReturnStmt();
+  case Token::TK_LBrace:
     return parseCompoundStmt();
-
-  if (tryConsume(Token::TK_Semicolon))
-    return NullStmt::create(Ctx);
-
-  if (tryConsume(Token::TK_If))
+  case Token::TK_If:
     return parseIfStmt();
-
-  if (tryConsume(Token::TK_For))
+  case Token::TK_For:
     return parseForStmt();
-
-  if (tryConsume(Token::TK_While))
+  case Token::TK_While:
     return parseWhileStmt();
+  default:
+    break;
+  }
 
   return parseExprStmt();
 }
 
+// null-stmt: ';'
+Stmt *Parser::parseNullStmt() {
+  assert(CurTok->is(Token::TK_Semicolon));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
+  return NullStmt::create(Ctx, BegLoc, BegLoc.getLocWithOffset(1));
+}
+
+// return-stmt: 'return' expr ';'
+Stmt *Parser::parseReturnStmt() {
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  assert(CurTok->is(Token::TK_Return));
+  skip();
+  Expr *E = parseExpr();
+  auto EndLoc = SM.createBeginLocation(CurTok + 1);
+  skip(Token::TK_Semicolon);
+  auto *RetStmt = ReturnStmt::create(Ctx, BegLoc, EndLoc, E);
+  return RetStmt;
+}
+
 // compound-stmt: '{' stmt* '}'
 Stmt *Parser::parseCompoundStmt() {
+  assert(CurTok->is(Token::TK_LBrace));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
   Stmt Head(Stmt::NoStmtKind);
   Stmt *CurStmt = &Head;
   while (CurTok->isNot(Token::TK_RBRace)) {
@@ -66,12 +88,16 @@ Stmt *Parser::parseCompoundStmt() {
     CurStmt = CurStmt->getNext();
   }
 
+  auto EndLoc = SM.createBeginLocation(CurTok + 1);
   skip(Token::TK_RBRace);
-  return CompoundStmt::create(Ctx, Head.getNext());
+  return CompoundStmt::create(Ctx, BegLoc, EndLoc, Head.getNext());
 }
 
 // if-stmt: 'if' '(' expr ')' stmt { 'else' stmt }
 Stmt *Parser::parseIfStmt() {
+  assert(CurTok->is(Token::TK_If));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
   skip(Token::TK_LParen);
   Expr *Cond = parseExpr();
   skip(Token::TK_RParen);
@@ -80,11 +106,15 @@ Stmt *Parser::parseIfStmt() {
   if (tryConsume(Token::TK_Else))
     Else = parseStmt();
 
-  return IfStmt::create(Ctx, Cond, Then, Else);
+  auto EndLoc = Else ? Else->getEndLoc() : Then->getEndLoc();
+  return IfStmt::create(Ctx, BegLoc, EndLoc, Cond, Then, Else);
 }
 
 // for-stmt: 'for' '(' { init-stmt } { cond-expr } ';' { inc-expr } ')' stmt
 Stmt *Parser::parseForStmt() {
+  assert(CurTok->is(Token::TK_For));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
   skip(Token::TK_LParen);
   Stmt *Init = parseStmt();
   if (isa<NullStmt>(Init))
@@ -101,16 +131,19 @@ Stmt *Parser::parseForStmt() {
   skip(Token::TK_RParen);
 
   Stmt *Body = parseStmt();
-  return ForStmt::create(Ctx, Init, Cond, Inc, Body);
+  return ForStmt::create(Ctx, BegLoc, Body->getEndLoc(), Init, Cond, Inc, Body);
 }
 
 // while-stmt: 'while' '(' cond-expr ')' stmt
 Stmt *Parser::parseWhileStmt() {
+  assert(CurTok->is(Token::TK_While));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
   skip(Token::TK_LParen);
   Expr *Cond = parseExpr();
   skip(Token::TK_RParen);
   Stmt *Body = parseStmt();
-  return WhileStmt::create(Ctx, Cond, Body);
+  return WhileStmt::create(Ctx, BegLoc, Body->getEndLoc(), Cond, Body);
 }
 
 // expr-stmt: expr ';'
@@ -126,9 +159,11 @@ Expr *Parser::parseExpr() { return parseAssign(); }
 // assign-expr: equality-expr { '=' assign-expr }
 Expr *Parser::parseAssign() {
   Expr *LHS = parseEqualityExpr();
+  auto OpLoc = SM.createBeginLocation(CurTok);
   if (tryConsume(Token::TK_Equal)) {
-    LHS = BinaryOperator::create(Ctx, LHS, parseAssign(),
-                                 BinaryOperator::BO_Assign);
+    Expr *RHS = parseAssign();
+    LHS = BinaryOperator::create(Ctx, LHS->getBeginLoc(), RHS->getEndLoc(),
+                                 OpLoc, LHS, RHS, BinaryOperator::BO_Assign);
   }
   return LHS;
 }
@@ -173,9 +208,11 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
 Expr *Parser::parseUnaryExpr() {
   if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
-    CurTok = CurTok->takeNext();
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    CurTok = CurTok->getNext();
     Expr *SubExpr = parseUnaryExpr();
-    return UnaryOperator::create(Ctx, SubExpr, Op);
+    auto EndLoc = SubExpr->getEndLoc();
+    return UnaryOperator::create(Ctx, BegLoc, EndLoc, SubExpr, Op);
   }
 
   return parsePrimaryExpr();
@@ -188,20 +225,26 @@ Expr *Parser::parsePrimaryExpr() {
 
   if (CurTok->is(Token::TK_Num)) {
     auto Val = CurTok->getVal();
-    CurTok = CurTok->takeNext(); // Eat the number.
-    return IntergerLiteral::create(Ctx, Val);
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    auto EndLoc = SM.createEndLocation(CurTok);
+    CurTok = CurTok->getNext();
+    return IntergerLiteral::create(Ctx, BegLoc, EndLoc, Val);
   }
 
   if (CurTok->is(Token::TK_Ident)) {
     std::string_view Ident = CurTok->getIdentifer();
-    CurTok = CurTok->takeNext();
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    auto EndLoc = SM.createEndLocation(CurTok);
+    CurTok = CurTok->getNext();
     VarDecl *Var = findVar(Ident);
     if (!Var) {
-      VarDecl *NewVar = VarDecl::create(Ctx, std::string(Ident));
+      // FIXME: Invalid location.
+      SourceLocation Loc;
+      VarDecl *NewVar = VarDecl::create(Ctx, Loc, Loc, std::string(Ident));
       LocalVars.push_back(NewVar);
-      return DeclRefExpr::create(Ctx, NewVar);
+      return DeclRefExpr::create(Ctx, BegLoc, EndLoc, NewVar);
     }
-    return DeclRefExpr::create(Ctx, Var);
+    return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var);
   }
 
   Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");
@@ -210,10 +253,13 @@ Expr *Parser::parsePrimaryExpr() {
 
 // paren-expr = '(' expr ')'
 Expr *Parser::parseParenExpr() {
-  skip(Token::TK_LParen);
+  assert(CurTok->is(Token::TK_LParen));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
   Expr *E = parseExpr();
+  auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RParen);
-  return ParenExpr::create(Ctx, E);
+  return ParenExpr::create(Ctx, BegLoc, EndLoc, E);
 }
 
 static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
@@ -248,10 +294,12 @@ Expr *Parser::parseBinaryOperator() {
   Expr *LHS = (this->*ParseOperand)();
   while (true) {
     if (CurTok->isOneOf(Tks...)) {
+      auto OpLoc = SM.createBeginLocation(CurTok);
       auto Op = getBinaryOpcode(CurTok->getKind());
-      CurTok = CurTok->takeNext();
+      CurTok = CurTok->getNext();
       Expr *RHS = (this->*ParseOperand)();
-      LHS = BinaryOperator::create(Ctx, LHS, RHS, Op);
+      LHS = BinaryOperator::create(Ctx, LHS->getBeginLoc(), RHS->getEndLoc(),
+                                   OpLoc, LHS, RHS, Op);
       continue;
     }
 
@@ -277,12 +325,14 @@ void Parser::expect(Token::TokenKind Kind, const char *Prompt) {
 
 void Parser::skip(Token::TokenKind Kind) {
   expect(Kind, Token::getKindStr(Kind));
-  CurTok = CurTok->takeNext();
+  CurTok = CurTok->getNext();
 }
+
+void Parser::skip() { CurTok = CurTok->getNext(); }
 
 bool Parser::tryConsume(Token::TokenKind Kind) {
   if (CurTok->is(Kind)) {
-    CurTok = CurTok->takeNext();
+    CurTok = CurTok->getNext();
     return true;
   }
 
