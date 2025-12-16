@@ -65,6 +65,8 @@ const char *Token::getKindStr(TokenKind Kind) {
     return "{";
   case TK_RBRace:
     return "}";
+  case TK_Amp:
+    return "&";
   case TK_Ident:
     return "identifier";
   case TK_Return:

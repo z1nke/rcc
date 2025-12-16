@@ -25,6 +25,7 @@ public:
     TK_Semicolon,
     TK_LBrace,
     TK_RBRace,
+    TK_Amp,
     TK_Num,
     TK_Ident,
     TK_Return,

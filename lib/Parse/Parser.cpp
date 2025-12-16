@@ -199,14 +199,19 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
     return UnaryOperator::UO_Plus;
   case Token::TK_Minus:
     return UnaryOperator::UO_Minus;
+  case Token::TK_Amp:
+    return UnaryOperator::UO_Addrof;
+  case Token::TK_Star:
+    return UnaryOperator::UO_Deref;
   default:
     RCC_UNREACHABLE("Unknown binary operator");
   }
 }
 
-// unary-expr = ('+' | '-') (unary-expr | primary-expr)
+// unary-expr = ('+' | '-' | '*' | '&' ) (unary-expr | primary-expr)
 Expr *Parser::parseUnaryExpr() {
-  if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus)) {
+  if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus, Token::TK_Star,
+                      Token::TK_Amp)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
     auto BegLoc = SM.createBeginLocation(CurTok);
     CurTok = CurTok->getNext();

@@ -5,7 +5,6 @@
 #include "Basic/Diagnostic.h"
 #include "Lex/Token.h"
 
-#include <optional>
 #include <unordered_map>
 #include <vector>
 

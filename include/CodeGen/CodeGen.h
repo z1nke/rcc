@@ -11,7 +11,6 @@ class ForStmt;
 class WhileStmt;
 class BinaryOperator;
 class UnaryOperator;
-class DeclRefExpr;
 class Diagnostic;
 
 class CodeGen {
@@ -28,7 +27,7 @@ private:
   void genExpr(const Expr *E);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
-  void genAddr(const DeclRefExpr *DRE);
+  void genAddr(const Expr *E);
 
 private:
   void push();

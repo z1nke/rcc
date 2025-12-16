@@ -207,6 +207,8 @@ public:
   enum Opcode {
     UO_Plus,
     UO_Minus,
+    UO_Addrof,
+    UO_Deref,
   };
 
   static UnaryOperator *create(ASTContext &Ctx, SourceLocation BegLoc,

@@ -124,6 +124,10 @@ std::string_view UnaryOperator::getOpcodeStr() const {
     return "+";
   case UO_Minus:
     return "-";
+  case UO_Addrof:
+    return "&";
+  case UO_Deref:
+    return "*";
   default:
     RCC_UNREACHABLE("[AST] Unknown unary opcode");
   }

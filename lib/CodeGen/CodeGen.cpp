@@ -199,11 +199,7 @@ static const char *getBinaryOpcodeInstName(BinaryOperator::Opcode Op) {
 
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   if (BO->getOpcode() == BinaryOperator::BO_Assign) {
-    const auto *DRE = dyn_cast<DeclRefExpr>(BO->getLHS());
-    if (!DRE)
-      Diag.fatalAt(DRE->getBeginLoc(), "not a lvalue");
-
-    genAddr(DRE);
+    genAddr(BO->getLHS());
     push();
     // a0 = rhs
     genExpr(BO->getRHS());
@@ -279,18 +275,43 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     genExpr(UO->getSubExpr());
     printf("  neg a0, a0\n");
     break;
+  case UnaryOperator::UO_Addrof:
+    genAddr(UO->getSubExpr());
+    break;
+  case UnaryOperator::UO_Deref:
+    genExpr(UO->getSubExpr());
+    printf("  ld a0, 0(a0)\n"); // a0 = *addr
+    break;
   default:
     Diag.fatalAt(UO->getBeginLoc(), "invalid unary opcode: %d",
                  UO->getOpcode());
   }
 }
 
-void CodeGen::genAddr(const DeclRefExpr *DRE) {
-  const auto *Var = dyn_cast<VarDecl>(DRE->getDecl());
-  if (!Var)
-    Diag.fatal("expect a variable");
+void CodeGen::genAddr(const Expr *E) {
+  switch (E->getKind()) {
+  case Stmt::SK_DeclRefExpr: {
+    const auto *Ref = cast<DeclRefExpr>(E);
+    const auto *Var = dyn_cast<VarDecl>(Ref->getDecl());
+    if (!Var)
+      Diag.fatalAt(Ref->getBeginLoc(), "expect a variable");
 
-  printf("  addi a0, fp, %d\n", -Var->getOffset());
+    printf("  addi a0, fp, %d\n", -Var->getOffset());
+    return;
+  }
+  case Stmt::SK_UnaryOperator: {
+    const auto *UO = cast<UnaryOperator>(E);
+    if (UO->getOpcode() == UnaryOperator::UO_Deref) {
+      genExpr(UO->getSubExpr());
+      return;
+    }
+    break;
+  }
+  default:
+    break;
+  }
+
+  Diag.fatalAt(E->getBeginLoc(), "not a lvalue");
 }
 
 void CodeGen::push() {
