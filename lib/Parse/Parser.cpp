@@ -5,11 +5,12 @@
 #include "Basic/Casting.h"
 #include "Basic/SourceManager.h"
 #include "Basic/Unreachable.h"
+#include "Sema/Sema.h"
 
 namespace rcc {
 
-Parser::Parser(Token *CurTok, ASTContext &Ctx, SourceManager &SM)
-    : CurTok(CurTok), Ctx(Ctx), SM(SM), Diag(Ctx.getDiagnostic()) {}
+Parser::Parser(Token *CurTok, ASTContext &Ctx, Sema &S, SourceManager &SM)
+    : CurTok(CurTok), Ctx(Ctx), S(S), SM(SM), Diag(Ctx.getDiagnostic()) {}
 
 Parser::~Parser() = default;
 
@@ -25,7 +26,9 @@ FunctionDecl *Parser::parse() {
   }
 
   auto EndLoc = CurStmt->getEndLoc();
-  auto *FD = FunctionDecl::create(Ctx, BegLoc, EndLoc, Head.getNext());
+  QualType FT = Ctx.getFunctionType();
+  Stmt *Body = Head.getNext();
+  auto *FD = FunctionDecl::create(Ctx, BegLoc, EndLoc, FT, Body);
   FD->setLocalVars(std::move(LocalVars));
   return FD;
 }
@@ -59,9 +62,9 @@ Stmt *Parser::parseStmt() {
 // null-stmt: ';'
 Stmt *Parser::parseNullStmt() {
   assert(CurTok->is(Token::TK_Semicolon));
-  auto BegLoc = SM.createBeginLocation(CurTok);
+  auto SemiLoc = SM.createBeginLocation(CurTok);
   skip();
-  return NullStmt::create(Ctx, BegLoc, BegLoc.getLocWithOffset(1));
+  return S.actOnNullStmt(SemiLoc);
 }
 
 // return-stmt: 'return' expr ';'
@@ -70,10 +73,9 @@ Stmt *Parser::parseReturnStmt() {
   assert(CurTok->is(Token::TK_Return));
   skip();
   Expr *E = parseExpr();
-  auto EndLoc = SM.createBeginLocation(CurTok + 1);
+  auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Semicolon);
-  auto *RetStmt = ReturnStmt::create(Ctx, BegLoc, EndLoc, E);
-  return RetStmt;
+  return S.actOnReturnStmt(BegLoc, EndLoc, E);
 }
 
 // compound-stmt: '{' stmt* '}'
@@ -90,7 +92,7 @@ Stmt *Parser::parseCompoundStmt() {
 
   auto EndLoc = SM.createBeginLocation(CurTok + 1);
   skip(Token::TK_RBRace);
-  return CompoundStmt::create(Ctx, BegLoc, EndLoc, Head.getNext());
+  return S.actOnCompoundStmt(BegLoc, EndLoc, Head.getNext());
 }
 
 // if-stmt: 'if' '(' expr ')' stmt { 'else' stmt }
@@ -106,8 +108,7 @@ Stmt *Parser::parseIfStmt() {
   if (tryConsume(Token::TK_Else))
     Else = parseStmt();
 
-  auto EndLoc = Else ? Else->getEndLoc() : Then->getEndLoc();
-  return IfStmt::create(Ctx, BegLoc, EndLoc, Cond, Then, Else);
+  return S.actOnIfStmt(BegLoc, Cond, Then, Else);
 }
 
 // for-stmt: 'for' '(' { init-stmt } { cond-expr } ';' { inc-expr } ')' stmt
@@ -129,9 +130,8 @@ Stmt *Parser::parseForStmt() {
   if (CurTok->isNot(Token::TK_RParen))
     Inc = parseExpr();
   skip(Token::TK_RParen);
-
   Stmt *Body = parseStmt();
-  return ForStmt::create(Ctx, BegLoc, Body->getEndLoc(), Init, Cond, Inc, Body);
+  return S.actOnForStmt(BegLoc, Init, Cond, Inc, Body);
 }
 
 // while-stmt: 'while' '(' cond-expr ')' stmt
@@ -143,7 +143,7 @@ Stmt *Parser::parseWhileStmt() {
   Expr *Cond = parseExpr();
   skip(Token::TK_RParen);
   Stmt *Body = parseStmt();
-  return WhileStmt::create(Ctx, BegLoc, Body->getEndLoc(), Cond, Body);
+  return S.actOnWhileStmt(Ctx, BegLoc, Cond, Body);
 }
 
 // expr-stmt: expr ';'
@@ -162,8 +162,7 @@ Expr *Parser::parseAssign() {
   auto OpLoc = SM.createBeginLocation(CurTok);
   if (tryConsume(Token::TK_Equal)) {
     Expr *RHS = parseAssign();
-    LHS = BinaryOperator::create(Ctx, LHS->getBeginLoc(), RHS->getEndLoc(),
-                                 OpLoc, LHS, RHS, BinaryOperator::BO_Assign);
+    LHS = S.actOnBinaryOperator(OpLoc, LHS, RHS, BinaryOperator::BO_Assign);
   }
   return LHS;
 }
@@ -189,7 +188,7 @@ Expr *Parser::parseAddExpr() {
 
 // mul-expr: unary-expr { ('*' | '/') unary-expr }
 Expr *Parser::parseMulExpr() {
-  return parseBinaryOperator<&Parser::parseUnaryExpr, Token::TK_Star,
+  return parseBinaryOperator<&Parser::parseUnaryOperator, Token::TK_Star,
                              Token::TK_Slash>();
 }
 
@@ -209,15 +208,14 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
 }
 
 // unary-expr = ('+' | '-' | '*' | '&' ) (unary-expr | primary-expr)
-Expr *Parser::parseUnaryExpr() {
+Expr *Parser::parseUnaryOperator() {
   if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus, Token::TK_Star,
                       Token::TK_Amp)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
-    auto BegLoc = SM.createBeginLocation(CurTok);
+    auto OpLoc = SM.createBeginLocation(CurTok);
     CurTok = CurTok->getNext();
-    Expr *SubExpr = parseUnaryExpr();
-    auto EndLoc = SubExpr->getEndLoc();
-    return UnaryOperator::create(Ctx, BegLoc, EndLoc, SubExpr, Op);
+    Expr *SubExpr = parseUnaryOperator();
+    return S.actOnUnaryOperator(OpLoc, SubExpr, Op);
   }
 
   return parsePrimaryExpr();
@@ -233,7 +231,7 @@ Expr *Parser::parsePrimaryExpr() {
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
     CurTok = CurTok->getNext();
-    return IntergerLiteral::create(Ctx, BegLoc, EndLoc, Val);
+    return IntergerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Val);
   }
 
   if (CurTok->is(Token::TK_Ident)) {
@@ -245,11 +243,12 @@ Expr *Parser::parsePrimaryExpr() {
     if (!Var) {
       // FIXME: Invalid location.
       SourceLocation Loc;
-      VarDecl *NewVar = VarDecl::create(Ctx, Loc, Loc, std::string(Ident));
+      VarDecl *NewVar =
+          VarDecl::create(Ctx, Loc, Loc, QualType(), std::string(Ident));
       LocalVars.push_back(NewVar);
-      return DeclRefExpr::create(Ctx, BegLoc, EndLoc, NewVar);
+      return DeclRefExpr::create(Ctx, BegLoc, EndLoc, QualType(), NewVar);
     }
-    return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var);
+    return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var->getType(), Var);
   }
 
   Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");
@@ -264,7 +263,7 @@ Expr *Parser::parseParenExpr() {
   Expr *E = parseExpr();
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RParen);
-  return ParenExpr::create(Ctx, BegLoc, EndLoc, E);
+  return S.actOnParenExpr(BegLoc, EndLoc, E);
 }
 
 static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
@@ -303,8 +302,7 @@ Expr *Parser::parseBinaryOperator() {
       auto Op = getBinaryOpcode(CurTok->getKind());
       CurTok = CurTok->getNext();
       Expr *RHS = (this->*ParseOperand)();
-      LHS = BinaryOperator::create(Ctx, LHS->getBeginLoc(), RHS->getEndLoc(),
-                                   OpLoc, LHS, RHS, Op);
+      LHS = S.actOnBinaryOperator(OpLoc, LHS, RHS, Op);
       continue;
     }
 

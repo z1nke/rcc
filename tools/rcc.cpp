@@ -8,6 +8,7 @@
 #include "CodeGen/CodeGen.h"
 #include "Lex/Lexer.h"
 #include "Parse/Parser.h"
+#include "Sema/Sema.h"
 
 using namespace rcc;
 
@@ -26,9 +27,11 @@ int main(int Argc, char **Argv) {
     Diag.fatal("tokenize failed");
 
   ASTContext Ctx(Diag);
-  Parser P(Toks, Ctx, SM);
-  FunctionDecl *S = P.parse();
+  Ctx.initBuiltinTypes();
+  Sema S(Ctx, Diag);
+  Parser P(Toks, Ctx, S, SM);
+  FunctionDecl *FD = P.parse();
   CodeGen CG(Diag);
-  CG.codegen(S);
+  CG.codegen(FD);
   return 0;
 }

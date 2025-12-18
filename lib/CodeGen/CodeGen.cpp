@@ -182,24 +182,11 @@ void CodeGen::genExpr(const Expr *E) {
   }
 }
 
-static const char *getBinaryOpcodeInstName(BinaryOperator::Opcode Op) {
-  switch (Op) {
-  case BinaryOperator::BO_Add:
-    return "add";
-  case BinaryOperator::BO_Sub:
-    return "sub";
-  case BinaryOperator::BO_Mul:
-    return "mul";
-  case BinaryOperator::BO_Div:
-    return "div";
-  default:
-    RCC_UNREACHABLE("Unknown binary opcode");
-  }
-}
-
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
+  const auto *LHS = BO->getLHS();
+  const auto *RHS = BO->getRHS();
   if (BO->getOpcode() == BinaryOperator::BO_Assign) {
-    genAddr(BO->getLHS());
+    genAddr(LHS);
     push();
     // a0 = rhs
     genExpr(BO->getRHS());
@@ -211,19 +198,54 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   }
 
   // a0 op a1
-  genExpr(BO->getRHS());
+  genExpr(RHS);
   push();
-  genExpr(BO->getLHS());
+  genExpr(LHS);
   pop("a1");
 
   auto Op = BO->getOpcode();
   switch (Op) {
-  case BinaryOperator::BO_Add:
-  case BinaryOperator::BO_Sub:
+  case BinaryOperator::BO_Add: {
+    QualType LType = LHS->getType();
+    QualType RType = RHS->getType();
+    if (LType->isPointerType()) {
+      // Ptr + Int
+      // FIXME: Consider the size and alignment of the element being pointed to.
+      // a1 <<= 3  <=>  a1 *= 8
+      printf("  slli a1, a1, 3\n");
+    } else if (RType->isPointerType()) {
+      // Int + Ptr
+      // FIXME: Consider the size and alignment of the element being pointed to.
+      printf("  slli a1, a1, 3\n");
+    }
+
+    printf("  add a0, a0, a1\n");
+    return;
+  }
+  case BinaryOperator::BO_Sub: {
+    QualType LType = LHS->getType();
+    QualType RType = RHS->getType();
+    if (LType->isPointerType()) {
+      if (RType->isPointerType()) {
+        // Ptr - Ptr
+        printf("  sub a0, a0, a1\n");
+        printf("  srli a0, a0, 3\n"); // a0 >>= 3  <=>  a0 /= 8
+        return;
+      }
+
+      // Ptr - Int
+      printf("  slli a1, a1, 3\n");
+    }
+
+    printf("  sub a0, a0, a1\n");
+    return;
+  }
   case BinaryOperator::BO_Mul:
+    printf("  mul a0, a0, a1\n");
+    return;
   case BinaryOperator::BO_Div:
-    printf("  %s a0, a0, a1\n", getBinaryOpcodeInstName(Op));
-    break;
+    printf("  div a0, a0, a1\n");
+    return;
   case BinaryOperator::BO_EQ:
     // a0 = a0 ^ a1
     // a0 = (a0 == 0) ? 1 : 0

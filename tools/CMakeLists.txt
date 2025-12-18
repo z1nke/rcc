@@ -20,4 +20,5 @@ target_link_libraries(rcc
   CodeGen
   Lexer
   Parser
+  Sema
 )

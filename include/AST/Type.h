@@ -1,0 +1,165 @@
+#ifndef RCC_AST_TYPE_H
+#define RCC_AST_TYPE_H
+
+#include "Basic/Casting.h"
+
+#include <cstdint>
+
+namespace rcc {
+
+class QualType;
+class Type;
+
+class Qualifiers {
+public:
+  enum : std::uint32_t {
+    Const = 0x1,
+    Restrict = 0x2,
+    Volatile = 0x4,
+    CVRMask = Const | Restrict | Volatile,
+  };
+
+  static constexpr std::uint64_t FastWidth = 3;
+  static constexpr std::uint64_t TypeAlignment = 1 << FastWidth;
+
+  bool hasConst() const { return Mask & Const; }
+  void removeConst() { Mask &= ~Const; }
+  void addConst() { Mask |= Const; }
+
+  bool hasVolatile() const { return Mask & Volatile; }
+  void removeVolatile() { Mask &= ~Volatile; }
+  void addVolatile() { Mask |= Volatile; }
+
+  bool hasRestrict() const { return Mask & Restrict; }
+  void removeRestrict() { Mask &= ~Restrict; }
+  void addRestrict() { Mask |= Restrict; }
+
+private:
+  std::uint32_t Mask = 0;
+};
+
+class QualType {
+public:
+  QualType() = default;
+  QualType(const Type *Ptr, unsigned Quals = 0);
+
+  void *getOpaquePtr() const { return Value; }
+
+  bool isNull() const { return Value == nullptr; }
+  explicit operator bool() const { return !isNull(); }
+
+  const Type *getTypePtr() const;
+
+  const Type &operator*() const { return *getTypePtr(); }
+  const Type *operator->() const { return getTypePtr(); }
+
+  QualType getCanonicalType() const;
+
+  bool isIntegerType() const;
+
+  QualType(const QualType &) = default;
+  QualType &operator=(const QualType &) = default;
+
+private:
+  void *Value = nullptr;
+};
+
+class alignas(Qualifiers::TypeAlignment) Type {
+public:
+  enum TypeKind {
+    TK_Builtin,
+    TK_Pointer,
+    TK_Typedef,
+    TK_Function,
+  };
+
+  Type(TypeKind Kind) : Kind(Kind) {}
+  Type(const Type &) = delete;
+  Type(Type &&) = delete;
+  Type &operator=(const Type &) = delete;
+  Type &operator=(Type &&) = delete;
+
+  TypeKind getTypeKind() const { return Kind; }
+
+  QualType getCanonicalType() const;
+
+  bool isPointerType() const { return Kind == TK_Pointer; }
+  bool isFunctionType() const { return Kind == TK_Function; }
+  bool isScalarType() const;
+  bool isArithmeticType() const;
+
+  template <typename To> const To *getAs() const {
+    if (const auto *Ty = dyn_cast<To>(this))
+      return Ty;
+
+    if (Kind != TK_Typedef)
+      return nullptr;
+
+    return dyn_cast<To>(getCanonicalType());
+  }
+
+private:
+  TypeKind Kind;
+};
+
+class BuiltinType : public Type {
+public:
+  enum Kind {
+    BK_Int,
+  };
+
+  explicit BuiltinType(Kind BK) : Type(TK_Builtin), BK(BK) {}
+
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_Builtin;
+  }
+
+  Kind getKind() const { return BK; }
+
+private:
+  Kind BK;
+};
+
+class PointerType : public Type {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_Pointer;
+  }
+
+  explicit PointerType(QualType Pointee)
+      : Type(TK_Pointer), PointeeType(Pointee) {}
+
+  QualType getPointeeType() const { return PointeeType; }
+
+private:
+  QualType PointeeType;
+};
+
+class FunctionType : public Type {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == TypeKind::TK_Function;
+  }
+
+  FunctionType() : Type(TK_Function) {}
+
+private:
+  // TODO: Function type details.
+};
+
+template <typename To> inline bool isa(QualType T) {
+  return isa<To>(T.getTypePtr());
+}
+
+template <typename To> inline const To *dyn_cast(QualType T) {
+  return isa<To>(T) ? static_cast<const To *>(T.getTypePtr()) : nullptr;
+}
+
+template <typename To> inline const To *cast(QualType T) {
+  assert(isa<To>(T));
+  return static_cast<const To *>(T.getTypePtr());
+}
+
+} // namespace rcc
+
+#endif

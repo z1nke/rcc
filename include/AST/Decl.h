@@ -1,6 +1,7 @@
 #ifndef RCC_AST_DECL_H
 #define RCC_AST_DECL_H
 
+#include "AST/Type.h"
 #include "Basic/SourceLocation.h"
 
 #include <string>
@@ -31,10 +32,23 @@ private:
   SourceLocation EndLoc;
 };
 
-class VarDecl : public Decl {
+class ValueDecl : public Decl {
+public:
+  ValueDecl(DeclKind Kind, SourceLocation BegLoc, SourceLocation EndLoc,
+            QualType T)
+      : Decl(Kind, BegLoc, EndLoc), Ty(T) {}
+
+  QualType getType() const { return Ty; }
+  void setType(QualType T) { Ty = T; }
+
+private:
+  QualType Ty;
+};
+
+class VarDecl : public ValueDecl {
 public:
   static VarDecl *create(ASTContext &Ctx, SourceLocation BegLoc,
-                         SourceLocation EndLoc, std::string Name);
+                         SourceLocation EndLoc, QualType T, std::string Name);
 
   static bool classof(const Decl *D) { return D->getKind() == DK_Var; }
 
@@ -46,7 +60,7 @@ public:
 
 protected:
   VarDecl(ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc,
-          std::string Name);
+          QualType T, std::string Name);
 
 private:
   ASTContext &Ctx;
@@ -55,10 +69,10 @@ private:
   int Offset = 0;
 };
 
-class FunctionDecl : public Decl {
+class FunctionDecl : public ValueDecl {
 public:
   static FunctionDecl *create(ASTContext &Ctx, SourceLocation BegLoc,
-                              SourceLocation EndLoc, Stmt *Body);
+                              SourceLocation EndLoc, QualType T, Stmt *Body);
 
   Stmt *getBody() const { return Body; }
 
@@ -70,7 +84,7 @@ public:
 
 protected:
   FunctionDecl(ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc,
-               Stmt *Body);
+               QualType T, Stmt *Body);
 
 private:
   ASTContext &Ctx;

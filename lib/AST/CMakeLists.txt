@@ -1,6 +1,8 @@
 add_library(AST
+  ASTContext.cpp
   Decl.cpp
   Stmt.cpp
+  Type.cpp
 )
 
 set_target_properties(AST

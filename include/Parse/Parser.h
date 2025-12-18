@@ -1,6 +1,7 @@
 #ifndef RCC_PARSE_PARSER_H
 #define RCC_PARSE_PARSER_H
 
+#include "AST/Type.h"
 #include "Lex/Token.h"
 
 #include <vector>
@@ -13,12 +14,13 @@ class Lexer;
 class FunctionDecl;
 class VarDecl;
 class ASTContext;
+class Sema;
 class SourceManager;
 class Diagnostic;
 
 class Parser {
 public:
-  Parser(Token *CurTok, ASTContext &Ctx, SourceManager &SM);
+  Parser(Token *CurTok, ASTContext &Ctx, Sema &S, SourceManager &SM);
 
   ~Parser();
 
@@ -39,7 +41,7 @@ private:
   Expr *parseRalationalExpr();
   Expr *parseAddExpr();
   Expr *parseMulExpr();
-  Expr *parseUnaryExpr();
+  Expr *parseUnaryOperator();
   Expr *parsePrimaryExpr();
   Expr *parseParenExpr();
 
@@ -50,6 +52,7 @@ private:
   VarDecl *findVar(std::string_view Ident);
   Token::TokenKind getKeyword(std::string_view Ident) const;
 
+private:
   void expect(Token::TokenKind Kind, const char *Prompt);
   void skip(Token::TokenKind Kind);
   void skip();
@@ -58,6 +61,7 @@ private:
 private:
   Token *CurTok;
   ASTContext &Ctx;
+  Sema &S;
   SourceManager &SM;
   Diagnostic &Diag;
   std::vector<VarDecl *> LocalVars;

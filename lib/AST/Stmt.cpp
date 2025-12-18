@@ -1,5 +1,6 @@
 #include "AST/Stmt.h"
 #include "AST/ASTContext.h"
+#include "AST/Decl.h"
 #include "Basic/Casting.h"
 #include "Basic/Unreachable.h"
 
@@ -108,14 +109,14 @@ void WhileStmt::dump() const {
 }
 
 UnaryOperator::UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
-                             Expr *SubExpr, Opcode Op)
-    : Expr(SK_UnaryOperator, BegLoc, EndLoc), SubExpr(SubExpr), Kind(Op) {}
+                             QualType T, Expr *SubExpr, Opcode Op)
+    : Expr(SK_UnaryOperator, BegLoc, EndLoc, T), SubExpr(SubExpr), Kind(Op) {}
 
 UnaryOperator *UnaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
-                                     SourceLocation EndLoc, Expr *SubExpr,
-                                     Opcode Op) {
+                                     SourceLocation EndLoc, QualType T,
+                                     Expr *SubExpr, Opcode Op) {
   void *Mem = Ctx.Allocate(sizeof(UnaryOperator), alignof(UnaryOperator));
-  return new (Mem) UnaryOperator(BegLoc, EndLoc, SubExpr, Op);
+  return new (Mem) UnaryOperator(BegLoc, EndLoc, T, SubExpr, Op);
 }
 
 std::string_view UnaryOperator::getOpcodeStr() const {
@@ -186,6 +187,13 @@ void Expr::dump() const {
   }
 }
 
+void Expr::setType(QualType T) {
+  Ty = T;
+  // FIXME: Temporary handling.
+  if (auto *Ref = dyn_cast<DeclRefExpr>(this))
+    Ref->getDecl()->setType(T);
+}
+
 void UnaryOperator::dump() const {
   // FIXME: Use AST visitor dump ast node.
   printf("UnaryOperator prefix '%s'\n", getOpcodeStr().data());
@@ -194,17 +202,17 @@ void UnaryOperator::dump() const {
 }
 
 BinaryOperator::BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
-                               SourceLocation OpLoc, Expr *LHS, Expr *RHS,
-                               Opcode Op)
-    : Expr(SK_BinaryOperator, BegLoc, EndLoc), LHS(std::move(LHS)),
+                               QualType T, SourceLocation OpLoc, Expr *LHS,
+                               Expr *RHS, Opcode Op)
+    : Expr(SK_BinaryOperator, BegLoc, EndLoc, T), LHS(std::move(LHS)),
       RHS(std::move(RHS)), Kind(Op) {}
 
 BinaryOperator *BinaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
-                                       SourceLocation EndLoc,
+                                       SourceLocation EndLoc, QualType T,
                                        SourceLocation OpLoc, Expr *LHS,
                                        Expr *RHS, Opcode Op) {
   void *Mem = Ctx.Allocate(sizeof(BinaryOperator), alignof(BinaryOperator));
-  return new (Mem) BinaryOperator(BegLoc, EndLoc, OpLoc, LHS, RHS, Op);
+  return new (Mem) BinaryOperator(BegLoc, EndLoc, T, OpLoc, LHS, RHS, Op);
 }
 
 std::string_view BinaryOperator::getOpcodeStr() const {
@@ -246,26 +254,26 @@ void BinaryOperator::dump() const {
 }
 
 IntergerLiteral::IntergerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
-                                 std::int64_t Val)
-    : Expr(SK_IntergerLiteral, BegLoc, EndLoc), Val(Val) {}
+                                 QualType T, std::int64_t Val)
+    : Expr(SK_IntergerLiteral, BegLoc, EndLoc, T), Val(Val) {}
 
 IntergerLiteral *IntergerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
-                                         SourceLocation EndLoc,
+                                         SourceLocation EndLoc, QualType T,
                                          std::int64_t Val) {
   void *Mem = Ctx.Allocate(sizeof(IntergerLiteral), alignof(IntergerLiteral));
-  return new (Mem) IntergerLiteral(BegLoc, EndLoc, Val);
+  return new (Mem) IntergerLiteral(BegLoc, EndLoc, T, Val);
 }
 
 void IntergerLiteral::dump() const { printf("IntegerLiteral %ld\n", Val); }
 
-ParenExpr::ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+ParenExpr::ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                      Expr *SubExpr)
-    : Expr(SK_ParenExpr, BegLoc, EndLoc), SubExpr(SubExpr) {}
+    : Expr(SK_ParenExpr, BegLoc, EndLoc, T), SubExpr(SubExpr) {}
 
 ParenExpr *ParenExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
-                             SourceLocation EndLoc, Expr *SubExpr) {
+                             SourceLocation EndLoc, QualType T, Expr *SubExpr) {
   void *Mem = Ctx.Allocate(sizeof(ParenExpr), alignof(ParenExpr));
-  return new (Mem) ParenExpr(BegLoc, EndLoc, SubExpr);
+  return new (Mem) ParenExpr(BegLoc, EndLoc, T, SubExpr);
 }
 
 void ParenExpr::dump() const {
@@ -274,13 +282,15 @@ void ParenExpr::dump() const {
   SubExpr->dump();
 }
 
-DeclRefExpr::DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc, Decl *D)
-    : Expr(SK_DeclRefExpr, BegLoc, EndLoc), D(D) {}
+DeclRefExpr::DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                         QualType T, ValueDecl *D)
+    : Expr(SK_DeclRefExpr, BegLoc, EndLoc, T), D(D) {}
 
 DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
-                                 SourceLocation EndLoc, Decl *D) {
+                                 SourceLocation EndLoc, QualType T,
+                                 ValueDecl *D) {
   void *Mem = Ctx.Allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
-  return new (Mem) DeclRefExpr(BegLoc, EndLoc, D);
+  return new (Mem) DeclRefExpr(BegLoc, EndLoc, T, D);
 }
 
 void DeclRefExpr::dump() const {

@@ -1,6 +1,7 @@
 #ifndef RCC_AST_STMT_H
 #define RCC_AST_STMT_H
 
+#include "AST/Type.h"
 #include "Basic/SourceLocation.h"
 
 #include <cstdint>
@@ -12,7 +13,7 @@ namespace rcc {
 class Token;
 class ASTContext;
 class Decl;
-class VarDecl;
+class ValueDecl;
 
 class Stmt {
 public:
@@ -95,9 +96,15 @@ public:
 
   void dump() const;
 
+  QualType getType() const { return Ty; }
+  void setType(QualType T);
+
 protected:
-  Expr(StmtKind Kind, SourceLocation BegLoc, SourceLocation EndLoc)
-      : Stmt(Kind, BegLoc, EndLoc) {}
+  Expr(StmtKind Kind, SourceLocation BegLoc, SourceLocation EndLoc, QualType T)
+      : Stmt(Kind, BegLoc, EndLoc), Ty(T) {}
+
+private:
+  QualType Ty;
 };
 
 class ReturnStmt : public Stmt {
@@ -212,7 +219,8 @@ public:
   };
 
   static UnaryOperator *create(ASTContext &Ctx, SourceLocation BegLoc,
-                               SourceLocation EndLoc, Expr *SubExpr, Opcode Op);
+                               SourceLocation EndLoc, QualType T, Expr *SubExpr,
+                               Opcode Op);
 
   static bool classof(const Stmt *E) {
     return E->getKind() == SK_UnaryOperator;
@@ -226,8 +234,8 @@ public:
   void dump() const;
 
 protected:
-  UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, Expr *SubExpr,
-                Opcode Op);
+  UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                Expr *SubExpr, Opcode Op);
 
 private:
   Expr *SubExpr;
@@ -251,8 +259,9 @@ public:
   };
 
   static BinaryOperator *create(ASTContext &Ctx, SourceLocation BegLoc,
-                                SourceLocation EndLoc, SourceLocation OpLoc,
-                                Expr *LHS, Expr *RHS, Opcode Op);
+                                SourceLocation EndLoc, QualType T,
+                                SourceLocation OpLoc, Expr *LHS, Expr *RHS,
+                                Opcode Op);
 
   static bool classof(const Stmt *S) {
     return S->getKind() == SK_BinaryOperator;
@@ -267,7 +276,7 @@ public:
   void dump() const;
 
 protected:
-  BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
+  BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                  SourceLocation OpLoc, Expr *LHS, Expr *RHS, Opcode Op);
 
 private:
@@ -280,7 +289,8 @@ private:
 class IntergerLiteral : public Expr {
 public:
   static IntergerLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
-                                 SourceLocation EndLoc, std::int64_t Val);
+                                 SourceLocation EndLoc, QualType T,
+                                 std::int64_t Val);
 
   static bool classof(const Stmt *S) {
     return S->getKind() == SK_IntergerLiteral;
@@ -291,7 +301,7 @@ public:
   std::int64_t getVal() const { return Val; }
 
 protected:
-  IntergerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+  IntergerLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                   std::int64_t Val);
 
 private:
@@ -302,7 +312,7 @@ private:
 class ParenExpr : public Expr {
 public:
   static ParenExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
-                           SourceLocation EndLoc, Expr *SubExpr);
+                           SourceLocation EndLoc, QualType T, Expr *SubExpr);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_ParenExpr; }
 
@@ -311,7 +321,8 @@ public:
   Expr *getSubExpr() const { return SubExpr; }
 
 protected:
-  ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc, Expr *SubExpr);
+  ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+            Expr *SubExpr);
 
 private:
   Expr *SubExpr;
@@ -320,19 +331,20 @@ private:
 class DeclRefExpr : public Expr {
 public:
   static DeclRefExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
-                             SourceLocation EndLoc, Decl *D);
+                             SourceLocation EndLoc, QualType T, ValueDecl *D);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_DeclRefExpr; }
 
   void dump() const;
 
-  Decl *getDecl() const { return D; }
+  ValueDecl *getDecl() const { return D; }
 
 protected:
-  DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc, Decl *D);
+  DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+              ValueDecl *D);
 
 private:
-  Decl *D;
+  ValueDecl *D;
 };
 
 } // namespace rcc
