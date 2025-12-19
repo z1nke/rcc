@@ -63,14 +63,14 @@ assert 3 '{ 1; 2; return 3; }'
 assert 12 '{ 12+23;12+99/3;return 78-66; }'
 
 # [10] Single-letter local variable
-assert 3 '{ a=3; return a; }'
-assert 8 '{ a=3; z=5; return a+z; }'
-assert 6 '{ a=b=3; return a+b; }'
-assert 5 '{ a=3;b=4;a=1;return a+b; }'
+assert 3 '{ int a=3; return a; }'
+assert 8 '{ int a=3, z=5; return a+z; }'
+assert 6 '{ int a, b; a=b=3; return a+b; }'
+assert 5 '{ int a=3,b=4;a=1;return a+b; }'
 
 # [11] Multi-letter local variables
-assert 3 '{ foo=3; return foo; }'
-assert 74 '{ foo2=70; bar4=4; return foo2+bar4; }'
+assert 3 '{ int foo=3; return foo; }'
+assert 74 '{ int foo2=70; int bar4=4; return foo2+bar4; }'
 
 # [12] Support return
 assert 1 '{ return 1; 2; 3; }'
@@ -92,21 +92,25 @@ assert 4 '{ if (0) { 1; 2; return 3; } else { return 4; } }'
 assert 3 '{ if (1) { 1; 2; return 3; } else { return 4; } }'
 
 # [16] Support for statement
-assert 55 '{ i=0; j=0; for (i=0; i<=10; i=i+1) j=i+j; return j; }'
+assert 55 '{ int i=0; int j=0; for (i=0; i<=10; i=i+1) j=i+j; return j; }'
 assert 3 '{ for (;;) {return 3;} return 5; }'
 
 # [17] Support while statement
-assert 10 '{ i=0; while(i<10) { i=i+1; } return i; }'
+assert 10 '{ int i=0; while(i<10) { i=i+1; } return i; }'
 
 # [20] Support unary & and *
-assert 3 '{ x=3; return *&x; }'
-assert 3 '{ x=3; y=&x; z=&y; return **z; }'
-assert 5 '{ x=3; y=&x; *y=5; return x; }'
+assert 3 '{ int x=3; return *&x; }'
+assert 3 '{ int x=3; int *y=&x; int **z=&y; return **z; }'
+assert 5 '{ int x=3; int *y=&x; *y=5; return x; }'
 
 # [21] Make pointer arithmetic work
-assert 3 '{ x=3; y=5; return *(&y-1); }'
-assert 5 '{ x=3; y=5; return *(&x+1); }'
-assert 7 '{ x=3; y=5; *(&y-1)=7; return x; }'
-assert 7 '{ x=3; y=5; *(&x+1)=7; return y; }'
+assert 3 '{ int x=3; int y=5; return *(&y-1); }'
+assert 5 '{ int x=3; int y=5; return *(&x+1); }'
+assert 7 '{ int x=3; int y=5; *(&y-1)=7; return x; }'
+assert 7 '{ int x=3; int y=5; *(&x+1)=7; return y; }'
+
+# [22] Support int keyword
+assert 8 '{ int x, y; x=3; y=5; return x+y; }'
+assert 8 '{ int x=3, y=5; return x+y; }'
 
 echo OK

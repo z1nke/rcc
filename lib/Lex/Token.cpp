@@ -67,6 +67,8 @@ const char *Token::getKindStr(TokenKind Kind) {
     return "}";
   case TK_Amp:
     return "&";
+  case TK_Comma:
+    return ",";
   case TK_Ident:
     return "identifier";
   case TK_Return:
@@ -79,6 +81,8 @@ const char *Token::getKindStr(TokenKind Kind) {
     return "for";
   case TK_While:
     return "while";
+  case TK_Int:
+    return "int";
   default:
     RCC_UNREACHABLE("Unknown token kind");
     break;

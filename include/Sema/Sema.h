@@ -4,6 +4,9 @@
 #include "AST/Type.h"
 #include "Basic/SourceLocation.h"
 
+#include <string_view>
+#include <vector>
+
 namespace rcc {
 
 class ASTContext;
@@ -11,6 +14,9 @@ class Diagnostic;
 class Stmt;
 class Expr;
 class Decl;
+class VarDecl;
+class Declarator;
+class FunctionDecl;
 
 class Sema {
 public:
@@ -18,6 +24,13 @@ public:
 
   ASTContext &getASTContext() const { return Ctx; }
 
+  Decl *actOnDeclarator(Declarator &D);
+  VarDecl *actOnVarDecl(Declarator &D, QualType T);
+  FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation BegLoc,
+                                  SourceLocation EndLoc, Stmt *Body);
+
+  Stmt *actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
+                      SourceLocation EndLoc, std::vector<Decl *> Decls);
   Stmt *actOnNullStmt(SourceLocation SemiLoc);
   Stmt *actOnReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                         Expr *RetVal);
@@ -33,6 +46,11 @@ public:
   Expr *actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr, unsigned Op);
   Expr *actOnParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                        Expr *SubExpr);
+  Expr *actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                         std::string_view Ident);
+
+private:
+  VarDecl *findVar(std::string_view Ident);
 
 private:
   void checkScalarType(Expr *E);
@@ -51,6 +69,7 @@ private:
 private:
   ASTContext &Ctx;
   Diagnostic &Diag;
+  std::vector<VarDecl *> LocalVars;
 };
 
 } // namespace rcc

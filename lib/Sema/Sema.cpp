@@ -3,8 +3,54 @@
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
 #include "Basic/Diagnostic.h"
+#include "Sema/DeclSpec.h"
 
 namespace rcc {
+
+Decl *Sema::actOnDeclarator(Declarator &D) {
+  QualType T;
+  const DeclSpec &DS = D.getDeclSpec();
+  switch (DS.getTypeSpecType()) {
+  case DeclSpec::TST_Int:
+    T = Ctx.IntTy;
+    break;
+  default:
+    Diag.fatalAt(DS.getTypeSpecLoc(), "unknown type specifier");
+  }
+
+  for (const auto &Chunk : D.getDeclChunks()) {
+    switch (Chunk.Kind) {
+    case DeclaratorChunk::DCK_Pointer:
+      T = Ctx.getPointerType(T);
+      break;
+    default:
+      Diag.fatalAt(DS.getTypeSpecLoc(), "unknown declarator type");
+    }
+  }
+
+  return actOnVarDecl(D, T);
+}
+
+VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
+  const DeclSpec &DS = D.getDeclSpec();
+  VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
+                                 D.getEndLoc(), T, D.getIdent());
+  LocalVars.push_back(Var);
+  return Var;
+}
+
+FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation BegLoc,
+                                      SourceLocation EndLoc, Stmt *Body) {
+  auto *FD = FunctionDecl::create(Ctx, SourceLocation(), BegLoc, EndLoc,
+                                  Ctx.getFunctionType(), Body);
+  FD->setLocalVars(std::move(LocalVars));
+  return FD;
+}
+
+Stmt *Sema::actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
+                          SourceLocation EndLoc, std::vector<Decl *> Decls) {
+  return DeclStmt::create(Ctx, BegLoc, EndLoc, std::move(Decls));
+}
 
 Stmt *Sema::actOnNullStmt(SourceLocation SemiLoc) {
   return NullStmt::create(Ctx, SemiLoc, SemiLoc);
@@ -62,6 +108,15 @@ Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
 Expr *Sema::actOnParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                            Expr *SubExpr) {
   return ParenExpr::create(Ctx, BegLoc, EndLoc, SubExpr->getType(), SubExpr);
+}
+
+Expr *Sema::actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                             std::string_view Ident) {
+  VarDecl *Var = findVar(Ident);
+  if (!Var)
+    Diag.fatalAt(BegLoc, "undeclared variable '%s'", Ident.data());
+
+  return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var->getType(), Var);
 }
 
 void Sema::checkScalarType(Expr *E) {
@@ -207,6 +262,15 @@ QualType Sema::checkUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
   default:
     Diag.fatalAt(OpLoc, "unknown unary opcode");
   }
+}
+
+VarDecl *Sema::findVar(std::string_view Ident) {
+  for (VarDecl *Var : LocalVars) {
+    if (Var->getName() == Ident)
+      return Var;
+  }
+
+  return nullptr;
 }
 
 } // namespace rcc

@@ -90,8 +90,32 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     genWhileStmt(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_DeclStmt:
+    genDeclStmt(cast<DeclStmt>(S));
+    break;
   default:
     Diag.fatalAt(S->getBeginLoc(), "invalid statement: %d", S->getKind());
+  }
+}
+
+void CodeGen::genDeclStmt(const DeclStmt *DS) {
+  for (auto *D : DS->getDecls()) {
+    if (const auto *Var = dyn_cast<VarDecl>(D)) {
+      const auto *Init = Var->getInit();
+      if (!Init)
+        continue;
+
+      genAddr(Var);
+      push();
+      // a0 = init-expr
+      genExpr(Init);
+      // a1 = &var
+      pop("a1");
+      printf("  sd a0, 0(a1)\n"); // *a1 = a0
+
+    } else {
+      Diag.fatalAt(D->getBeginLoc(), "invalid declaration in decl-stmt");
+    }
   }
 }
 
@@ -314,11 +338,7 @@ void CodeGen::genAddr(const Expr *E) {
   switch (E->getKind()) {
   case Stmt::SK_DeclRefExpr: {
     const auto *Ref = cast<DeclRefExpr>(E);
-    const auto *Var = dyn_cast<VarDecl>(Ref->getDecl());
-    if (!Var)
-      Diag.fatalAt(Ref->getBeginLoc(), "expect a variable");
-
-    printf("  addi a0, fp, %d\n", -Var->getOffset());
+    genAddr(Ref->getDecl());
     return;
   }
   case Stmt::SK_UnaryOperator: {
@@ -334,6 +354,14 @@ void CodeGen::genAddr(const Expr *E) {
   }
 
   Diag.fatalAt(E->getBeginLoc(), "not a lvalue");
+}
+
+void CodeGen::genAddr(const Decl *D) {
+  const auto *Var = dyn_cast<VarDecl>(D);
+  if (!Var)
+    Diag.fatalAt(D->getBeginLoc(), "expect a variable");
+
+  printf("  addi a0, fp, %d\n", -Var->getOffset());
 }
 
 void CodeGen::push() {

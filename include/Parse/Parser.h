@@ -1,7 +1,6 @@
 #ifndef RCC_PARSE_PARSER_H
 #define RCC_PARSE_PARSER_H
 
-#include "AST/Type.h"
 #include "Lex/Token.h"
 
 #include <vector>
@@ -10,13 +9,17 @@ namespace rcc {
 
 class Stmt;
 class Expr;
-class Lexer;
+class Decl;
 class FunctionDecl;
 class VarDecl;
+
 class ASTContext;
+class Lexer;
 class Sema;
 class SourceManager;
 class Diagnostic;
+class DeclSpec;
+class Declarator;
 
 class Parser {
 public:
@@ -34,11 +37,12 @@ private:
   Stmt *parseIfStmt();
   Stmt *parseForStmt();
   Stmt *parseWhileStmt();
+  Stmt *parseDeclStmt();
   Stmt *parseExprStmt();
   Expr *parseExpr();
   Expr *parseAssign();
   Expr *parseEqualityExpr();
-  Expr *parseRalationalExpr();
+  Expr *parseRelationalExpr();
   Expr *parseAddExpr();
   Expr *parseMulExpr();
   Expr *parseUnaryOperator();
@@ -46,10 +50,15 @@ private:
   Expr *parseParenExpr();
 
 private:
+  void parseDeclSpec(DeclSpec &DS);
+  std::vector<Decl *> parseInitDeclaratorList(DeclSpec &DS);
+  Decl *parseInitDeclarator(DeclSpec &DS);
+  void parseDeclarator(Declarator &D);
+
+private:
   template <auto ParseOperand, Token::TokenKind... TKS>
   Expr *parseBinaryOperator();
 
-  VarDecl *findVar(std::string_view Ident);
   Token::TokenKind getKeyword(std::string_view Ident) const;
 
 private:
@@ -64,7 +73,6 @@ private:
   Sema &S;
   SourceManager &SM;
   Diagnostic &Diag;
-  std::vector<VarDecl *> LocalVars;
 };
 
 } // namespace rcc

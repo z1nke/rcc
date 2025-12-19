@@ -62,6 +62,10 @@ public:
 
   void dump() const;
 
+  unsigned getNumDecls() const { return Decls.size(); }
+  Decl *getDecl(unsigned Idx) const { return Decls[Idx]; }
+  const std::vector<Decl *> &getDecls() const { return Decls; }
+
 protected:
   DeclStmt(SourceLocation BegLoc, SourceLocation EndLoc,
            std::vector<Decl *> Decls);

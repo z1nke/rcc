@@ -3,9 +3,11 @@
 
 namespace rcc {
 
+class Decl;
 class FunctionDecl;
 class Stmt;
 class Expr;
+class DeclStmt;
 class IfStmt;
 class ForStmt;
 class WhileStmt;
@@ -21,6 +23,7 @@ public:
 
 private:
   void genStmt(const Stmt *S);
+  void genDeclStmt(const DeclStmt *DS);
   void genIfStmt(const IfStmt *If);
   void genForStmt(const ForStmt *For);
   void genWhileStmt(const WhileStmt *While);
@@ -28,6 +31,7 @@ private:
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
   void genAddr(const Expr *E);
+  void genAddr(const Decl *D);
 
 private:
   void push();

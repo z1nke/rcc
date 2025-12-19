@@ -26,6 +26,7 @@ public:
     TK_LBrace,
     TK_RBRace,
     TK_Amp,
+    TK_Comma,
     TK_Num,
     TK_Ident,
     TK_Return,
@@ -33,6 +34,7 @@ public:
     TK_Else,
     TK_For,
     TK_While,
+    TK_Int,
     TK_Unknown,
   };
 

@@ -5,6 +5,7 @@
 #include "Basic/Casting.h"
 #include "Basic/SourceManager.h"
 #include "Basic/Unreachable.h"
+#include "Sema/DeclSpec.h"
 #include "Sema/Sema.h"
 
 namespace rcc {
@@ -26,17 +27,17 @@ FunctionDecl *Parser::parse() {
   }
 
   auto EndLoc = CurStmt->getEndLoc();
-  QualType FT = Ctx.getFunctionType();
   Stmt *Body = Head.getNext();
-  auto *FD = FunctionDecl::create(Ctx, BegLoc, EndLoc, FT, Body);
-  FD->setLocalVars(std::move(LocalVars));
-  return FD;
+  return S.actOnFunctionDecl(Ctx, BegLoc, EndLoc, Body);
 }
 
 // stmt: return-stmt
 //     | compound-stmt
 //     | if-stmt
+//     | for-stmt
+//     | while-stmt
 //     | null-stmt
+//     | decl-stmt
 //     | expr-stmt
 Stmt *Parser::parseStmt() {
   switch (CurTok->getKind()) {
@@ -52,6 +53,8 @@ Stmt *Parser::parseStmt() {
     return parseForStmt();
   case Token::TK_While:
     return parseWhileStmt();
+  case Token::TK_Int:
+    return parseDeclStmt();
   default:
     break;
   }
@@ -146,6 +149,71 @@ Stmt *Parser::parseWhileStmt() {
   return S.actOnWhileStmt(Ctx, BegLoc, Cond, Body);
 }
 
+// decl-stmt: declspec { init-declarator-list } ';'
+Stmt *Parser::parseDeclStmt() {
+  DeclSpec DS;
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  parseDeclSpec(DS);
+  std::vector<Decl *> Decls = parseInitDeclaratorList(DS);
+  auto EndLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Semicolon);
+  return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
+}
+
+// declspec: 'int'
+void Parser::parseDeclSpec(DeclSpec &DS) {
+  auto TyLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Int);
+  DS.setTypeSpecType(DeclSpec::TST_Int, TyLoc);
+}
+
+// init-declarator-list: init-declarator { ',' init-declarator }*
+std::vector<Decl *> Parser::parseInitDeclaratorList(DeclSpec &DS) {
+  std::vector<Decl *> Decls;
+  Decls.push_back(parseInitDeclarator(DS));
+  while (tryConsume(Token::TK_Comma))
+    Decls.push_back(parseInitDeclarator(DS));
+
+  return Decls;
+}
+
+// init-declarator: declarator { '=' expr }
+Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
+  Declarator D(DS);
+  parseDeclarator(D);
+  Decl *DR = S.actOnDeclarator(D);
+  auto *Var = dyn_cast<VarDecl>(DR);
+  if (!Var)
+    Diag.fatalAt(D.getLocation(), "expect variable declarator");
+
+  if (tryConsume(Token::TK_Equal)) {
+    Expr *E = parseExpr();
+    Var->setInit(E);
+    Var->setEndLoc(E->getEndLoc());
+    return Var;
+  }
+
+  return Var;
+}
+
+// declarator: '*'* ident
+void Parser::parseDeclarator(Declarator &D) {
+  while (tryConsume(Token::TK_Star)) {
+    auto Chunk = DeclaratorChunk::createPointer();
+    D.addDeclChunk(Chunk);
+  }
+
+  D.setLocation(SM.createBeginLocation(CurTok));
+  if (!CurTok->is(Token::TK_Ident)) {
+    Diag.fatalAt(CurTok->getLoc(), "expect identifier");
+    return;
+  }
+
+  D.setIdent(std::string(CurTok->getIdentifer()));
+  D.setEndLoc(SM.createEndLocation(CurTok));
+  skip();
+}
+
 // expr-stmt: expr ';'
 Stmt *Parser::parseExprStmt() {
   Expr *E = parseExpr();
@@ -169,12 +237,12 @@ Expr *Parser::parseAssign() {
 
 // equality-expr: relational-expr { ('==' | '!=') relational-expr }
 Expr *Parser::parseEqualityExpr() {
-  return parseBinaryOperator<&Parser::parseRalationalExpr, Token::TK_EqualEqual,
+  return parseBinaryOperator<&Parser::parseRelationalExpr, Token::TK_EqualEqual,
                              Token::TK_NotEqual>();
 }
 
 // relational-expr: add-expr { ('<' | '<=' | '>' | '>=') add-expr }
-Expr *Parser::parseRalationalExpr() {
+Expr *Parser::parseRelationalExpr() {
   return parseBinaryOperator<&Parser::parseAddExpr, Token::TK_Less,
                              Token::TK_LessEqual, Token::TK_Greater,
                              Token::TK_GreaterEqual>();
@@ -239,16 +307,7 @@ Expr *Parser::parsePrimaryExpr() {
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
     CurTok = CurTok->getNext();
-    VarDecl *Var = findVar(Ident);
-    if (!Var) {
-      // FIXME: Invalid location.
-      SourceLocation Loc;
-      VarDecl *NewVar =
-          VarDecl::create(Ctx, Loc, Loc, QualType(), std::string(Ident));
-      LocalVars.push_back(NewVar);
-      return DeclRefExpr::create(Ctx, BegLoc, EndLoc, QualType(), NewVar);
-    }
-    return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var->getType(), Var);
+    return S.actOnDeclRefExpr(BegLoc, EndLoc, Ident);
   }
 
   Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");
@@ -307,15 +366,6 @@ Expr *Parser::parseBinaryOperator() {
     }
 
     return LHS;
-  }
-
-  return nullptr;
-}
-
-VarDecl *Parser::findVar(std::string_view Ident) {
-  for (VarDecl *Var : LocalVars) {
-    if (Var->getName() == Ident)
-      return Var;
   }
 
   return nullptr;

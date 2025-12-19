@@ -13,11 +13,9 @@ static bool isIdent0(char C) { return std::isalpha(C) || C == '_'; }
 static bool isIdent1(char C) { return isIdent0(C) || std::isdigit(C); }
 
 Lexer::Lexer(Diagnostic &Diag) : Diag(Diag) {
-  Keywords = {{"return", Token::TK_Return},
-              {"if", Token::TK_If},
-              {"else", Token::TK_Else},
-              {"for", Token::TK_For},
-              {"while", Token::TK_While}};
+  Keywords = {{"return", Token::TK_Return}, {"if", Token::TK_If},
+              {"else", Token::TK_Else},     {"for", Token::TK_For},
+              {"while", Token::TK_While},   {"int", Token::TK_Int}};
 }
 
 Token *Lexer::tokenize(char *P) {
@@ -102,6 +100,9 @@ Token *Lexer::tokenize(char *P) {
       break;
     case '&':
       lexPunctuator(Curr, Token::TK_Amp, P);
+      break;
+    case ',':
+      lexPunctuator(Curr, Token::TK_Comma, P);
       break;
     default:
       Diag.fatalAt(P, "invalid character: %c", *P);
