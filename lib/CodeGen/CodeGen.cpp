@@ -48,8 +48,10 @@ void CodeGen::codegen(const FunctionDecl *FD) {
   printf("  sd fp, 0(sp)\n"); // save fp
   printf("  mv fp, sp\n");    // fp = sp
   // sp -= StackSize
-  printf("  # allocate %ld bytes for local variables\n", StackSize);
-  printf("  addi sp, sp, -%ld\n", StackSize);
+  if (StackSize > 0) {
+    printf("  # allocate %ld bytes for local variables\n", StackSize);
+    printf("  addi sp, sp, -%ld\n", StackSize);
+  }
 
   for (const Stmt *S = FD->getBody(); S; S = S->getNext()) {
     genStmt(S);
@@ -349,10 +351,24 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   }
 }
 
+static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
+
 void CodeGen::genCallExpr(const CallExpr *CE) {
   const auto *Func = CE->getCalleeDecl();
   if (!Func)
     Diag.fatalAt(CE->getCallee()->getBeginLoc(), "undeclared function");
+
+  int NumArgs = static_cast<int>(CE->getNumArgs());
+  if (NumArgs != 0) {
+    printf("  # set args on calling %s\n", Func->getName().c_str());
+    for (const Expr *Arg : CE->getArgs()) {
+      genExpr(Arg);
+      push();
+    }
+
+    for (int I = NumArgs - 1; I >= 0; --I)
+      pop(ArgReg[I]);
+  }
 
   const std::string &Name = Func->getName();
   printf("  call %s\n", Name.c_str());

@@ -291,7 +291,6 @@ Expr *Parser::parseUnaryOperator() {
 
 // primary-expr: paren-expr | decl-ref-expr | call-expr | num
 // decl-ref-expr: ident
-// call-expr: ident '(' ')'
 Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
     return parseParenExpr();
@@ -309,8 +308,9 @@ Expr *Parser::parsePrimaryExpr() {
     auto IdentBegLoc = SM.createBeginLocation(CurTok);
     auto IdentEndLoc = SM.createEndLocation(CurTok);
     skip();
-    if (CurTok->is(Token::TK_LParen)) {
-      skip();
+    if (tryConsume(Token::TK_LParen)) {
+      return parseCallExpr(Ident, IdentBegLoc, IdentEndLoc);
+
       SourceLocation EndLoc = SM.createBeginLocation(CurTok);
       skip(Token::TK_RParen);
       return S.actOnCallExpr(IdentBegLoc, IdentEndLoc, EndLoc, Ident, {});
@@ -321,6 +321,25 @@ Expr *Parser::parsePrimaryExpr() {
 
   Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");
   return nullptr;
+}
+
+// call-expr: ident '(' args ')'
+// args: expr { ',' expr }*
+Expr *Parser::parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
+                            SourceLocation IdentEndLoc) {
+  // Parsed ident '(' already.
+  std::vector<Expr *> Args;
+  while (CurTok->isNot(Token::TK_RParen)) {
+    if (!Args.empty())
+      skip(Token::TK_Comma);
+
+    Args.push_back(parseExpr());
+  }
+
+  auto EndLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_RParen);
+  return S.actOnCallExpr(IdentBegLoc, IdentEndLoc, EndLoc, Ident,
+                         std::move(Args));
 }
 
 // paren-expr = '(' expr ')'

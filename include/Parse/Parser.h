@@ -2,6 +2,7 @@
 #define RCC_PARSE_PARSER_H
 
 #include "Lex/Token.h"
+#include "Basic/SourceLocation.h"
 
 #include <vector>
 
@@ -48,6 +49,8 @@ private:
   Expr *parseUnaryOperator();
   Expr *parsePrimaryExpr();
   Expr *parseParenExpr();
+  Expr *parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
+                     SourceLocation IdentEndLoc);
 
 private:
   void parseDeclSpec(DeclSpec &DS);

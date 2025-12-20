@@ -366,6 +366,7 @@ public:
   FunctionDecl *getCalleeDecl() const;
   unsigned getNumArgs() const { return Args.size(); }
   Expr *getArg(unsigned Idx) const { return Args[Idx]; }
+  const std::vector<Expr *> &getArgs() const { return Args; }
 
 private:
   CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
