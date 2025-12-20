@@ -35,18 +35,35 @@ public:
   void setBeginLoc(SourceLocation BegLoc) { this->BegLoc = BegLoc; }
   void setEndLoc(SourceLocation EndLoc) { this->EndLoc = EndLoc; }
 
+  bool isImplicit() const { return IsImplicit; }
+  void setImplicit(bool Val) { IsImplicit = Val; }
+
 private:
   DeclKind Kind;
   SourceLocation Loc;
   SourceLocation BegLoc;
   SourceLocation EndLoc;
+  bool IsImplicit = false;
 };
 
-class ValueDecl : public Decl {
+class NamedDecl : public Decl {
+public:
+  NamedDecl(DeclKind Kind, SourceLocation Loc, SourceLocation BegLoc,
+            SourceLocation EndLoc, std::string Name)
+      : Decl(Kind, Loc, BegLoc, EndLoc), Name(std::move(Name)) {}
+
+  const std::string &getName() const { return Name; }
+  void setName(std::string Name) { this->Name = std::move(Name); }
+
+private:
+  std::string Name;
+};
+
+class ValueDecl : public NamedDecl {
 public:
   ValueDecl(DeclKind Kind, SourceLocation Loc, SourceLocation BegLoc,
-            SourceLocation EndLoc, QualType T)
-      : Decl(Kind, Loc, BegLoc, EndLoc), Ty(T) {}
+            SourceLocation EndLoc, QualType T, std::string Name)
+      : NamedDecl(Kind, Loc, BegLoc, EndLoc, std::move(Name)), Ty(T) {}
 
   QualType getType() const { return Ty; }
   void setType(QualType T) { Ty = T; }
@@ -62,8 +79,6 @@ public:
                          QualType T, std::string Name);
 
   static bool classof(const Decl *D) { return D->getKind() == DK_Var; }
-
-  const std::string &getName() const { return Name; }
 
   // Temporary handling.
   int getOffset() const { return Offset; }
@@ -89,11 +104,11 @@ class FunctionDecl : public ValueDecl {
 public:
   static FunctionDecl *create(ASTContext &Ctx, SourceLocation Loc,
                               SourceLocation BegLoc, SourceLocation EndLoc,
-                              QualType T, Stmt *Body);
+                              QualType T, std::string Name, Stmt *Body);
+
+  static bool classof(const Decl *D) { return D->getKind() == DK_Function; }
 
   Stmt *getBody() const { return Body; }
-
-  void addLocalVar(VarDecl *Var);
 
   void setLocalVars(std::vector<VarDecl *> Vars);
 
@@ -101,7 +116,7 @@ public:
 
 protected:
   FunctionDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
-               SourceLocation EndLoc, QualType T, Stmt *Body);
+               SourceLocation EndLoc, QualType T, std::string Name, Stmt *Body);
 
 private:
   ASTContext &Ctx;

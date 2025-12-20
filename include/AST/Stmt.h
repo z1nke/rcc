@@ -14,6 +14,7 @@ class Token;
 class ASTContext;
 class Decl;
 class ValueDecl;
+class FunctionDecl;
 
 class Stmt {
 public:
@@ -28,11 +29,12 @@ public:
     SK_WhileStmt,
     SK_UnaryOperator,
     SK_BinaryOperator,
-    SK_IntergerLiteral,
+    SK_IntegerLiteral,
     SK_ParenExpr,
     SK_DeclRefExpr,
+    SK_CallExpr,
     FirstExprKind = SK_UnaryOperator,
-    LastExprKind = SK_DeclRefExpr,
+    LastExprKind = SK_CallExpr,
   };
 
   Stmt(StmtKind Kind, SourceLocation BegLoc = SourceLocation(),
@@ -290,14 +292,14 @@ private:
   SourceLocation OpLoc;
 };
 
-class IntergerLiteral : public Expr {
+class IntegerLiteral : public Expr {
 public:
-  static IntergerLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
+  static IntegerLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
                                  SourceLocation EndLoc, QualType T,
                                  std::int64_t Val);
 
   static bool classof(const Stmt *S) {
-    return S->getKind() == SK_IntergerLiteral;
+    return S->getKind() == SK_IntegerLiteral;
   }
 
   void dump() const;
@@ -305,7 +307,7 @@ public:
   std::int64_t getVal() const { return Val; }
 
 protected:
-  IntergerLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+  IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                   std::int64_t Val);
 
 private:
@@ -349,6 +351,28 @@ protected:
 
 private:
   ValueDecl *D;
+};
+
+class CallExpr : public Expr {
+public:
+  static CallExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                          SourceLocation EndLoc, QualType T,
+                          DeclRefExpr *Callee, std::vector<Expr *> Args);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_CallExpr; }
+
+  void dump() const;
+  DeclRefExpr *getCallee() const { return Callee; }
+  FunctionDecl *getCalleeDecl() const;
+  unsigned getNumArgs() const { return Args.size(); }
+  Expr *getArg(unsigned Idx) const { return Args[Idx]; }
+
+private:
+  CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+           DeclRefExpr *Callee, std::vector<Expr *> Args);
+
+  DeclRefExpr *Callee;
+  std::vector<Expr *> Args;
 };
 
 } // namespace rcc

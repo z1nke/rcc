@@ -13,6 +13,7 @@ class ForStmt;
 class WhileStmt;
 class BinaryOperator;
 class UnaryOperator;
+class CallExpr;
 class Diagnostic;
 
 class CodeGen {
@@ -30,6 +31,7 @@ private:
   void genExpr(const Expr *E);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
+  void genCallExpr(const CallExpr *CE);
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
 

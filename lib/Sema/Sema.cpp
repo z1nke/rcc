@@ -5,6 +5,8 @@
 #include "Basic/Diagnostic.h"
 #include "Sema/DeclSpec.h"
 
+#include <algorithm>
+
 namespace rcc {
 
 Decl *Sema::actOnDeclarator(Declarator &D) {
@@ -40,10 +42,15 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
 }
 
 FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation BegLoc,
-                                      SourceLocation EndLoc, Stmt *Body) {
+                                      SourceLocation EndLoc, std::string Name,
+                                      Stmt *Body) {
   auto *FD = FunctionDecl::create(Ctx, SourceLocation(), BegLoc, EndLoc,
-                                  Ctx.getFunctionType(), Body);
-  FD->setLocalVars(std::move(LocalVars));
+                                  Ctx.getFunctionType(), std::move(Name), Body);
+  std::vector<VarDecl *> Vars;
+  std::swap(Vars, LocalVars);
+  std::reverse(Vars.begin(), Vars.end());
+  FD->setLocalVars(std::move(Vars));
+  Funcs.push_back(FD);
   return FD;
 }
 
@@ -117,6 +124,23 @@ Expr *Sema::actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
     Diag.fatalAt(BegLoc, "undeclared variable '%s'", Ident.data());
 
   return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var->getType(), Var);
+}
+
+Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
+                          SourceLocation IdentEndLoc, SourceLocation EndLoc,
+                          std::string_view Name, std::vector<Expr *> Args) {
+  FunctionDecl *FD = findFunction(Name);
+  if (!FD) {
+    FD = FunctionDecl::create(Ctx, SourceLocation(), SourceLocation(),
+                              SourceLocation(), Ctx.getFunctionType(),
+                              std::string(Name), nullptr);
+    Funcs.push_back(FD);
+    FD->setImplicit(true);
+  }
+
+  auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, Ctx.IntTy, FD);
+  return CallExpr::create(Ctx, IdentBegLoc, EndLoc, Ctx.IntTy, Ref,
+                          std::move(Args));
 }
 
 void Sema::checkScalarType(Expr *E) {
@@ -268,6 +292,15 @@ VarDecl *Sema::findVar(std::string_view Ident) {
   for (VarDecl *Var : LocalVars) {
     if (Var->getName() == Ident)
       return Var;
+  }
+
+  return nullptr;
+}
+
+FunctionDecl *Sema::findFunction(std::string_view Name) {
+  for (FunctionDecl *FD : Funcs) {
+    if (FD->getName() == Name)
+      return FD;
   }
 
   return nullptr;

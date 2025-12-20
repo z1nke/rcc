@@ -31,21 +31,24 @@ void CodeGen::codegen(const FunctionDecl *FD) {
 
   // stack frame
   //-------------------------------// sp
+  //              ra
+  //-------------------------------// ra = sp-8
   //              fp
-  //-------------------------------// fp = sp-8
+  //-------------------------------// fp = sp-16
   //                                       |
-  //          local vars              stack-size
+  //          local vars               StackSize
   //                                       |
-  //-------------------------------// sp = sp-8-StackSize
+  //-------------------------------// sp = sp-16-StackSize
   //        eval-expression
   //-------------------------------//
 
-  // push sp
-  printf("  addi sp, sp, -8\n");
-  printf("  sd fp, 0(sp)\n");
-  // fp = sp
-  printf("  mv fp, sp\n");
+  printf("  # create stack frame for ra, fp\n");
+  printf("  addi sp, sp, -16\n");
+  printf("  sd ra, 8(sp)\n"); // save ra
+  printf("  sd fp, 0(sp)\n"); // save fp
+  printf("  mv fp, sp\n");    // fp = sp
   // sp -= StackSize
+  printf("  # allocate %ld bytes for local variables\n", StackSize);
   printf("  addi sp, sp, -%ld\n", StackSize);
 
   for (const Stmt *S = FD->getBody(); S; S = S->getNext()) {
@@ -54,11 +57,11 @@ void CodeGen::codegen(const FunctionDecl *FD) {
   }
 
   printf(".L.return:\n");
-  // sp = fp
-  printf("  mv sp, fp\n");
-  // pop fp
-  printf("  ld fp, 0(sp)\n");
-  printf("  addi sp, sp, 8\n");
+  printf("  # restore sp, fp and ra\n");
+  printf("  mv sp, fp\n");    // restore sp, sp = fp
+  printf("  ld fp, 0(sp)\n"); // pop fp
+  printf("  ld ra, 8(sp)\n"); // pop ra
+  printf("  addi sp, sp, 16\n");
   printf("  ret\n");
 }
 
@@ -76,6 +79,7 @@ void CodeGen::genStmt(const Stmt *S) {
     break;
   }
   case Stmt::SK_ReturnStmt:
+    printf("  # return stmt\n");
     genExpr(cast<ReturnStmt>(S)->getRetValue());
     printf("  j .L.return\n");
     break;
@@ -99,6 +103,7 @@ void CodeGen::genStmt(const Stmt *S) {
 }
 
 void CodeGen::genDeclStmt(const DeclStmt *DS) {
+  printf("  # decl-stmt\n");
   for (auto *D : DS->getDecls()) {
     if (const auto *Var = dyn_cast<VarDecl>(D)) {
       const auto *Init = Var->getInit();
@@ -111,6 +116,7 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       genExpr(Init);
       // a1 = &var
       pop("a1");
+      printf("  # initialize variable '%s'\n", Var->getName().c_str());
       printf("  sd a0, 0(a1)\n"); // *a1 = a0
 
     } else {
@@ -188,10 +194,13 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_BinaryOperator:
     genBinaryOperator(cast<BinaryOperator>(E));
     break;
-  case Stmt::SK_IntergerLiteral:
+  case Stmt::SK_IntegerLiteral: {
     // li a0, imm
-    printf("  li a0, %ld\n", cast<IntergerLiteral>(E)->getVal());
+    auto Val = cast<IntegerLiteral>(E)->getVal();
+    printf("  # a0 = %ld\n", Val);
+    printf("  li a0, %ld\n", Val);
     break;
+  }
   case Stmt::SK_ParenExpr:
     genExpr(cast<ParenExpr>(E)->getSubExpr());
     break;
@@ -200,6 +209,9 @@ void CodeGen::genExpr(const Expr *E) {
     genAddr(cast<DeclRefExpr>(E));
     // a0 = *a0
     printf("  ld a0, 0(a0)\n");
+    break;
+  case Stmt::SK_CallExpr:
+    genCallExpr(cast<CallExpr>(E));
     break;
   default:
     Diag.fatalAt(E->getBeginLoc(), "invalid expression");
@@ -315,6 +327,7 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
 void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   switch (UO->getOpcode()) {
   case UnaryOperator::UO_Plus:
+    printf("  # unary plus\n");
     genExpr(UO->getSubExpr());
     break;
   case UnaryOperator::UO_Minus:
@@ -322,9 +335,11 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     printf("  neg a0, a0\n");
     break;
   case UnaryOperator::UO_Addrof:
+    printf("  # addrof\n");
     genAddr(UO->getSubExpr());
     break;
   case UnaryOperator::UO_Deref:
+    printf("  # deref\n");
     genExpr(UO->getSubExpr());
     printf("  ld a0, 0(a0)\n"); // a0 = *addr
     break;
@@ -332,6 +347,15 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     Diag.fatalAt(UO->getBeginLoc(), "invalid unary opcode: %d",
                  UO->getOpcode());
   }
+}
+
+void CodeGen::genCallExpr(const CallExpr *CE) {
+  const auto *Func = CE->getCalleeDecl();
+  if (!Func)
+    Diag.fatalAt(CE->getCallee()->getBeginLoc(), "undeclared function");
+
+  const std::string &Name = Func->getName();
+  printf("  call %s\n", Name.c_str());
 }
 
 void CodeGen::genAddr(const Expr *E) {
@@ -361,16 +385,20 @@ void CodeGen::genAddr(const Decl *D) {
   if (!Var)
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
 
-  printf("  addi a0, fp, %d\n", -Var->getOffset());
+  printf("  # get address of variable %s, offset=%d\n", Var->getName().c_str(),
+         Var->getOffset());
+  printf("  addi a0, fp, %d\n", Var->getOffset());
 }
 
 void CodeGen::push() {
+  printf("  # push a0\n");
   printf("  addi sp, sp, -8\n"); // sp -= 8
   printf("  sd a0, 0(sp)\n");    // store a0 to stack
   ++Depth;
 }
 
 void CodeGen::pop(const char *Reg) {
+  printf("  # pop %s\n", Reg);
   printf("  ld %s, 0(sp)\n", Reg); // load from stack to Reg
   printf("  addi sp, sp, 8\n");    // sp += 8
   --Depth;

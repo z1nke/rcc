@@ -1,10 +1,16 @@
 #!/bin/bash
+
+cat <<EOF | riscv64-unknown-linux-gnu-gcc -xc -c -o tmp2.o -
+int ret3() { return 3; }
+int ret5() { return 5; }
+EOF
+
 assert() {
   expected="$1"
   input="$2"
 
   ./bin/rcc "$input" > tmp.s || exit
-  riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s
+  riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s tmp2.o
   qemu-riscv64 ./tmp
   actual="$?"
 
@@ -112,5 +118,10 @@ assert 7 '{ int x=3; int y=5; *(&x+1)=7; return y; }'
 # [22] Support int keyword
 assert 8 '{ int x, y; x=3; y=5; return x+y; }'
 assert 8 '{ int x=3, y=5; return x+y; }'
+
+# [23] Support zero-arity function calls
+assert 3 '{ return ret3(); }'
+assert 5 '{ return ret5(); }'
+assert 8 '{ return ret3()+ret5(); }'
 
 echo OK

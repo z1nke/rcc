@@ -28,7 +28,7 @@ FunctionDecl *Parser::parse() {
 
   auto EndLoc = CurStmt->getEndLoc();
   Stmt *Body = Head.getNext();
-  return S.actOnFunctionDecl(Ctx, BegLoc, EndLoc, Body);
+  return S.actOnFunctionDecl(Ctx, BegLoc, EndLoc, "main", Body);
 }
 
 // stmt: return-stmt
@@ -289,7 +289,9 @@ Expr *Parser::parseUnaryOperator() {
   return parsePrimaryExpr();
 }
 
-// primary-expr: paren-expr | ident | num
+// primary-expr: paren-expr | decl-ref-expr | call-expr | num
+// decl-ref-expr: ident
+// call-expr: ident '(' ')'
 Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
     return parseParenExpr();
@@ -299,15 +301,22 @@ Expr *Parser::parsePrimaryExpr() {
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
     CurTok = CurTok->getNext();
-    return IntergerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Val);
+    return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Val);
   }
 
   if (CurTok->is(Token::TK_Ident)) {
     std::string_view Ident = CurTok->getIdentifer();
-    auto BegLoc = SM.createBeginLocation(CurTok);
-    auto EndLoc = SM.createEndLocation(CurTok);
-    CurTok = CurTok->getNext();
-    return S.actOnDeclRefExpr(BegLoc, EndLoc, Ident);
+    auto IdentBegLoc = SM.createBeginLocation(CurTok);
+    auto IdentEndLoc = SM.createEndLocation(CurTok);
+    skip();
+    if (CurTok->is(Token::TK_LParen)) {
+      skip();
+      SourceLocation EndLoc = SM.createBeginLocation(CurTok);
+      skip(Token::TK_RParen);
+      return S.actOnCallExpr(IdentBegLoc, IdentEndLoc, EndLoc, Ident, {});
+    }
+
+    return S.actOnDeclRefExpr(IdentBegLoc, IdentEndLoc, Ident);
   }
 
   Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");

@@ -175,8 +175,8 @@ void Expr::dump() const {
   case Stmt::SK_BinaryOperator:
     cast<BinaryOperator>(this)->dump();
     break;
-  case Stmt::SK_IntergerLiteral:
-    cast<IntergerLiteral>(this)->dump();
+  case Stmt::SK_IntegerLiteral:
+    cast<IntegerLiteral>(this)->dump();
     break;
   case Stmt::SK_ParenExpr:
     cast<ParenExpr>(this)->dump();
@@ -253,18 +253,18 @@ void BinaryOperator::dump() const {
   RHS->dump();
 }
 
-IntergerLiteral::IntergerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+IntegerLiteral::IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
                                  QualType T, std::int64_t Val)
-    : Expr(SK_IntergerLiteral, BegLoc, EndLoc, T), Val(Val) {}
+    : Expr(SK_IntegerLiteral, BegLoc, EndLoc, T), Val(Val) {}
 
-IntergerLiteral *IntergerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
+IntegerLiteral *IntegerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
                                          SourceLocation EndLoc, QualType T,
                                          std::int64_t Val) {
-  void *Mem = Ctx.Allocate(sizeof(IntergerLiteral), alignof(IntergerLiteral));
-  return new (Mem) IntergerLiteral(BegLoc, EndLoc, T, Val);
+  void *Mem = Ctx.Allocate(sizeof(IntegerLiteral), alignof(IntegerLiteral));
+  return new (Mem) IntegerLiteral(BegLoc, EndLoc, T, Val);
 }
 
-void IntergerLiteral::dump() const { printf("IntegerLiteral %ld\n", Val); }
+void IntegerLiteral::dump() const { printf("IntegerLiteral %ld\n", Val); }
 
 ParenExpr::ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                      Expr *SubExpr)
@@ -295,6 +295,23 @@ DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
 
 void DeclRefExpr::dump() const {
   // TODO: Impl.
+}
+
+CallExpr::CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                   DeclRefExpr *Callee, std::vector<Expr *> Args)
+    : Expr(SK_CallExpr, BegLoc, EndLoc, T), Callee(Callee), Args(Args) {}
+
+CallExpr *CallExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc, QualType T,
+                           DeclRefExpr *Callee, std::vector<Expr *> Args) {
+  void *Mem = Ctx.Allocate(sizeof(CallExpr), alignof(CallExpr));
+  return new (Mem) CallExpr(BegLoc, EndLoc, T, Callee, Args);
+}
+
+FunctionDecl *CallExpr::getCalleeDecl() const {
+  if (!Callee)
+    return nullptr;
+  return dyn_cast<FunctionDecl>(Callee->getDecl());
 }
 
 } // namespace rcc

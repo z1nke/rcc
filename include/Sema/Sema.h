@@ -27,7 +27,8 @@ public:
   Decl *actOnDeclarator(Declarator &D);
   VarDecl *actOnVarDecl(Declarator &D, QualType T);
   FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation BegLoc,
-                                  SourceLocation EndLoc, Stmt *Body);
+                                  SourceLocation EndLoc, std::string Name,
+                                  Stmt *Body);
 
   Stmt *actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
                       SourceLocation EndLoc, std::vector<Decl *> Decls);
@@ -48,9 +49,13 @@ public:
                        Expr *SubExpr);
   Expr *actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                          std::string_view Ident);
+  Expr *actOnCallExpr(SourceLocation IdentBegLoc, SourceLocation IdentEndLoc,
+                      SourceLocation EndLoc, std::string_view Name,
+                      std::vector<Expr *> Args);
 
 private:
   VarDecl *findVar(std::string_view Ident);
+  FunctionDecl *findFunction(std::string_view Name);
 
 private:
   void checkScalarType(Expr *E);
@@ -70,6 +75,7 @@ private:
   ASTContext &Ctx;
   Diagnostic &Diag;
   std::vector<VarDecl *> LocalVars;
+  std::vector<FunctionDecl *> Funcs;
 };
 
 } // namespace rcc
