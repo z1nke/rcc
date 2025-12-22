@@ -141,10 +141,13 @@ public:
     return T->getTypeKind() == TypeKind::TK_Function;
   }
 
-  FunctionType() : Type(TK_Function) {}
+  FunctionType(QualType RetType) : Type(TK_Function), RetType(RetType) {}
+
+  QualType getReturnType() const { return RetType; }
 
 private:
   // TODO: Function type details.
+  QualType RetType;
 };
 
 template <typename To> inline bool isa(QualType T) {

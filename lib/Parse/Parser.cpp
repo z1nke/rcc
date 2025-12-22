@@ -15,20 +15,37 @@ Parser::Parser(Token *CurTok, ASTContext &Ctx, Sema &S, SourceManager &SM)
 
 Parser::~Parser() = default;
 
-// expr eof
-FunctionDecl *Parser::parse() {
-  Stmt Head(Stmt::NoStmtKind);
-  Stmt *CurStmt = &Head;
-
-  auto BegLoc = SM.createBeginLocation(CurTok);
+// program: function-decl* EOF
+TranslationUnitDecl *Parser::parse() {
+  auto *TU = TranslationUnitDecl::create(Ctx);
   while (CurTok->isNot(Token::TK_EOF)) {
-    CurStmt->setNext(parseStmt());
-    CurStmt = CurStmt->getNext();
+    TU->addDecl(parseFunctionDecl());
   }
 
-  auto EndLoc = CurStmt->getEndLoc();
-  Stmt *Body = Head.getNext();
-  return S.actOnFunctionDecl(Ctx, BegLoc, EndLoc, "main", Body);
+  return TU;
+}
+
+// function-decl: function-definition
+// TODO:        | function-declaration
+FunctionDecl *Parser::parseFunctionDecl() {
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  DeclSpec DS;
+  parseDeclSpec(DS);
+  Declarator D(DS);
+  D.setLocation(SM.createBeginLocation(CurTok));
+  parseDeclarator(D);
+  FunctionDecl *FD = dyn_cast<FunctionDecl>(S.actOnDeclarator(D));
+  if (!FD)
+    Diag.fatalAt(BegLoc, "expected function declaration");
+
+  if (CurTok->is(Token::TK_LBrace)) {
+    Stmt *Body = parseCompoundStmt();
+    FD->setBody(Body);
+    FD->setEndLoc(Body->getEndLoc());
+  }
+
+  S.complete(FD);
+  return FD;
 }
 
 // stmt: return-stmt
@@ -93,7 +110,7 @@ Stmt *Parser::parseCompoundStmt() {
     CurStmt = CurStmt->getNext();
   }
 
-  auto EndLoc = SM.createBeginLocation(CurTok + 1);
+  auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RBRace);
   return S.actOnCompoundStmt(BegLoc, EndLoc, Head.getNext());
 }
@@ -196,14 +213,19 @@ Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
   return Var;
 }
 
-// declarator: '*'* ident
+// declarator: '*'* direct-declarator
 void Parser::parseDeclarator(Declarator &D) {
   while (tryConsume(Token::TK_Star)) {
     auto Chunk = DeclaratorChunk::createPointer();
     D.addDeclChunk(Chunk);
   }
 
-  D.setLocation(SM.createBeginLocation(CurTok));
+  parseDirectDeclarator(D);
+}
+
+// direct-declarator: ident
+//                  | direct-declarator '(' ')'
+void Parser::parseDirectDeclarator(Declarator &D) {
   if (!CurTok->is(Token::TK_Ident)) {
     Diag.fatalAt(CurTok->getLoc(), "expect identifier");
     return;
@@ -212,6 +234,15 @@ void Parser::parseDeclarator(Declarator &D) {
   D.setIdent(std::string(CurTok->getIdentifer()));
   D.setEndLoc(SM.createEndLocation(CurTok));
   skip();
+
+  if (tryConsume(Token::TK_LParen)) {
+    // Try parse function declarator.
+    // Record function information in DeclaratorChunk.
+    D.setEndLoc(SM.createEndLocation(CurTok));
+    skip(Token::TK_RParen);
+    D.addDeclChunk(DeclaratorChunk::createFunction());
+    return;
+  }
 }
 
 // expr-stmt: expr ';'

@@ -24,10 +24,22 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   return alignTo(Offset, 16);
 }
 
-void CodeGen::codegen(const FunctionDecl *FD) {
+void CodeGen::codegen(const TranslationUnitDecl *TU) {
+  for (const auto *D : TU->decls()) {
+    if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
+      genFunction(FD);
+    } else {
+      Diag.fatalAt(D->getBeginLoc(), "only function declaration is allowed");
+    }
+  }
+}
+
+void CodeGen::genFunction(const FunctionDecl *FD) {
+  CurrFunc = FD;
   std::size_t StackSize = assignLVarOffsets(FD);
-  printf("  .globl main\n");
-  printf("main:\n");
+  const char *Name = FD->getName().c_str();
+  printf("  .globl %s\n", Name);
+  printf("%s:\n", Name);
 
   // stack frame
   //-------------------------------// sp
@@ -58,13 +70,14 @@ void CodeGen::codegen(const FunctionDecl *FD) {
     assert(Depth == 0);
   }
 
-  printf(".L.return:\n");
+  printf(".L.return.%s:\n", Name);
   printf("  # restore sp, fp and ra\n");
   printf("  mv sp, fp\n");    // restore sp, sp = fp
   printf("  ld fp, 0(sp)\n"); // pop fp
   printf("  ld ra, 8(sp)\n"); // pop ra
   printf("  addi sp, sp, 16\n");
   printf("  ret\n");
+  printf("  # end of function '%s'\n", Name);
 }
 
 void CodeGen::genStmt(const Stmt *S) {
@@ -83,7 +96,7 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_ReturnStmt:
     printf("  # return stmt\n");
     genExpr(cast<ReturnStmt>(S)->getRetValue());
-    printf("  j .L.return\n");
+    printf("  j .L.return.%s\n", CurrFunc->getName().c_str());
     break;
   case Stmt::SK_NullStmt:
     break;

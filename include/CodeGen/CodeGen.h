@@ -4,6 +4,7 @@
 namespace rcc {
 
 class Decl;
+class TranslationUnitDecl;
 class FunctionDecl;
 class Stmt;
 class Expr;
@@ -20,7 +21,10 @@ class CodeGen {
 public:
   CodeGen(Diagnostic &Diag);
 
-  void codegen(const FunctionDecl *FD);
+  void codegen(const TranslationUnitDecl *FD);
+
+private:
+  void genFunction(const FunctionDecl *FD);
 
 private:
   void genStmt(const Stmt *S);
@@ -42,6 +46,7 @@ private:
 
 private:
   Diagnostic &Diag;
+  const FunctionDecl *CurrFunc = nullptr;
   int Depth = 0;
 };
 

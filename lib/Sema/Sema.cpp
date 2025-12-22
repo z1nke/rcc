@@ -10,25 +10,10 @@
 namespace rcc {
 
 Decl *Sema::actOnDeclarator(Declarator &D) {
-  QualType T;
-  const DeclSpec &DS = D.getDeclSpec();
-  switch (DS.getTypeSpecType()) {
-  case DeclSpec::TST_Int:
-    T = Ctx.IntTy;
-    break;
-  default:
-    Diag.fatalAt(DS.getTypeSpecLoc(), "unknown type specifier");
-  }
+  QualType T = getTypeForDeclarator(D);
 
-  for (const auto &Chunk : D.getDeclChunks()) {
-    switch (Chunk.Kind) {
-    case DeclaratorChunk::DCK_Pointer:
-      T = Ctx.getPointerType(T);
-      break;
-    default:
-      Diag.fatalAt(DS.getTypeSpecLoc(), "unknown declarator type");
-    }
-  }
+  if (const auto *FT = dyn_cast<FunctionType>(T))
+    return actOnFunctionDecl(D, FT, nullptr);
 
   return actOnVarDecl(D, T);
 }
@@ -41,17 +26,29 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   return Var;
 }
 
-FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation BegLoc,
-                                      SourceLocation EndLoc, std::string Name,
+FunctionDecl *Sema::actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                       Stmt *Body) {
-  auto *FD = FunctionDecl::create(Ctx, SourceLocation(), BegLoc, EndLoc,
-                                  Ctx.getFunctionType(), std::move(Name), Body);
+  return actOnFunctionDecl(Ctx, D.getLocation(), D.getTypeSpecLoc(),
+                           D.getEndLoc(), D.getIdent(), FT->getReturnType(),
+                           Body);
+}
+
+FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
+                                      SourceLocation BegLoc,
+                                      SourceLocation EndLoc, std::string Name,
+                                      QualType RetType, Stmt *Body) {
+
+  return FunctionDecl::create(Ctx, Loc, BegLoc, EndLoc,
+                              Ctx.getFunctionType(RetType), std::move(Name),
+                              Body);
+}
+
+void Sema::complete(FunctionDecl *FD) {
   std::vector<VarDecl *> Vars;
   std::swap(Vars, LocalVars);
   std::reverse(Vars.begin(), Vars.end());
   FD->setLocalVars(std::move(Vars));
   Funcs.push_back(FD);
-  return FD;
 }
 
 Stmt *Sema::actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
@@ -132,7 +129,7 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
   FunctionDecl *FD = findFunction(Name);
   if (!FD) {
     FD = FunctionDecl::create(Ctx, SourceLocation(), SourceLocation(),
-                              SourceLocation(), Ctx.getFunctionType(),
+                              SourceLocation(), Ctx.getFunctionType(Ctx.IntTy),
                               std::string(Name), nullptr);
     Funcs.push_back(FD);
     FD->setImplicit(true);
@@ -304,6 +301,34 @@ FunctionDecl *Sema::findFunction(std::string_view Name) {
   }
 
   return nullptr;
+}
+
+QualType Sema::getTypeForDeclarator(Declarator &D) {
+  QualType T;
+  const DeclSpec &DS = D.getDeclSpec();
+  switch (DS.getTypeSpecType()) {
+  case DeclSpec::TST_Int:
+    T = Ctx.IntTy;
+    break;
+  default:
+    Diag.fatalAt(DS.getTypeSpecLoc(), "unknown type specifier");
+  }
+
+  // Get full type.
+  for (const auto &Chunk : D.getDeclChunks()) {
+    switch (Chunk.Kind) {
+    case DeclaratorChunk::DCK_Pointer:
+      T = Ctx.getPointerType(T);
+      break;
+    case DeclaratorChunk::DCK_Function:
+      T = Ctx.getFunctionType(T);
+      break;
+    default:
+      Diag.fatalAt(DS.getTypeSpecLoc(), "unknown declarator type");
+    }
+  }
+
+  return T;
 }
 
 } // namespace rcc

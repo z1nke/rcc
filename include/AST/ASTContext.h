@@ -30,7 +30,7 @@ public:
   void initBuiltinTypes();
   void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind);
   QualType getPointerType(QualType PointeeType);
-  QualType getFunctionType();
+  QualType getFunctionType(QualType RetType);
 
   std::vector<Type *> Types;
   std::unordered_map<void *, PointerType *> PointerTypes;

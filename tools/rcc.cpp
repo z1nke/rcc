@@ -30,8 +30,8 @@ int main(int Argc, char **Argv) {
   Ctx.initBuiltinTypes();
   Sema S(Ctx, Diag);
   Parser P(Toks, Ctx, S, SM);
-  FunctionDecl *FD = P.parse();
+  TranslationUnitDecl *TU = P.parse();
   CodeGen CG(Diag);
-  CG.codegen(FD);
+  CG.codegen(TU);
   return 0;
 }

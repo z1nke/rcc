@@ -18,6 +18,7 @@ class Decl {
 public:
   enum DeclKind {
     NoDeclKind = 0,
+    DK_TranslationUnit,
     DK_Var,
     DK_Function,
   };
@@ -44,6 +45,25 @@ private:
   SourceLocation BegLoc;
   SourceLocation EndLoc;
   bool IsImplicit = false;
+};
+
+class TranslationUnitDecl : public Decl {
+public:
+  static TranslationUnitDecl *create(ASTContext &Ctx);
+
+  static bool classof(const Decl *D) {
+    return D->getKind() == DK_TranslationUnit;
+  }
+
+  const std::vector<Decl *> &decls() const { return Decls; }
+  void addDecl(Decl *D) { Decls.push_back(D); }
+
+private:
+  TranslationUnitDecl()
+      : Decl(DK_TranslationUnit, SourceLocation(), SourceLocation(),
+             SourceLocation()) {}
+
+  std::vector<Decl *> Decls;
 };
 
 class NamedDecl : public Decl {
@@ -109,6 +129,7 @@ public:
   static bool classof(const Decl *D) { return D->getKind() == DK_Function; }
 
   Stmt *getBody() const { return Body; }
+  void setBody(Stmt *B) { Body = B; }
 
   void setLocalVars(std::vector<VarDecl *> Vars);
 
@@ -120,7 +141,7 @@ protected:
 
 private:
   ASTContext &Ctx;
-  Stmt *Body;
+  Stmt *Body = nullptr;
   std::vector<VarDecl *> LocalVars; // Temporary handling.
 };
 

@@ -3,6 +3,12 @@
 
 namespace rcc {
 
+TranslationUnitDecl *TranslationUnitDecl::create(ASTContext &Ctx) {
+  void *Mem =
+      Ctx.Allocate(sizeof(TranslationUnitDecl), alignof(TranslationUnitDecl));
+  return new (Mem) TranslationUnitDecl();
+}
+
 VarDecl *VarDecl::create(ASTContext &Ctx, SourceLocation Loc,
                          SourceLocation BegLoc, SourceLocation EndLoc,
                          QualType T, std::string Name) {

@@ -24,8 +24,8 @@ QualType ASTContext::getPointerType(QualType PointeeType) {
   return QualType(Ty);
 }
 
-QualType ASTContext::getFunctionType() {
-  auto *Ty = new (*this, alignof(FunctionType)) FunctionType();
+QualType ASTContext::getFunctionType(QualType RetType) {
+  auto *Ty = new (*this, alignof(FunctionType)) FunctionType(RetType);
   return QualType(Ty);
 }
 

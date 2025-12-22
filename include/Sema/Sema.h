@@ -26,9 +26,14 @@ public:
 
   Decl *actOnDeclarator(Declarator &D);
   VarDecl *actOnVarDecl(Declarator &D, QualType T);
-  FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation BegLoc,
-                                  SourceLocation EndLoc, std::string Name,
+  FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
+                                  SourceLocation BegLoc, SourceLocation EndLoc,
+                                  std::string Name, QualType RetType,
                                   Stmt *Body);
+  FunctionDecl *actOnFunctionDecl(Declarator &D, const FunctionType *FT,
+                                  Stmt *Body);
+
+  void complete(FunctionDecl *FD);
 
   Stmt *actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
                       SourceLocation EndLoc, std::vector<Decl *> Decls);
@@ -70,6 +75,9 @@ private:
 
   QualType checkUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
                                   unsigned Op);
+
+private:
+  QualType getTypeForDeclarator(Declarator &D);
 
 private:
   ASTContext &Ctx;

@@ -31,11 +31,13 @@ private:
 struct DeclaratorChunk {
   enum DCKind {
     DCK_Pointer,
+    DCK_Function,
   } Kind;
 
   DeclaratorChunk(DCKind Kind) : Kind(Kind) {}
 
   static DeclaratorChunk createPointer();
+  static DeclaratorChunk createFunction();
 };
 
 class Declarator {
@@ -58,6 +60,8 @@ public:
 
   void setEndLoc(SourceLocation EndLoc) { this->EndLoc = EndLoc; }
   SourceLocation getEndLoc() const { return EndLoc; }
+
+  SourceLocation getTypeSpecLoc() const { return DS.getTypeSpecLoc(); }
 
 private:
   const DeclSpec &DS;

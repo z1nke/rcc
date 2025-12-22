@@ -11,6 +11,7 @@ namespace rcc {
 class Stmt;
 class Expr;
 class Decl;
+class TranslationUnitDecl;
 class FunctionDecl;
 class VarDecl;
 
@@ -28,7 +29,10 @@ public:
 
   ~Parser();
 
-  FunctionDecl *parse();
+  TranslationUnitDecl *parse();
+
+private:
+  FunctionDecl *parseFunctionDecl();
 
 private:
   Stmt *parseStmt();
@@ -57,6 +61,7 @@ private:
   std::vector<Decl *> parseInitDeclaratorList(DeclSpec &DS);
   Decl *parseInitDeclarator(DeclSpec &DS);
   void parseDeclarator(Declarator &D);
+  void parseDirectDeclarator(Declarator &D);
 
 private:
   template <auto ParseOperand, Token::TokenKind... TKS>
