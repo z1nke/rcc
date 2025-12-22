@@ -4,7 +4,6 @@
 #include "Basic/Allocator.h"
 #include "Basic/Casting.h"
 #include "Basic/Diagnostic.h"
-#include "Basic/Unreachable.h"
 
 #include <cassert>
 #include <cstdio>
@@ -21,8 +20,15 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
     Var->setOffset(-Offset);
   }
 
+  for (auto *Param : FD->getParams()) {
+    Offset += 8;
+    Param->setOffset(-Offset);
+  }
+
   return alignTo(Offset, 16);
 }
+
+static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
 void CodeGen::codegen(const TranslationUnitDecl *TU) {
   for (const auto *D : TU->decls()) {
@@ -63,6 +69,16 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   if (StackSize > 0) {
     printf("  # allocate %ld bytes for local variables\n", StackSize);
     printf("  addi sp, sp, -%ld\n", StackSize);
+  }
+
+  unsigned NumParams = FD->getNumParams();
+  if (NumParams > 0) {
+    assert(NumParams <= 6);
+    printf("  # store %u parameters to stack\n", NumParams);
+    for (unsigned I = 0; I < NumParams; ++I) {
+      const auto *Param = FD->getParam(I);
+      printf("  sd %s, %d(fp)\n", ArgReg[I], Param->getOffset());
+    }
   }
 
   for (const Stmt *S = FD->getBody(); S; S = S->getNext()) {
@@ -363,8 +379,6 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
                  UO->getOpcode());
   }
 }
-
-static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
 void CodeGen::genCallExpr(const CallExpr *CE) {
   const auto *Func = CE->getCalleeDecl();

@@ -224,7 +224,7 @@ void Parser::parseDeclarator(Declarator &D) {
 }
 
 // direct-declarator: ident
-//                  | direct-declarator '(' ')'
+//                  | direct-declarator '(' { params } ')'
 void Parser::parseDirectDeclarator(Declarator &D) {
   if (!CurTok->is(Token::TK_Ident)) {
     Diag.fatalAt(CurTok->getLoc(), "expect identifier");
@@ -238,8 +238,23 @@ void Parser::parseDirectDeclarator(Declarator &D) {
   if (tryConsume(Token::TK_LParen)) {
     // Try parse function declarator.
     // Record function information in DeclaratorChunk.
+    // params: param { ',' param }*
+    // param: declspec declarator
+    unsigned Idx = 0;
+    while (CurTok->isNot(Token::TK_RParen)) {
+      if (Idx > 0)
+        skip(Token::TK_Comma);
+
+      DeclSpec ParamDS;
+      parseDeclSpec(ParamDS);
+      Declarator ParamD(ParamDS);
+      parseDeclarator(ParamD);
+      (void)S.actOnParamVarDecl(ParamD, Idx);
+      ++Idx;
+    }
+
     D.setEndLoc(SM.createEndLocation(CurTok));
-    skip(Token::TK_RParen);
+    skip();
     D.addDeclChunk(DeclaratorChunk::createFunction());
     return;
   }

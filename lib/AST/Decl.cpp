@@ -20,6 +20,20 @@ VarDecl::VarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                  SourceLocation EndLoc, QualType T, std::string Name)
     : ValueDecl(DK_Var, Loc, BegLoc, EndLoc, T, std::move(Name)), Ctx(Ctx) {}
 
+ParamVarDecl::ParamVarDecl(ASTContext &Ctx, SourceLocation Loc,
+                           SourceLocation BegLoc, SourceLocation EndLoc,
+                           QualType T, std::string Name, unsigned Index)
+    : VarDecl(Ctx, Loc, BegLoc, EndLoc, T, std::move(Name)), Index(Index) {}
+
+ParamVarDecl *ParamVarDecl::create(ASTContext &Ctx, SourceLocation Loc,
+                                   SourceLocation BegLoc, SourceLocation EndLoc,
+                                   QualType T, std::string Name,
+                                   unsigned Index) {
+  void *Mem = Ctx.Allocate(sizeof(ParamVarDecl), alignof(ParamVarDecl));
+  return new (Mem)
+      ParamVarDecl(Ctx, Loc, BegLoc, EndLoc, T, std::move(Name), Index);
+}
+
 FunctionDecl *FunctionDecl::create(ASTContext &Ctx, SourceLocation Loc,
                                    SourceLocation BegLoc, SourceLocation EndLoc,
                                    QualType T, std::string Name, Stmt *Body) {

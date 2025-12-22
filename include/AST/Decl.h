@@ -120,6 +120,21 @@ private:
   int Offset = 0;
 };
 
+class ParamVarDecl : public VarDecl {
+public:
+  static ParamVarDecl *create(ASTContext &Ctx, SourceLocation Loc,
+                              SourceLocation BegLoc, SourceLocation EndLoc,
+                              QualType T, std::string Name, unsigned Index);
+
+private:
+  ParamVarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+               SourceLocation EndLoc, QualType T, std::string Name,
+               unsigned Index);
+
+private:
+  unsigned Index = 0;
+};
+
 class FunctionDecl : public ValueDecl {
 public:
   static FunctionDecl *create(ASTContext &Ctx, SourceLocation Loc,
@@ -132,8 +147,16 @@ public:
   void setBody(Stmt *B) { Body = B; }
 
   void setLocalVars(std::vector<VarDecl *> Vars);
-
   const std::vector<VarDecl *> &getLocalVars() const { return LocalVars; }
+
+  void setParams(std::vector<ParamVarDecl *> Params) {
+    this->Params = std::move(Params);
+  }
+  const std::vector<ParamVarDecl *> &getParams() const { return Params; }
+  unsigned getNumParams() const { return Params.size(); }
+  const ParamVarDecl *getParam(unsigned Index) const {
+    return Params[Index];
+  }
 
 protected:
   FunctionDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
@@ -142,6 +165,7 @@ protected:
 private:
   ASTContext &Ctx;
   Stmt *Body = nullptr;
+  std::vector<ParamVarDecl *> Params;
   std::vector<VarDecl *> LocalVars; // Temporary handling.
 };
 

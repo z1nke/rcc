@@ -15,6 +15,7 @@ class Stmt;
 class Expr;
 class Decl;
 class VarDecl;
+class ParamVarDecl;
 class Declarator;
 class FunctionDecl;
 
@@ -26,6 +27,7 @@ public:
 
   Decl *actOnDeclarator(Declarator &D);
   VarDecl *actOnVarDecl(Declarator &D, QualType T);
+  ParamVarDecl *actOnParamVarDecl(Declarator &D, unsigned Index);
   FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                                   SourceLocation BegLoc, SourceLocation EndLoc,
                                   std::string Name, QualType RetType,
@@ -83,6 +85,7 @@ private:
   ASTContext &Ctx;
   Diagnostic &Diag;
   std::vector<VarDecl *> LocalVars;
+  std::vector<ParamVarDecl *> Params;
   std::vector<FunctionDecl *> Funcs;
 };
 

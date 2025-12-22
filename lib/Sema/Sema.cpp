@@ -26,6 +26,16 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   return Var;
 }
 
+ParamVarDecl *Sema::actOnParamVarDecl(Declarator &D, unsigned Index) {
+  QualType T = getTypeForDeclarator(D);
+  const DeclSpec &DS = D.getDeclSpec();
+  ParamVarDecl *Param =
+      ParamVarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
+                           D.getEndLoc(), T, D.getIdent(), Index);
+  Params.push_back(Param);
+  return Param;
+}
+
 FunctionDecl *Sema::actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                       Stmt *Body) {
   return actOnFunctionDecl(Ctx, D.getLocation(), D.getTypeSpecLoc(),
@@ -48,6 +58,11 @@ void Sema::complete(FunctionDecl *FD) {
   std::swap(Vars, LocalVars);
   std::reverse(Vars.begin(), Vars.end());
   FD->setLocalVars(std::move(Vars));
+
+  std::vector<ParamVarDecl *> PVars;
+  std::swap(PVars, Params);
+  FD->setParams(std::move(PVars));
+
   Funcs.push_back(FD);
 }
 
@@ -289,6 +304,11 @@ VarDecl *Sema::findVar(std::string_view Ident) {
   for (VarDecl *Var : LocalVars) {
     if (Var->getName() == Ident)
       return Var;
+  }
+
+  for (ParamVarDecl *Param : Params) {
+    if (Param->getName() == Ident)
+      return Param;
   }
 
   return nullptr;
