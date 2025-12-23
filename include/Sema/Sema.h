@@ -65,7 +65,7 @@ private:
   FunctionDecl *findFunction(std::string_view Name);
 
 private:
-  void checkScalarType(Expr *E);
+  void checkScalarType(QualType T);
   void checkIntType(Expr *E);
   void checkArithmeticType(Expr *E);
 
@@ -80,6 +80,8 @@ private:
 
 private:
   QualType getTypeForDeclarator(Declarator &D);
+  QualType tryDecayArrayType(QualType T);
+  std::size_t getArrayLength(const Expr *E) const;
 
 private:
   ASTContext &Ctx;

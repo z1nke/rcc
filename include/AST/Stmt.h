@@ -103,6 +103,7 @@ public:
   void dump() const;
 
   QualType getType() const { return Ty; }
+  const Type *getTypePtr() const { return Ty.getTypePtr(); }
   void setType(QualType T);
 
 protected:
@@ -295,8 +296,8 @@ private:
 class IntegerLiteral : public Expr {
 public:
   static IntegerLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
-                                 SourceLocation EndLoc, QualType T,
-                                 std::int64_t Val);
+                                SourceLocation EndLoc, QualType T,
+                                std::int64_t Val);
 
   static bool classof(const Stmt *S) {
     return S->getKind() == SK_IntegerLiteral;
@@ -308,7 +309,7 @@ public:
 
 protected:
   IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
-                  std::int64_t Val);
+                 std::int64_t Val);
 
 private:
   // FIXME: Support different integer types.

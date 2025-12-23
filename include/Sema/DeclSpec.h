@@ -8,6 +8,8 @@
 
 namespace rcc {
 
+class Expr;
+
 class DeclSpec {
 public:
   enum TypeSpecType {
@@ -32,12 +34,22 @@ struct DeclaratorChunk {
   enum DCKind {
     DCK_Pointer,
     DCK_Function,
+    DCK_Array,
   } Kind;
 
   DeclaratorChunk(DCKind Kind) : Kind(Kind) {}
 
+  struct ArrayTypeInfo {
+    Expr *LenExpr;
+  };
+
+  union {
+    ArrayTypeInfo Arr;
+  };
+
   static DeclaratorChunk createPointer();
   static DeclaratorChunk createFunction();
+  static DeclaratorChunk createArray(Expr *LenExpr);
 };
 
 class Declarator {

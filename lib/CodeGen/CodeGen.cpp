@@ -16,12 +16,12 @@ CodeGen::CodeGen(Diagnostic &Diag) : Diag(Diag) {}
 static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   int Offset = 0;
   for (auto *Var : FD->getLocalVars()) {
-    Offset += 8;
+    Offset += Var->getType()->getSize();
     Var->setOffset(-Offset);
   }
 
   for (auto *Param : FD->getParams()) {
-    Offset += 8;
+    Offset += Param->getType()->getSize();
     Param->setOffset(-Offset);
   }
 
@@ -235,12 +235,12 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_ParenExpr:
     genExpr(cast<ParenExpr>(E)->getSubExpr());
     break;
-  case Stmt::SK_DeclRefExpr:
-    // a0 = addr
-    genAddr(cast<DeclRefExpr>(E));
-    // a0 = *a0
-    printf("  ld a0, 0(a0)\n");
+  case Stmt::SK_DeclRefExpr: {
+    const auto *Ref = cast<DeclRefExpr>(E);
+    genAddr(Ref);            // a0 = addr
+    load(Ref->getTypePtr()); // a0 = *a0
     break;
+  }
   case Stmt::SK_CallExpr:
     genCallExpr(cast<CallExpr>(E));
     break;
@@ -254,13 +254,9 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   const auto *RHS = BO->getRHS();
   if (BO->getOpcode() == BinaryOperator::BO_Assign) {
     genAddr(LHS);
-    push();
-    // a0 = rhs
-    genExpr(BO->getRHS());
-    // a1 = addrof(lhs)
-    pop("a1");
-    // *(a1) = a0
-    printf("  sd a0, 0(a1)\n");
+    push();                // a1 = addrof(lhs)
+    genExpr(BO->getRHS()); // a0 = rhs
+    store();               // *(a1) = a0
     return;
   }
 
@@ -372,7 +368,7 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   case UnaryOperator::UO_Deref:
     printf("  # deref\n");
     genExpr(UO->getSubExpr());
-    printf("  ld a0, 0(a0)\n"); // a0 = *addr
+    load(UO->getTypePtr());
     break;
   default:
     Diag.fatalAt(UO->getBeginLoc(), "invalid unary opcode: %d",
@@ -445,6 +441,19 @@ void CodeGen::pop(const char *Reg) {
   printf("  ld %s, 0(sp)\n", Reg); // load from stack to Reg
   printf("  addi sp, sp, 8\n");    // sp += 8
   --Depth;
+}
+
+void CodeGen::load(const Type *Ty) {
+  if (Ty->isArraryType())
+    return;
+  printf("  # load\n");
+  printf("  ld a0, 0(a0)\n");
+}
+
+void CodeGen::store(void) {
+  printf("  # store\n");
+  pop("a1");
+  printf("  sd a0, 0(a1)\n");
 }
 
 int CodeGen::getCount() const {

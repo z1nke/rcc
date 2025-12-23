@@ -3,11 +3,12 @@
 namespace rcc {
 
 void ASTContext::initBuiltinTypes() {
-  initBuiltinType(IntTy, BuiltinType::BK_Int);
+  initBuiltinType(IntTy, BuiltinType::BK_Int, 8);
 }
 
-void ASTContext::initBuiltinType(CanQualType &R, BuiltinType::Kind Kind) {
-  auto *Ty = new (*this, alignof(BuiltinType)) BuiltinType(Kind);
+void ASTContext::initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,
+                                 std::size_t Size) {
+  auto *Ty = new (*this, alignof(BuiltinType)) BuiltinType(Kind, Size);
   R = CanQualType(Ty);
   Types.push_back(Ty);
 }
@@ -26,6 +27,13 @@ QualType ASTContext::getPointerType(QualType PointeeType) {
 
 QualType ASTContext::getFunctionType(QualType RetType) {
   auto *Ty = new (*this, alignof(FunctionType)) FunctionType(RetType);
+  return QualType(Ty);
+}
+
+QualType ASTContext::getConstantArrayType(QualType ElementType,
+                                          std::size_t Len) {
+  auto *Ty = new (*this, alignof(ConstantArrayType))
+      ConstantArrayType(ElementType, Len);
   return QualType(Ty);
 }
 

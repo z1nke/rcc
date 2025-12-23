@@ -28,9 +28,11 @@ public:
   CanQualType IntTy;
 
   void initBuiltinTypes();
-  void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind);
+  void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,
+                       std::size_t Size);
   QualType getPointerType(QualType PointeeType);
   QualType getFunctionType(QualType RetType);
+  QualType getConstantArrayType(QualType ElementType, std::size_t Len);
 
   std::vector<Type *> Types;
   std::unordered_map<void *, PointerType *> PointerTypes;

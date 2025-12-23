@@ -71,20 +71,24 @@ public:
     TK_Pointer,
     TK_Typedef,
     TK_Function,
+    TK_ConstantArray,
   };
 
   Type(TypeKind Kind) : Kind(Kind) {}
+  Type(TypeKind Kind, std::size_t Size) : Kind(Kind), Size(Size) {}
   Type(const Type &) = delete;
   Type(Type &&) = delete;
   Type &operator=(const Type &) = delete;
   Type &operator=(Type &&) = delete;
 
   TypeKind getTypeKind() const { return Kind; }
+  std::size_t getSize() const { return Size; }
 
   QualType getCanonicalType() const;
 
   bool isPointerType() const { return Kind == TK_Pointer; }
   bool isFunctionType() const { return Kind == TK_Function; }
+  bool isArraryType() const { return Kind == TK_ConstantArray; }
   bool isScalarType() const;
   bool isArithmeticType() const;
 
@@ -100,6 +104,7 @@ public:
 
 private:
   TypeKind Kind;
+  std::size_t Size = 0;
 };
 
 class BuiltinType : public Type {
@@ -108,7 +113,8 @@ public:
     BK_Int,
   };
 
-  explicit BuiltinType(Kind BK) : Type(TK_Builtin), BK(BK) {}
+  explicit BuiltinType(Kind BK, std::size_t Size)
+      : Type(TK_Builtin, Size), BK(BK) {}
 
   static bool classof(const Type *T) {
     return T->getTypeKind() == Type::TK_Builtin;
@@ -127,7 +133,7 @@ public:
   }
 
   explicit PointerType(QualType Pointee)
-      : Type(TK_Pointer), PointeeType(Pointee) {}
+      : Type(TK_Pointer, 8), PointeeType(Pointee) {}
 
   QualType getPointeeType() const { return PointeeType; }
 
@@ -148,6 +154,37 @@ public:
 private:
   // TODO: Function type details.
   QualType RetType;
+};
+
+class ArrayType : public Type {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_ConstantArray;
+  }
+
+  ArrayType(QualType ElementType, std::size_t Len)
+      : Type(TK_ConstantArray, Len * ElementType->getSize()),
+        ElementType(ElementType) {}
+
+  QualType getElementType() const { return ElementType; }
+
+private:
+  QualType ElementType;
+};
+
+class ConstantArrayType : public ArrayType {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_ConstantArray;
+  }
+
+  ConstantArrayType(QualType ElementType, std::size_t Len)
+      : ArrayType(ElementType, Len), Len(Len) {}
+
+  std::size_t getLength() const { return Len; }
+
+private:
+  std::size_t Len;
 };
 
 template <typename To> inline bool isa(QualType T) {

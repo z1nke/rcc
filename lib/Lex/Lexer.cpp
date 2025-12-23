@@ -104,6 +104,12 @@ Token *Lexer::tokenize(char *P) {
     case ',':
       lexPunctuator(Curr, Token::TK_Comma, P);
       break;
+    case '[':
+      lexPunctuator(Curr, Token::TK_LSquare, P);
+      break;
+    case ']':
+      lexPunctuator(Curr, Token::TK_RSquare, P);
+      break;
     default:
       Diag.fatalAt(P, "invalid character: %c", *P);
       break;

@@ -225,6 +225,7 @@ void Parser::parseDeclarator(Declarator &D) {
 
 // direct-declarator: ident
 //                  | direct-declarator '(' { params } ')'
+//                  | direct-declarator '[' { assign-expr } ']'
 void Parser::parseDirectDeclarator(Declarator &D) {
   if (!CurTok->is(Token::TK_Ident)) {
     Diag.fatalAt(CurTok->getLoc(), "expect identifier");
@@ -256,6 +257,15 @@ void Parser::parseDirectDeclarator(Declarator &D) {
     D.setEndLoc(SM.createEndLocation(CurTok));
     skip();
     D.addDeclChunk(DeclaratorChunk::createFunction());
+    return;
+  }
+
+  if (tryConsume(Token::TK_LSquare)) {
+    // Try parse array declarator.
+    Expr *LenExpr = parseAssign();
+    D.setEndLoc(SM.createBeginLocation(CurTok));
+    skip(Token::TK_RSquare);
+    D.addDeclChunk(DeclaratorChunk::createArray(LenExpr));
     return;
   }
 }

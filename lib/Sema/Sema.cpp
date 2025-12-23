@@ -88,7 +88,7 @@ Stmt *Sema::actOnCompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
 
 Stmt *Sema::actOnIfStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Then,
                         Stmt *Else) {
-  checkScalarType(Cond);
+  checkScalarType(Cond->getType());
   auto EndLoc = Else ? Else->getEndLoc() : Then->getEndLoc();
   return IfStmt::create(Ctx, BegLoc, EndLoc, Cond, Then, Else);
 }
@@ -96,14 +96,14 @@ Stmt *Sema::actOnIfStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Then,
 Stmt *Sema::actOnForStmt(SourceLocation BegLoc, Stmt *Init, Expr *Cond,
                          Expr *Inc, Stmt *Body) {
   if (Cond)
-    checkScalarType(Cond);
+    checkScalarType(Cond->getType());
   auto EndLoc = Body->getEndLoc();
   return ForStmt::create(Ctx, BegLoc, EndLoc, Init, Cond, Inc, Body);
 }
 
 Stmt *Sema::actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                            Stmt *Body) {
-  checkScalarType(Cond);
+  checkScalarType(Cond->getType());
   auto EndLoc = Body->getEndLoc();
   return WhileStmt::create(Ctx, BegLoc, EndLoc, Cond, Body);
 }
@@ -155,9 +155,9 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
                           std::move(Args));
 }
 
-void Sema::checkScalarType(Expr *E) {
-  if (!E->getType()->isScalarType())
-    Diag.fatalAt(E->getBeginLoc(), "expression requires scalar type");
+void Sema::checkScalarType(QualType T) {
+  if (!T->isScalarType())
+    Diag.fatalAt(SourceLocation(), "type requires scalar type");
 }
 
 void Sema::checkIntType(Expr *E) {
@@ -171,7 +171,7 @@ void Sema::checkArithmeticType(Expr *E) {
 }
 
 QualType Sema::getCommonArithmeticType(QualType LType, QualType RType) {
-  return Ctx.IntTy;
+  return LType;
 }
 
 bool Sema::canCast(QualType LType, QualType RType) {
@@ -195,6 +195,9 @@ QualType Sema::checkBinaryOperatorType(SourceLocation OpLoc, Expr *LHS,
   switch (Op) {
   case BinaryOperator::BO_Assign: {
     QualType LType = LHS->getType();
+    if (LType->isArraryType())
+      Diag.fatalAt(LHS->getBeginLoc(), "cannot assign to array type");
+
     QualType RType = RHS->getType();
     // FIXME: Check LHS type.
     if (LType.isNull()) {
@@ -208,10 +211,10 @@ QualType Sema::checkBinaryOperatorType(SourceLocation OpLoc, Expr *LHS,
     return LType;
   }
   case BinaryOperator::BO_Add: {
-    checkScalarType(LHS);
-    checkScalarType(RHS);
-    QualType LType = LHS->getType();
-    QualType RType = RHS->getType();
+    QualType LType = tryDecayArrayType(LHS->getType());
+    QualType RType = tryDecayArrayType(RHS->getType());
+    checkScalarType(LType);
+    checkScalarType(RType);
     bool LIsPtr = LType->isPointerType();
     bool RIsPtr = RType->isPointerType();
     if (LIsPtr && RIsPtr)
@@ -235,10 +238,10 @@ QualType Sema::checkBinaryOperatorType(SourceLocation OpLoc, Expr *LHS,
     Diag.fatalAt(OpLoc, "invalid operand");
   }
   case BinaryOperator::BO_Sub: {
-    checkScalarType(LHS);
-    checkScalarType(RHS);
-    QualType LType = LHS->getType();
-    QualType RType = RHS->getType();
+    QualType LType = tryDecayArrayType(LHS->getType());
+    QualType RType = tryDecayArrayType(RHS->getType());
+    checkScalarType(LType);
+    checkScalarType(RType);
     bool LIsPtr = LType->isPointerType();
     bool RIsPtr = RType->isPointerType();
     if (LIsPtr && RIsPtr)
@@ -286,14 +289,20 @@ QualType Sema::checkUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
     checkArithmeticType(SubExpr);
     return SubExpr->getType();
   case UnaryOperator::UO_Addrof:
+    // FIXME: Temporarily handle array type.
+    if (const auto *ArrType = SubExpr->getType()->getAs<ArrayType>())
+      return Ctx.getPointerType(ArrType->getElementType());
+
     return Ctx.getPointerType(SubExpr->getType());
   case UnaryOperator::UO_Deref: {
-    const auto *PtrType = SubExpr->getType()->getAs<PointerType>();
-    if (!PtrType) {
-      Diag.fatalAt(SubExpr->getBeginLoc(),
-                   "dereference requires pointer operand");
-    }
-    return PtrType->getPointeeType();
+    if (const auto *PtrType = SubExpr->getType()->getAs<PointerType>())
+      return PtrType->getPointeeType();
+
+    if (const auto *ArrType = SubExpr->getType()->getAs<ArrayType>())
+      return ArrType->getElementType();
+
+    Diag.fatalAt(SubExpr->getBeginLoc(),
+                 "dereference requires pointer operand");
   }
   default:
     Diag.fatalAt(OpLoc, "unknown unary opcode");
@@ -343,12 +352,33 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
     case DeclaratorChunk::DCK_Function:
       T = Ctx.getFunctionType(T);
       break;
+    case DeclaratorChunk::DCK_Array:
+      if (!Chunk.Arr.LenExpr)
+        Diag.fatalAt(D.getLocation(), "array size must be constant");
+      T = Ctx.getConstantArrayType(T, getArrayLength(Chunk.Arr.LenExpr));
+      break;
     default:
       Diag.fatalAt(DS.getTypeSpecLoc(), "unknown declarator type");
     }
   }
 
   return T;
+}
+
+QualType Sema::tryDecayArrayType(QualType T) {
+  if (const auto *AT = T->getAs<ArrayType>())
+    return Ctx.getPointerType(AT->getElementType());
+  return T;
+}
+
+std::size_t Sema::getArrayLength(const Expr *E) const {
+  if (const auto *IL = dyn_cast<IntegerLiteral>(E)) {
+    std::int64_t Val = IL->getVal();
+    if (Val <= 0)
+      Diag.fatalAt(IL->getBeginLoc(), "array size must be positive");
+    return static_cast<std::size_t>(Val);
+  }
+  return 0;
 }
 
 } // namespace rcc

@@ -37,10 +37,6 @@ const char *Token::getKindStr(TokenKind Kind) {
     return "*";
   case TK_Slash:
     return "/";
-  case TK_LParen:
-    return "(";
-  case TK_RParen:
-    return ")";
   case TK_Num:
     return "number";
   case TK_Unknown:
@@ -61,6 +57,14 @@ const char *Token::getKindStr(TokenKind Kind) {
     return ">=";
   case TK_Semicolon:
     return ";";
+  case TK_LParen:
+    return "(";
+  case TK_RParen:
+    return ")";
+  case TK_LSquare:
+    return "[";
+  case TK_RSquare:
+    return "]";
   case TK_LBrace:
     return "{";
   case TK_RBRace:

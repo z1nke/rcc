@@ -15,6 +15,7 @@ class WhileStmt;
 class BinaryOperator;
 class UnaryOperator;
 class CallExpr;
+class Type;
 class Diagnostic;
 
 class CodeGen {
@@ -42,6 +43,9 @@ private:
 private:
   void push();
   void pop(const char *Reg);
+  void load(const Type *Ty);
+  void store(void);
+
   int getCount() const;
 
 private:
