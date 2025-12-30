@@ -6,6 +6,7 @@
 #include "Sema/DeclSpec.h"
 
 #include <algorithm>
+#include <ranges>
 
 namespace rcc {
 
@@ -49,20 +50,32 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                                       QualType RetType, Stmt *Body) {
 
   return FunctionDecl::create(Ctx, Loc, BegLoc, EndLoc,
-                              Ctx.getFunctionType(RetType), std::move(Name),
+                              Ctx.getFunctionType(RetType, {}), std::move(Name),
                               Body);
 }
 
 void Sema::complete(FunctionDecl *FD) {
   std::vector<VarDecl *> Vars;
   std::swap(Vars, LocalVars);
-  std::reverse(Vars.begin(), Vars.end());
+  std::ranges::reverse(Vars);
   FD->setLocalVars(std::move(Vars));
+
+  std::vector<QualType> ParamTypes;
+  for (const auto *Param : Params)
+    ParamTypes.push_back(Param->getType());
 
   std::vector<ParamVarDecl *> PVars;
   std::swap(PVars, Params);
   FD->setParams(std::move(PVars));
+  QualType FT = FD->getType();
+  const auto *FuncTy = dyn_cast<FunctionType>(FT);
+  if (!FuncTy)
+    Diag.fatalAt(FD->getLocation(), "expect function type");
 
+  QualType RetType = FuncTy->getReturnType();
+
+  QualType NewFT = Ctx.getFunctionType(RetType, std::move(ParamTypes));
+  FD->setType(NewFT);
   Funcs.push_back(FD);
 }
 
@@ -82,8 +95,8 @@ Stmt *Sema::actOnReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
 }
 
 Stmt *Sema::actOnCompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
-                              Stmt *Body) {
-  return CompoundStmt::create(Ctx, BegLoc, EndLoc, Body);
+                              std::vector<Stmt *> Body) {
+  return CompoundStmt::create(Ctx, BegLoc, EndLoc, std::move(Body));
 }
 
 Stmt *Sema::actOnIfStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Then,
@@ -133,7 +146,7 @@ Expr *Sema::actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                              std::string_view Ident) {
   VarDecl *Var = findVar(Ident);
   if (!Var)
-    Diag.fatalAt(BegLoc, "undeclared variable '%s'", Ident.data());
+    Diag.fatalAt(BegLoc, "undeclared variable '{}'", Ident.data());
 
   return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var->getType(), Var);
 }
@@ -143,9 +156,10 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
                           std::string_view Name, std::vector<Expr *> Args) {
   FunctionDecl *FD = findFunction(Name);
   if (!FD) {
-    FD = FunctionDecl::create(Ctx, SourceLocation(), SourceLocation(),
-                              SourceLocation(), Ctx.getFunctionType(Ctx.IntTy),
-                              std::string(Name), nullptr);
+    // Implicit function declaration.
+    FD = FunctionDecl::create(
+        Ctx, SourceLocation(), SourceLocation(), SourceLocation(),
+        Ctx.getFunctionType(Ctx.IntTy, {}), std::string(Name), nullptr);
     Funcs.push_back(FD);
     FD->setImplicit(true);
   }
@@ -344,13 +358,13 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   }
 
   // Get full type.
-  for (const auto &Chunk : D.getDeclChunks()) {
+  for (const auto &Chunk : (D.getDeclChunks() | std::views::reverse)) {
     switch (Chunk.Kind) {
     case DeclaratorChunk::DCK_Pointer:
       T = Ctx.getPointerType(T);
       break;
     case DeclaratorChunk::DCK_Function:
-      T = Ctx.getFunctionType(T);
+      T = Ctx.getFunctionType(T, {});
       break;
     case DeclaratorChunk::DCK_Array:
       if (!Chunk.Arr.LenExpr)

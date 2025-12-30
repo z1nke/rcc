@@ -23,11 +23,16 @@ public:
     DK_Function,
   };
 
-  Decl(DeclKind Kind, SourceLocation Loc, SourceLocation BegLoc,
-       SourceLocation EndLoc)
-      : Kind(Kind), Loc(Loc), BegLoc(BegLoc), EndLoc(EndLoc) {}
+  Decl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
+       SourceLocation BegLoc, SourceLocation EndLoc)
+      : Ctx(Ctx), Kind(Kind), Loc(Loc), BegLoc(BegLoc), EndLoc(EndLoc) {}
+
+  ASTContext &getContext() const { return Ctx; }
 
   DeclKind getKind() const { return Kind; }
+  const char *getKindStr() const;
+
+  void dump() const;
 
   SourceLocation getLocation() const { return Loc; }
   SourceLocation getBeginLoc() const { return BegLoc; }
@@ -40,6 +45,7 @@ public:
   void setImplicit(bool Val) { IsImplicit = Val; }
 
 private:
+  ASTContext &Ctx;
   DeclKind Kind;
   SourceLocation Loc;
   SourceLocation BegLoc;
@@ -59,8 +65,8 @@ public:
   void addDecl(Decl *D) { Decls.push_back(D); }
 
 private:
-  TranslationUnitDecl()
-      : Decl(DK_TranslationUnit, SourceLocation(), SourceLocation(),
+  TranslationUnitDecl(ASTContext &Ctx)
+      : Decl(Ctx, DK_TranslationUnit, SourceLocation(), SourceLocation(),
              SourceLocation()) {}
 
   std::vector<Decl *> Decls;
@@ -68,9 +74,9 @@ private:
 
 class NamedDecl : public Decl {
 public:
-  NamedDecl(DeclKind Kind, SourceLocation Loc, SourceLocation BegLoc,
-            SourceLocation EndLoc, std::string Name)
-      : Decl(Kind, Loc, BegLoc, EndLoc), Name(std::move(Name)) {}
+  NamedDecl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
+            SourceLocation BegLoc, SourceLocation EndLoc, std::string Name)
+      : Decl(Ctx, Kind, Loc, BegLoc, EndLoc), Name(std::move(Name)) {}
 
   const std::string &getName() const { return Name; }
   void setName(std::string Name) { this->Name = std::move(Name); }
@@ -81,9 +87,10 @@ private:
 
 class ValueDecl : public NamedDecl {
 public:
-  ValueDecl(DeclKind Kind, SourceLocation Loc, SourceLocation BegLoc,
-            SourceLocation EndLoc, QualType T, std::string Name)
-      : NamedDecl(Kind, Loc, BegLoc, EndLoc, std::move(Name)), Ty(T) {}
+  ValueDecl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
+            SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+            std::string Name)
+      : NamedDecl(Ctx, Kind, Loc, BegLoc, EndLoc, std::move(Name)), Ty(T) {}
 
   QualType getType() const { return Ty; }
   void setType(QualType T) { Ty = T; }
@@ -113,7 +120,6 @@ protected:
           SourceLocation EndLoc, QualType T, std::string Name);
 
 private:
-  ASTContext &Ctx;
   std::string Name;
   Expr *Init = nullptr;
   // Temporary handling.
@@ -130,6 +136,8 @@ private:
   ParamVarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                SourceLocation EndLoc, QualType T, std::string Name,
                unsigned Index);
+
+  unsigned getIndex() const { return Index; }
 
 private:
   unsigned Index = 0;
@@ -154,16 +162,13 @@ public:
   }
   const std::vector<ParamVarDecl *> &getParams() const { return Params; }
   unsigned getNumParams() const { return Params.size(); }
-  const ParamVarDecl *getParam(unsigned Index) const {
-    return Params[Index];
-  }
+  const ParamVarDecl *getParam(unsigned Index) const { return Params[Index]; }
 
 protected:
   FunctionDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                SourceLocation EndLoc, QualType T, std::string Name, Stmt *Body);
 
 private:
-  ASTContext &Ctx;
   Stmt *Body = nullptr;
   std::vector<ParamVarDecl *> Params;
   std::vector<VarDecl *> LocalVars; // Temporary handling.

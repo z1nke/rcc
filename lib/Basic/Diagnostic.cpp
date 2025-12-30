@@ -2,9 +2,8 @@
 #include "Basic/SourceManager.h"
 
 #include <cassert>
-#include <cstdarg>
-#include <cstdio>
 #include <cstdlib>
+#include <print>
 
 #if _WIN32
 #if __has_include(<io.h>)
@@ -30,47 +29,24 @@
 
 namespace rcc {
 
-[[noreturn]] void Diagnostic::fatalAt(const char *Loc, const char *Fmt, ...) {
-  va_list AP;
-  va_start(AP, Fmt);
-  vfatal(Loc, Fmt, AP);
-}
-
-[[noreturn]] void Diagnostic::fatalAt(SourceLocation SL, const char *Fmt, ...) {
-  assert(SL.isValid());
-  const char *Loc = SM.getLoc(SL);
-  va_list AP;
-  va_start(AP, Fmt);
-  vfatal(Loc, Fmt, AP);
-}
-
-[[noreturn]] void Diagnostic::Diagnostic::fatal(const char *Fmt, ...) {
-  va_list AP;
-  va_start(AP, Fmt);
-  vfatal(nullptr, Fmt, AP);
-}
-
-[[noreturn]] void Diagnostic::vfatal(const char *Loc, const char *Fmt,
-                                     std::va_list AP) {
+void Diagnostic::printLoc(const char *Loc) const {
   const char *Start = SM.getBegin();
-  fprintf(stderr, "%s\n", Start);
+  std::println(stderr, "{}", Start);
   int Offset = Loc - SM.getBegin();
-  fprintf(stderr, "%*s^ ", Offset, "");
+  std::print(stderr, "{:>{}}^ ", "", Offset);
+}
 
+void Diagnostic::printErrorWithColor() const {
 #if HAS_COLOR
   const bool HasColor = ISATTY(FILENO(stderr));
   if (HasColor)
-    fprintf(stderr, "\033[0;1;31m");
+    std::print(stderr, "\033[0;1;31m");
 #endif
-  fprintf(stderr, "error: ");
+  std::print(stderr, "error: ");
 #if HAS_COLOR
   if (HasColor)
-    fprintf(stderr, "\033[0m");
+    std::print(stderr, "\033[0m");
 #endif
-  vfprintf(stderr, Fmt, AP);
-  fputc('\n', stderr);
-  va_end(AP);
-  std::exit(1);
 }
 
 } // namespace rcc

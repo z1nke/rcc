@@ -1,0 +1,32 @@
+#ifndef STMT
+#define STMT(KIND)
+#endif
+
+#ifndef EXPR
+#define EXPR(KIND) STMT(KIND)
+#endif
+
+#ifndef STMT_RANGE
+#define STMT_RANGE(BASE, FIRST, LAST)
+#endif
+
+STMT(DeclStmt)
+STMT(ReturnStmt)
+STMT(CompoundStmt)
+STMT(NullStmt)
+STMT(IfStmt)
+STMT(ForStmt)
+STMT(WhileStmt)
+
+EXPR(UnaryOperator)
+EXPR(BinaryOperator)
+EXPR(IntegerLiteral)
+EXPR(ParenExpr)
+EXPR(DeclRefExpr)
+EXPR(CallExpr)
+
+STMT_RANGE(Expr, UnaryOperator, CallExpr)
+
+#undef STMT_RANGE
+#undef EXPR
+#undef STMT

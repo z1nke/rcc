@@ -3,6 +3,9 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <print>
+
+#include <print>
 
 namespace rcc {
 namespace details {
@@ -21,14 +24,14 @@ namespace details {
 #define RCC_BUILTIN_UNREACHABLE
 #endif
 
-[[noreturn]] void unreachableInternal(const char *msg, const char *filename,
-                                      unsigned lineno) {
+[[noreturn]] void unreachableInternal(const char *Msg, const char *Filename,
+                                      unsigned Lineno) {
 #ifndef NDEBUG // DEBUG
-  if (msg)
-    std::fprintf(stderr, "%s\n", msg);
+  if (Msg)
+    std::println(stderr, "{}", Msg);
   std::fputs("Unreachable executed", stderr);
-  if (filename)
-    std::fprintf(stderr, " at %s:%u", filename, lineno);
+  if (Filename)
+    std::print(stderr, " at {}:{}", Filename, Lineno);
   std::fputs("!\n", stderr);
 #endif
   std::abort();

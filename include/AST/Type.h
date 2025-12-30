@@ -4,6 +4,8 @@
 #include "Basic/Casting.h"
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace rcc {
 
@@ -49,6 +51,9 @@ public:
   explicit operator bool() const { return !isNull(); }
 
   const Type *getTypePtr() const;
+  unsigned getQualifiers() const;
+
+  std::string getAsString() const;
 
   const Type &operator*() const { return *getTypePtr(); }
   const Type *operator->() const { return getTypePtr(); }
@@ -81,6 +86,8 @@ public:
   Type &operator=(const Type &) = delete;
   Type &operator=(Type &&) = delete;
 
+  void dump() const;
+
   TypeKind getTypeKind() const { return Kind; }
   std::size_t getSize() const { return Size; }
 
@@ -91,6 +98,10 @@ public:
   bool isArraryType() const { return Kind == TK_ConstantArray; }
   bool isScalarType() const;
   bool isArithmeticType() const;
+
+  QualType getPointeeType() const;
+  QualType getBaseElementType() const;
+  const Type *getPointeeOrArrayElementType() const;
 
   template <typename To> const To *getAs() const {
     if (const auto *Ty = dyn_cast<To>(this))
@@ -121,6 +132,7 @@ public:
   }
 
   Kind getKind() const { return BK; }
+  const char *getKindStr() const;
 
 private:
   Kind BK;
@@ -147,13 +159,20 @@ public:
     return T->getTypeKind() == TypeKind::TK_Function;
   }
 
-  FunctionType(QualType RetType) : Type(TK_Function), RetType(RetType) {}
+  FunctionType(QualType RetType, std::vector<QualType> ParamTypes)
+      : Type(TK_Function), RetType(RetType), ParamTypes(std::move(ParamTypes)) {
+  }
 
   QualType getReturnType() const { return RetType; }
+
+  unsigned getNumParams() const { return ParamTypes.size(); }
+  QualType getParamType(unsigned Idx) const { return ParamTypes[Idx]; }
+  const std::vector<QualType> &getParamTypes() const { return ParamTypes; }
 
 private:
   // TODO: Function type details.
   QualType RetType;
+  std::vector<QualType> ParamTypes;
 };
 
 class ArrayType : public Type {

@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <print>
 
 namespace rcc {
 
@@ -19,7 +20,7 @@ std::string_view Token::getIdentifer() const {
 }
 
 void Token::dump() const {
-  printf("%s \n", getKindStr());
+  std::println("{} ", getKindStr());
   if (Next) {
     Next->dump();
   }

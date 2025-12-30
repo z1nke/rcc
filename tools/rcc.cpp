@@ -10,11 +10,13 @@
 #include "Parse/Parser.h"
 #include "Sema/Sema.h"
 
+#include <print>
+
 using namespace rcc;
 
 int main(int Argc, char **Argv) {
   if (Argc != 2) {
-    fprintf(stderr, "%s: invalid number of arguments", Argv[0]);
+    std::println(stderr, "{}: invalid number of arguments", Argv[0]);
     return 1;
   }
 

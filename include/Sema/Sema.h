@@ -43,7 +43,7 @@ public:
   Stmt *actOnReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                         Expr *RetVal);
   Stmt *actOnCompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
-                          Stmt *Body);
+                          std::vector<Stmt *> Body);
   Stmt *actOnIfStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Then, Stmt *Else);
   Stmt *actOnForStmt(SourceLocation BegLoc, Stmt *Init, Expr *Cond, Expr *Inc,
                      Stmt *Body);

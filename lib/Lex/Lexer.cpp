@@ -111,7 +111,7 @@ Token *Lexer::tokenize(char *P) {
       lexPunctuator(Curr, Token::TK_RSquare, P);
       break;
     default:
-      Diag.fatalAt(P, "invalid character: %c", *P);
+      Diag.fatalAt(P, "invalid character: {}", *P);
       break;
     }
   }

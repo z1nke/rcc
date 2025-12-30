@@ -1,5 +1,6 @@
 add_library(AST
   ASTContext.cpp
+  ASTDumper.cpp
   Decl.cpp
   Stmt.cpp
   Type.cpp

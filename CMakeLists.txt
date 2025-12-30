@@ -56,8 +56,8 @@ if ((CMAKE_GENERATOR MATCHES "Visual Studio") AND
                   "host compiler, pass -Thost=x64 on the CMake command line.")
 endif()
 
-set(CMAKE_C_STANDARD 17 CACHE STRING "C standard to conform to")
-set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
+set(CMAKE_C_STANDARD 23 CACHE STRING "C standard to conform to")
+set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ standard to conform to")
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 

@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <print>
 
 namespace rcc {
 
@@ -44,8 +45,8 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   CurrFunc = FD;
   std::size_t StackSize = assignLVarOffsets(FD);
   const char *Name = FD->getName().c_str();
-  printf("  .globl %s\n", Name);
-  printf("%s:\n", Name);
+  std::println("  .globl {}", Name);
+  std::println("{}:", Name);
 
   // stack frame
   //-------------------------------// sp
@@ -60,40 +61,42 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   //        eval-expression
   //-------------------------------//
 
-  printf("  # create stack frame for ra, fp\n");
-  printf("  addi sp, sp, -16\n");
-  printf("  sd ra, 8(sp)\n"); // save ra
-  printf("  sd fp, 0(sp)\n"); // save fp
-  printf("  mv fp, sp\n");    // fp = sp
+  std::println("  # create stack frame for ra, fp");
+  std::println("  addi sp, sp, -16");
+  std::println("  sd ra, 8(sp)"); // save ra
+  std::println("  sd fp, 0(sp)"); // save fp
+  std::println("  mv fp, sp");    // fp = sp
   // sp -= StackSize
   if (StackSize > 0) {
-    printf("  # allocate %ld bytes for local variables\n", StackSize);
-    printf("  addi sp, sp, -%ld\n", StackSize);
+    std::println("  # allocate {} bytes for local variables", StackSize);
+    std::println("  addi sp, sp, -{}", StackSize);
   }
 
   unsigned NumParams = FD->getNumParams();
   if (NumParams > 0) {
     assert(NumParams <= 6);
-    printf("  # store %u parameters to stack\n", NumParams);
+    std::println("  # store {} parameters to stack", NumParams);
     for (unsigned I = 0; I < NumParams; ++I) {
       const auto *Param = FD->getParam(I);
-      printf("  sd %s, %d(fp)\n", ArgReg[I], Param->getOffset());
+      std::println("  sd {}, {}(fp)", ArgReg[I], Param->getOffset());
     }
   }
 
-  for (const Stmt *S = FD->getBody(); S; S = S->getNext()) {
-    genStmt(S);
-    assert(Depth == 0);
+  if (const auto *CS = dyn_cast<CompoundStmt>(FD->getBody())) {
+    for (const Stmt *S : CS->getBody()) {
+      genStmt(S);
+      assert(Depth == 0);
+    }
   }
 
-  printf(".L.return.%s:\n", Name);
-  printf("  # restore sp, fp and ra\n");
-  printf("  mv sp, fp\n");    // restore sp, sp = fp
-  printf("  ld fp, 0(sp)\n"); // pop fp
-  printf("  ld ra, 8(sp)\n"); // pop ra
-  printf("  addi sp, sp, 16\n");
-  printf("  ret\n");
-  printf("  # end of function '%s'\n", Name);
+  std::println(".L.return.{}:", Name);
+  std::println("  # restore sp, fp and ra");
+  std::println("  mv sp, fp");    // restore sp, sp = fp
+  std::println("  ld fp, 0(sp)"); // pop fp
+  std::println("  ld ra, 8(sp)"); // pop ra
+  std::println("  addi sp, sp, 16");
+  std::println("  ret");
+  std::println("  # end of function '{}'", Name);
 }
 
 void CodeGen::genStmt(const Stmt *S) {
@@ -104,15 +107,15 @@ void CodeGen::genStmt(const Stmt *S) {
 
   switch (S->getKind()) {
   case Stmt::SK_CompoundStmt: {
-    const Stmt *Body = cast<CompoundStmt>(S)->getBody();
-    for (const Stmt *SubStmt = Body; SubStmt; SubStmt = SubStmt->getNext())
+    const auto &Body = cast<CompoundStmt>(S)->getBody();
+    for (const Stmt *SubStmt : Body)
       genStmt(SubStmt);
     break;
   }
   case Stmt::SK_ReturnStmt:
-    printf("  # return stmt\n");
+    std::println("  # return stmt");
     genExpr(cast<ReturnStmt>(S)->getRetValue());
-    printf("  j .L.return.%s\n", CurrFunc->getName().c_str());
+    std::println("  j .L.return.{}", CurrFunc->getName());
     break;
   case Stmt::SK_NullStmt:
     break;
@@ -129,12 +132,12 @@ void CodeGen::genStmt(const Stmt *S) {
     genDeclStmt(cast<DeclStmt>(S));
     break;
   default:
-    Diag.fatalAt(S->getBeginLoc(), "invalid statement: %d", S->getKind());
+    Diag.fatalAt(S->getBeginLoc(), "invalid statement: {}", S->getKindStr());
   }
 }
 
 void CodeGen::genDeclStmt(const DeclStmt *DS) {
-  printf("  # decl-stmt\n");
+  std::println("  # decl-stmt");
   for (auto *D : DS->getDecls()) {
     if (const auto *Var = dyn_cast<VarDecl>(D)) {
       const auto *Init = Var->getInit();
@@ -147,8 +150,8 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       genExpr(Init);
       // a1 = &var
       pop("a1");
-      printf("  # initialize variable '%s'\n", Var->getName().c_str());
-      printf("  sd a0, 0(a1)\n"); // *a1 = a0
+      std::println("  # initialize variable '{}'", Var->getName());
+      std::println("  sd a0, 0(a1)"); // *a1 = a0
 
     } else {
       Diag.fatalAt(D->getBeginLoc(), "invalid declaration in decl-stmt");
@@ -166,13 +169,13 @@ void CodeGen::genIfStmt(const IfStmt *If) {
   //    else-stmt
   // .L.end.C:
   //    ...
-  printf("  beqz a0, .L.else.%d\n", Count);
+  std::println("  beqz a0, .L.else.{}", Count);
   genStmt(If->getThen());
-  printf("  j .L.end.%d\n", Count);
-  printf(".L.else.%d:\n", Count);
+  std::println("  j .L.end.{}", Count);
+  std::println(".L.else.{}:", Count);
   if (const auto *Else = If->getElse())
     genStmt(Else);
-  printf(".L.end.%d:\n", Count);
+  std::println(".L.end.{}:", Count);
 }
 
 void CodeGen::genForStmt(const ForStmt *For) {
@@ -188,16 +191,16 @@ void CodeGen::genForStmt(const ForStmt *For) {
   //   ...
   if (const auto *Init = For->getInit())
     genStmt(Init);
-  printf(".L.begin.%d:\n", Count);
+  std::println(".L.begin.{}:", Count);
   if (const auto *Cond = For->getCond()) {
     genExpr(Cond);
-    printf("  beqz a0, .L.end.%d\n", Count);
+    std::println("  beqz a0, .L.end.{}", Count);
   }
   genStmt(For->getBody());
   if (const auto *Inc = For->getInc())
     genExpr(Inc);
-  printf("  j .L.begin.%d\n", Count);
-  printf(".L.end.%d:\n", Count);
+  std::println("  j .L.begin.{}", Count);
+  std::println(".L.end.{}:", Count);
 }
 
 void CodeGen::genWhileStmt(const WhileStmt *While) {
@@ -209,12 +212,12 @@ void CodeGen::genWhileStmt(const WhileStmt *While) {
   //   goto .L.begin.C
   // .L.end.C:
   //   ...
-  printf(".L.begin.%d:\n", Count);
+  std::println(".L.begin.{}:", Count);
   genExpr(While->getCond());
-  printf("  beqz a0, .L.end.%d\n", Count);
+  std::println("  beqz a0, .L.end.{}", Count);
   genStmt(While->getBody());
-  printf("  j .L.begin.%d\n", Count);
-  printf(".L.end.%d:\n", Count);
+  std::println("  j .L.begin.{}", Count);
+  std::println(".L.end.{}:", Count);
 }
 
 void CodeGen::genExpr(const Expr *E) {
@@ -228,8 +231,8 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_IntegerLiteral: {
     // li a0, imm
     auto Val = cast<IntegerLiteral>(E)->getVal();
-    printf("  # a0 = %ld\n", Val);
-    printf("  li a0, %ld\n", Val);
+    std::println("  # a0 = {}", Val);
+    std::println("  li a0, {}", Val);
     break;
   }
   case Stmt::SK_ParenExpr:
@@ -237,7 +240,7 @@ void CodeGen::genExpr(const Expr *E) {
     break;
   case Stmt::SK_DeclRefExpr: {
     const auto *Ref = cast<DeclRefExpr>(E);
-    genAddr(Ref);            // a0 = addr
+    genAddr(Ref->getDecl()); // a0 = addr
     load(Ref->getTypePtr()); // a0 = *a0
     break;
   }
@@ -271,108 +274,111 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_Add: {
     QualType LType = LHS->getType();
     QualType RType = RHS->getType();
-    if (LType->isPointerType()) {
-      // Ptr + Int
+    if (const auto *PointeeTy = LType->getPointeeOrArrayElementType()) {
+      // Ptr + Int(a1)
       // FIXME: Consider the size and alignment of the element being pointed to.
-      // a1 <<= 3  <=>  a1 *= 8
-      printf("  slli a1, a1, 3\n");
-    } else if (RType->isPointerType()) {
-      // Int + Ptr
+      std::println("  li t0, {}", PointeeTy->getSize());
+      std::println("  mul a1, a1, t0");
+    } else if (const auto *PointeeTy = RType->getPointeeOrArrayElementType()) {
+      // Int(a0) + Ptr
       // FIXME: Consider the size and alignment of the element being pointed to.
-      printf("  slli a1, a1, 3\n");
+      std::println("  li t0, {}", PointeeTy->getSize());
+      std::println("  mul a0, a0, t0");
     }
 
-    printf("  add a0, a0, a1\n");
+    std::println("  add a0, a0, a1");
     return;
   }
   case BinaryOperator::BO_Sub: {
     QualType LType = LHS->getType();
     QualType RType = RHS->getType();
-    if (LType->isPointerType()) {
+    if (const auto *PointeeTy = LType->getPointeeOrArrayElementType()) {
       if (RType->isPointerType()) {
         // Ptr - Ptr
-        printf("  sub a0, a0, a1\n");
-        printf("  srli a0, a0, 3\n"); // a0 >>= 3  <=>  a0 /= 8
+        std::println("  sub a0, a0, a1");
+        std::println("  li t0, {}", PointeeTy->getSize());
+        std::println("  div a0, a0, t0");
         return;
       }
 
-      // Ptr - Int
-      printf("  slli a1, a1, 3\n");
+      // Ptr - Int(a1)
+      std::println("  li t0, {}", PointeeTy->getSize());
+      std::println("  mul a1, a1, t0");
     }
 
-    printf("  sub a0, a0, a1\n");
+    std::println("  sub a0, a0, a1");
     return;
   }
   case BinaryOperator::BO_Mul:
-    printf("  mul a0, a0, a1\n");
+    std::println("  mul a0, a0, a1");
     return;
   case BinaryOperator::BO_Div:
-    printf("  div a0, a0, a1\n");
+    std::println("  div a0, a0, a1");
     return;
   case BinaryOperator::BO_EQ:
     // a0 = a0 ^ a1
     // a0 = (a0 == 0) ? 1 : 0
-    printf("  xor a0, a0, a1\n");
-    printf("  seqz a0, a0\n");
+    std::println("  xor a0, a0, a1");
+    std::println("  seqz a0, a0");
     break;
   case BinaryOperator::BO_NE:
     // a0 = a0 ^ a1
     // a0 = (a0 != 0) ? 1 : 0
-    printf("  xor a0, a0, a1\n");
-    printf("  snez a0, a0\n");
+    std::println("  xor a0, a0, a1");
+    std::println("  snez a0, a0");
     break;
   case BinaryOperator::BO_LT:
     // a0 = a0 < a1.
     // TODO: In the future, we will need to handle unsigned comparisons.
     //
-    printf("  slt a0, a0, a1\n");
+    std::println("  slt a0, a0, a1");
     break;
   case BinaryOperator::BO_LE:
     // a0 <= a1  <=>  !(a1 < a0)
     // a0 = a1 < a0
     // a0 = !a0
-    printf("  slt a0, a1, a0\n");
-    printf("  xori a0, a0, 1\n");
+    std::println("  slt a0, a1, a0");
+    std::println("  xori a0, a0, 1");
     break;
   case BinaryOperator::BO_GT:
     // a0 > a1  <=>  a1 < a0
-    printf("  slt a0, a1, a0\n");
+    std::println("  slt a0, a1, a0");
     break;
   case BinaryOperator::BO_GE:
     // a0 >= a1  <=>  !(a0 < a1)
     // a0 = a0 < a1
     // a0 = !a0
-    printf("  slt a0, a0, a1\n");
-    printf("  xori a0, a0, 1\n");
+    std::println("  slt a0, a0, a1");
+    std::println("  xori a0, a0, 1");
     break;
   default:
-    Diag.fatalAt(BO->getOpLocation(), "invalid binary opcode: %d",
-                 BO->getOpcode());
+    Diag.fatalAt(BO->getOpLocation(), "invalid binary opcode: {}",
+                 BO->getOpcodeStr());
   }
 }
 
 void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   switch (UO->getOpcode()) {
   case UnaryOperator::UO_Plus:
-    printf("  # unary plus\n");
+    std::println("  # unary plus");
     genExpr(UO->getSubExpr());
     break;
   case UnaryOperator::UO_Minus:
     genExpr(UO->getSubExpr());
-    printf("  neg a0, a0\n");
+    std::println("  neg a0, a0");
     break;
   case UnaryOperator::UO_Addrof:
-    printf("  # addrof\n");
+    std::println("  # addrof");
     genAddr(UO->getSubExpr());
     break;
   case UnaryOperator::UO_Deref:
-    printf("  # deref\n");
+    std::println("  # deref");
     genExpr(UO->getSubExpr());
     load(UO->getTypePtr());
     break;
   default:
-    Diag.fatalAt(UO->getBeginLoc(), "invalid unary opcode: %d",
-                 UO->getOpcode());
+    Diag.fatalAt(UO->getBeginLoc(), "invalid unary opcode: {}",
+                 UO->getOpcodeStr());
   }
 }
 
@@ -383,7 +389,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
   if (NumArgs != 0) {
-    printf("  # set args on calling %s\n", Func->getName().c_str());
+    std::println("  # set args on calling {}", Func->getName());
     for (const Expr *Arg : CE->getArgs()) {
       genExpr(Arg);
       push();
@@ -394,7 +400,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   }
 
   const std::string &Name = Func->getName();
-  printf("  call %s\n", Name.c_str());
+  std::println("  call {}", Name);
 }
 
 void CodeGen::genAddr(const Expr *E) {
@@ -424,36 +430,36 @@ void CodeGen::genAddr(const Decl *D) {
   if (!Var)
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
 
-  printf("  # get address of variable %s, offset=%d\n", Var->getName().c_str(),
-         Var->getOffset());
-  printf("  addi a0, fp, %d\n", Var->getOffset());
+  std::println("  # get address of variable {}, offset={}", Var->getName(),
+               Var->getOffset());
+  std::println("  addi a0, fp, {}", Var->getOffset());
 }
 
 void CodeGen::push() {
-  printf("  # push a0\n");
-  printf("  addi sp, sp, -8\n"); // sp -= 8
-  printf("  sd a0, 0(sp)\n");    // store a0 to stack
+  std::println("  # push a0");
+  std::println("  addi sp, sp, -8"); // sp -= 8
+  std::println("  sd a0, 0(sp)");    // store a0 to stack
   ++Depth;
 }
 
 void CodeGen::pop(const char *Reg) {
-  printf("  # pop %s\n", Reg);
-  printf("  ld %s, 0(sp)\n", Reg); // load from stack to Reg
-  printf("  addi sp, sp, 8\n");    // sp += 8
+  std::println("  # pop {}", Reg);
+  std::println("  ld {}, 0(sp)", Reg); // load from stack to Reg
+  std::println("  addi sp, sp, 8");    // sp += 8
   --Depth;
 }
 
 void CodeGen::load(const Type *Ty) {
   if (Ty->isArraryType())
     return;
-  printf("  # load\n");
-  printf("  ld a0, 0(a0)\n");
+  std::println("  # load");
+  std::println("  ld a0, 0(a0)");
 }
 
 void CodeGen::store(void) {
-  printf("  # store\n");
+  std::println("  # store");
   pop("a1");
-  printf("  sd a0, 0(a1)\n");
+  std::println("  sd a0, 0(a1)");
 }
 
 int CodeGen::getCount() const {

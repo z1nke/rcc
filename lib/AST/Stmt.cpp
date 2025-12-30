@@ -1,14 +1,22 @@
 #include "AST/Stmt.h"
 #include "AST/ASTContext.h"
+#include "AST/ASTDumper.h"
 #include "AST/Decl.h"
 #include "Basic/Casting.h"
 #include "Basic/Unreachable.h"
 
-#include <cstdio>
-
 namespace rcc {
 
-void Stmt::setNext(Stmt *Next) { this->Next = Next; }
+const char *Stmt::getKindStr() const {
+  switch (Kind) {
+#define STMT(KIND)                                                             \
+  case SK_##KIND:                                                              \
+    return #KIND;
+#include "AST/Stmt.def"
+  default:
+    RCC_UNREACHABLE("Unknown statement");
+  }
+}
 
 DeclStmt::DeclStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                    std::vector<Decl *> Decls)
@@ -20,22 +28,15 @@ DeclStmt *DeclStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) DeclStmt(BegLoc, EndLoc, std::move(Decls));
 }
 
-void DeclStmt::dump() const {
-  // TODO: Impl.
-}
-
 CompoundStmt::CompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
-                           Stmt *Body)
-    : Stmt(SK_CompoundStmt, BegLoc, EndLoc), Body(Body) {}
+                           std::vector<Stmt *> Body)
+    : Stmt(SK_CompoundStmt, BegLoc, EndLoc), Body(std::move(Body)) {}
 
 CompoundStmt *CompoundStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
-                                   SourceLocation EndLoc, Stmt *Body) {
+                                   SourceLocation EndLoc,
+                                   std::vector<Stmt *> Body) {
   void *Mem = Ctx.Allocate(sizeof(CompoundStmt), alignof(CompoundStmt));
-  return new (Mem) CompoundStmt(BegLoc, EndLoc, Body);
-}
-
-void CompoundStmt::dump() const {
-  // TODO: Impl.
+  return new (Mem) CompoundStmt(BegLoc, EndLoc, std::move(Body));
 }
 
 ReturnStmt::ReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -48,10 +49,6 @@ ReturnStmt *ReturnStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) ReturnStmt(BegLoc, EndLoc, RetVal);
 }
 
-void ReturnStmt::dump() const {
-  // TODO: Impl.
-}
-
 NullStmt::NullStmt(SourceLocation BegLoc, SourceLocation EndLoc)
     : Stmt(SK_NullStmt, BegLoc, EndLoc) {}
 
@@ -60,8 +57,6 @@ NullStmt *NullStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   void *Mem = Ctx.Allocate(sizeof(NullStmt), alignof(NullStmt));
   return new (Mem) NullStmt(BegLoc, EndLoc);
 }
-
-void NullStmt::dump() const {}
 
 IfStmt::IfStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
                Stmt *Then, Stmt *Else)
@@ -72,10 +67,6 @@ IfStmt *IfStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                        Stmt *Else) {
   void *Mem = Ctx.Allocate(sizeof(IfStmt), alignof(IfStmt));
   return new (Mem) IfStmt(BegLoc, EndLoc, Cond, Then, Else);
-}
-
-void IfStmt::dump() const {
-  // TODO: Impl.
 }
 
 ForStmt::ForStmt(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *Init,
@@ -90,10 +81,6 @@ ForStmt *ForStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) ForStmt(BegLoc, EndLoc, Init, Cond, Inc, Body);
 }
 
-void ForStmt::dump() const {
-  // TODO: Impl.
-}
-
 WhileStmt::WhileStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
                      Stmt *Body)
     : Stmt(SK_WhileStmt, BegLoc, EndLoc), Cond(Cond), Body(Body) {}
@@ -102,10 +89,6 @@ WhileStmt *WhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                              SourceLocation EndLoc, Expr *Cond, Stmt *Body) {
   void *Mem = Ctx.Allocate(sizeof(WhileStmt), alignof(WhileStmt));
   return new (Mem) WhileStmt(BegLoc, EndLoc, Cond, Body);
-}
-
-void WhileStmt::dump() const {
-  // TODO: Impl
 }
 
 UnaryOperator::UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -119,7 +102,7 @@ UnaryOperator *UnaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) UnaryOperator(BegLoc, EndLoc, T, SubExpr, Op);
 }
 
-std::string_view UnaryOperator::getOpcodeStr() const {
+const char *UnaryOperator::getOpcodeStr() const {
   switch (Kind) {
   case UO_Plus:
     return "+";
@@ -135,56 +118,8 @@ std::string_view UnaryOperator::getOpcodeStr() const {
 }
 
 void Stmt::dump() const {
-  // FIXME: Use AST visitor dump ast node.
-  if (const auto *E = dyn_cast<Expr>(this)) {
-    E->dump();
-    return;
-  }
-
-  switch (getKind()) {
-  case SK_DeclStmt:
-    cast<DeclStmt>(this)->dump();
-    break;
-  case SK_CompoundStmt:
-    cast<CompoundStmt>(this)->dump();
-    break;
-  case SK_ReturnStmt:
-    cast<ReturnStmt>(this)->dump();
-    break;
-  case SK_NullStmt:
-    cast<NullStmt>(this)->dump();
-    break;
-  case SK_IfStmt:
-    cast<IfStmt>(this)->dump();
-    break;
-  case SK_ForStmt:
-    cast<ForStmt>(this)->dump();
-    break;
-  default:
-    RCC_UNREACHABLE("Unknown stmt kind");
-    break;
-  }
-}
-
-void Expr::dump() const {
-  // FIXME: Use AST visitor dump ast node.
-  switch (getKind()) {
-  case Stmt::SK_UnaryOperator:
-    cast<UnaryOperator>(this)->dump();
-    break;
-  case Stmt::SK_BinaryOperator:
-    cast<BinaryOperator>(this)->dump();
-    break;
-  case Stmt::SK_IntegerLiteral:
-    cast<IntegerLiteral>(this)->dump();
-    break;
-  case Stmt::SK_ParenExpr:
-    cast<ParenExpr>(this)->dump();
-    break;
-  default:
-    RCC_UNREACHABLE("Unknown expr kind");
-    break;
-  }
+  ASTDumper Dumper;
+  Dumper.visit(this);
 }
 
 void Expr::setType(QualType T) {
@@ -192,13 +127,6 @@ void Expr::setType(QualType T) {
   // FIXME: Temporary handling.
   if (auto *Ref = dyn_cast<DeclRefExpr>(this))
     Ref->getDecl()->setType(T);
-}
-
-void UnaryOperator::dump() const {
-  // FIXME: Use AST visitor dump ast node.
-  printf("UnaryOperator prefix '%s'\n", getOpcodeStr().data());
-  printf("`- ");
-  SubExpr->dump();
 }
 
 BinaryOperator::BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -215,7 +143,7 @@ BinaryOperator *BinaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) BinaryOperator(BegLoc, EndLoc, T, OpLoc, LHS, RHS, Op);
 }
 
-std::string_view BinaryOperator::getOpcodeStr() const {
+const char *BinaryOperator::getOpcodeStr() const {
   switch (Kind) {
   case BO_Add:
     return "+";
@@ -244,27 +172,16 @@ std::string_view BinaryOperator::getOpcodeStr() const {
   }
 }
 
-void BinaryOperator::dump() const {
-  // FIXME: Use AST visitor dump ast node.
-  printf("BinaryOperator '%s'\n", getOpcodeStr().data());
-  printf("|-");
-  LHS->dump();
-  printf("`-");
-  RHS->dump();
-}
-
 IntegerLiteral::IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
-                                 QualType T, std::int64_t Val)
+                               QualType T, std::int64_t Val)
     : Expr(SK_IntegerLiteral, BegLoc, EndLoc, T), Val(Val) {}
 
 IntegerLiteral *IntegerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
-                                         SourceLocation EndLoc, QualType T,
-                                         std::int64_t Val) {
+                                       SourceLocation EndLoc, QualType T,
+                                       std::int64_t Val) {
   void *Mem = Ctx.Allocate(sizeof(IntegerLiteral), alignof(IntegerLiteral));
   return new (Mem) IntegerLiteral(BegLoc, EndLoc, T, Val);
 }
-
-void IntegerLiteral::dump() const { printf("IntegerLiteral %ld\n", Val); }
 
 ParenExpr::ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                      Expr *SubExpr)
@@ -276,12 +193,6 @@ ParenExpr *ParenExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) ParenExpr(BegLoc, EndLoc, T, SubExpr);
 }
 
-void ParenExpr::dump() const {
-  printf("ParenExpr\n");
-  printf("`-");
-  SubExpr->dump();
-}
-
 DeclRefExpr::DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                          QualType T, ValueDecl *D)
     : Expr(SK_DeclRefExpr, BegLoc, EndLoc, T), D(D) {}
@@ -291,10 +202,6 @@ DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                                  ValueDecl *D) {
   void *Mem = Ctx.Allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
   return new (Mem) DeclRefExpr(BegLoc, EndLoc, T, D);
-}
-
-void DeclRefExpr::dump() const {
-  // TODO: Impl.
 }
 
 CallExpr::CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,

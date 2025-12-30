@@ -103,16 +103,13 @@ Stmt *Parser::parseCompoundStmt() {
   assert(CurTok->is(Token::TK_LBrace));
   auto BegLoc = SM.createBeginLocation(CurTok);
   skip();
-  Stmt Head(Stmt::NoStmtKind);
-  Stmt *CurStmt = &Head;
-  while (CurTok->isNot(Token::TK_RBRace)) {
-    CurStmt->setNext(parseStmt());
-    CurStmt = CurStmt->getNext();
-  }
+  std::vector<Stmt *> Stmts;
+  while (CurTok->isNot(Token::TK_RBRace))
+    Stmts.push_back(parseStmt());
 
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RBRace);
-  return S.actOnCompoundStmt(BegLoc, EndLoc, Head.getNext());
+  return S.actOnCompoundStmt(BegLoc, EndLoc, std::move(Stmts));
 }
 
 // if-stmt: 'if' '(' expr ')' stmt { 'else' stmt }
@@ -260,13 +257,12 @@ void Parser::parseDirectDeclarator(Declarator &D) {
     return;
   }
 
-  if (tryConsume(Token::TK_LSquare)) {
+  while (tryConsume(Token::TK_LSquare)) {
     // Try parse array declarator.
     Expr *LenExpr = parseAssign();
     D.setEndLoc(SM.createBeginLocation(CurTok));
     skip(Token::TK_RSquare);
     D.addDeclChunk(DeclaratorChunk::createArray(LenExpr));
-    return;
   }
 }
 
@@ -457,7 +453,7 @@ Expr *Parser::parseBinaryOperator() {
 
 void Parser::expect(Token::TokenKind Kind, const char *Prompt) {
   if (CurTok->isNot(Kind))
-    Diag.fatalAt(CurTok->getLoc(), "expect '%s'", Prompt);
+    Diag.fatalAt(CurTok->getLoc(), "expect '{}'", Prompt);
 }
 
 void Parser::skip(Token::TokenKind Kind) {

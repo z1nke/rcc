@@ -5,7 +5,6 @@
 #include "Basic/SourceLocation.h"
 
 #include <cstdint>
-#include <string_view>
 #include <vector>
 
 namespace rcc {
@@ -20,21 +19,10 @@ class Stmt {
 public:
   enum StmtKind {
     NoStmtKind = 0,
-    SK_DeclStmt,
-    SK_ReturnStmt,
-    SK_CompoundStmt,
-    SK_NullStmt,
-    SK_IfStmt,
-    SK_ForStmt,
-    SK_WhileStmt,
-    SK_UnaryOperator,
-    SK_BinaryOperator,
-    SK_IntegerLiteral,
-    SK_ParenExpr,
-    SK_DeclRefExpr,
-    SK_CallExpr,
-    FirstExprKind = SK_UnaryOperator,
-    LastExprKind = SK_CallExpr,
+#define STMT(KIND) SK_##KIND,
+#define STMT_RANGE(BASE, FIRST, LAST)                                          \
+  First##BASE##Kind = SK_##FIRST, Last##BASE##Kind = SK_##LAST,
+#include "AST/Stmt.def"
   };
 
   Stmt(StmtKind Kind, SourceLocation BegLoc = SourceLocation(),
@@ -42,17 +30,15 @@ public:
       : Kind(Kind), BegLoc(BegLoc), EndLoc(EndLoc) {}
 
   StmtKind getKind() const { return Kind; }
+  const char *getKindStr() const;
   SourceLocation getBeginLoc() const { return BegLoc; }
   SourceLocation getEndLoc() const { return EndLoc; }
-  Stmt *getNext() const { return Next; }
-  void setNext(Stmt *Next);
   void dump() const;
 
 private:
   StmtKind Kind = NoStmtKind;
   SourceLocation BegLoc;
   SourceLocation EndLoc;
-  Stmt *Next = nullptr;
 };
 
 class DeclStmt : public Stmt {
@@ -61,8 +47,6 @@ public:
                           SourceLocation EndLoc, std::vector<Decl *> Decls);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_DeclStmt; }
-
-  void dump() const;
 
   unsigned getNumDecls() const { return Decls.size(); }
   Decl *getDecl(unsigned Idx) const { return Decls[Idx]; }
@@ -79,19 +63,19 @@ private:
 class CompoundStmt : public Stmt {
 public:
   static CompoundStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
-                              SourceLocation EndLoc, Stmt *Body);
+                              SourceLocation EndLoc, std::vector<Stmt *> Body);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_CompoundStmt; }
 
-  void dump() const;
-
-  Stmt *getBody() const { return Body; }
+  const std::vector<Stmt *> &getBody() const { return Body; }
+  std::vector<Stmt *> &getBody() { return Body; }
 
 protected:
-  CompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *Body);
+  CompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+               std::vector<Stmt *> Body);
 
 private:
-  Stmt *Body;
+  std::vector<Stmt *> Body;
 };
 
 class Expr : public Stmt {
@@ -99,8 +83,6 @@ public:
   static bool classof(const Stmt *S) {
     return S->getKind() >= FirstExprKind && S->getKind() <= LastExprKind;
   }
-
-  void dump() const;
 
   QualType getType() const { return Ty; }
   const Type *getTypePtr() const { return Ty.getTypePtr(); }
@@ -121,8 +103,6 @@ public:
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_ReturnStmt; }
 
-  void dump() const;
-
   Expr *getRetValue() const { return RetVal; }
 
 protected:
@@ -139,8 +119,6 @@ public:
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_NullStmt; }
 
-  void dump() const;
-
 protected:
   NullStmt(SourceLocation BegLoc, SourceLocation EndLoc);
 };
@@ -152,8 +130,6 @@ public:
                         Stmt *Else = nullptr);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_IfStmt; }
-
-  void dump() const;
 
   Expr *getCond() const { return Cond; }
   Stmt *getThen() const { return Then; }
@@ -177,8 +153,6 @@ public:
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_ForStmt; }
 
-  void dump() const;
-
   Stmt *getInit() const { return Init; }
   Expr *getCond() const { return Cond; }
   Expr *getInc() const { return Inc; }
@@ -201,8 +175,6 @@ public:
                            SourceLocation EndLoc, Expr *Cond, Stmt *Body);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_WhileStmt; }
-
-  void dump() const;
 
   Expr *getCond() const { return Cond; }
   Stmt *getBody() const { return Body; }
@@ -236,9 +208,7 @@ public:
   Expr *getSubExpr() const { return SubExpr; }
 
   Opcode getOpcode() const { return Kind; }
-  std::string_view getOpcodeStr() const;
-
-  void dump() const;
+  const char *getOpcodeStr() const;
 
 protected:
   UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
@@ -276,11 +246,9 @@ public:
 
   Opcode getOpcode() const { return Kind; }
   SourceLocation getOpLocation() const { return OpLoc; }
-  std::string_view getOpcodeStr() const;
+  const char *getOpcodeStr() const;
   Expr *getLHS() const { return LHS; }
   Expr *getRHS() const { return RHS; }
-
-  void dump() const;
 
 protected:
   BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
@@ -303,8 +271,6 @@ public:
     return S->getKind() == SK_IntegerLiteral;
   }
 
-  void dump() const;
-
   std::int64_t getVal() const { return Val; }
 
 protected:
@@ -323,8 +289,6 @@ public:
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_ParenExpr; }
 
-  void dump() const;
-
   Expr *getSubExpr() const { return SubExpr; }
 
 protected:
@@ -341,8 +305,6 @@ public:
                              SourceLocation EndLoc, QualType T, ValueDecl *D);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_DeclRefExpr; }
-
-  void dump() const;
 
   ValueDecl *getDecl() const { return D; }
 
@@ -362,7 +324,6 @@ public:
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_CallExpr; }
 
-  void dump() const;
   DeclRefExpr *getCallee() const { return Callee; }
   FunctionDecl *getCalleeDecl() const;
   unsigned getNumArgs() const { return Args.size(); }

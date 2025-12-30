@@ -1,12 +1,32 @@
 #include "AST/Decl.h"
 #include "AST/ASTContext.h"
+#include "AST/ASTDumper.h"
+#include "Basic/Unreachable.h"
 
 namespace rcc {
+
+void Decl::dump() const {
+  ASTDumper Dumper;
+  Dumper.visit(this);
+}
+
+const char *Decl::getKindStr() const {
+  switch (Kind) {
+  case DK_TranslationUnit:
+    return "TranslationUnitDecl";
+  case DK_Var:
+    return "VarDecl";
+  case DK_Function:
+    return "FunctionDecl";
+  default:
+    RCC_UNREACHABLE("Unknown decl kind");
+  }
+}
 
 TranslationUnitDecl *TranslationUnitDecl::create(ASTContext &Ctx) {
   void *Mem =
       Ctx.Allocate(sizeof(TranslationUnitDecl), alignof(TranslationUnitDecl));
-  return new (Mem) TranslationUnitDecl();
+  return new (Mem) TranslationUnitDecl(Ctx);
 }
 
 VarDecl *VarDecl::create(ASTContext &Ctx, SourceLocation Loc,
@@ -18,7 +38,7 @@ VarDecl *VarDecl::create(ASTContext &Ctx, SourceLocation Loc,
 
 VarDecl::VarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                  SourceLocation EndLoc, QualType T, std::string Name)
-    : ValueDecl(DK_Var, Loc, BegLoc, EndLoc, T, std::move(Name)), Ctx(Ctx) {}
+    : ValueDecl(Ctx, DK_Var, Loc, BegLoc, EndLoc, T, std::move(Name)) {}
 
 ParamVarDecl::ParamVarDecl(ASTContext &Ctx, SourceLocation Loc,
                            SourceLocation BegLoc, SourceLocation EndLoc,
@@ -45,7 +65,7 @@ FunctionDecl *FunctionDecl::create(ASTContext &Ctx, SourceLocation Loc,
 FunctionDecl::FunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                            SourceLocation BegLoc, SourceLocation EndLoc,
                            QualType T, std::string Name, Stmt *Body)
-    : ValueDecl(DK_Function, Loc, BegLoc, EndLoc, T, std::move(Name)), Ctx(Ctx),
+    : ValueDecl(Ctx, DK_Function, Loc, BegLoc, EndLoc, T, std::move(Name)),
       Body(Body) {}
 
 void FunctionDecl::setLocalVars(std::vector<VarDecl *> Vars) {
