@@ -30,64 +30,12 @@ const char *Token::getKindStr(TokenKind Kind) {
   switch (Kind) {
   case TK_EOF:
     return "eof";
-  case TK_Plus:
-    return "+";
-  case TK_Minus:
-    return "-";
-  case TK_Star:
-    return "*";
-  case TK_Slash:
-    return "/";
-  case TK_Num:
-    return "number";
+#define TOKEN(KIND, STR)                                                       \
+  case TK_##KIND:                                                              \
+    return STR;
+#include "Lex/Token.def"
   case TK_Unknown:
     return "unknown";
-  case TK_Equal:
-    return "=";
-  case TK_EqualEqual:
-    return "==";
-  case TK_NotEqual:
-    return "!=";
-  case TK_Less:
-    return "<";
-  case TK_LessEqual:
-    return "<=";
-  case TK_Greater:
-    return ">";
-  case TK_GreaterEqual:
-    return ">=";
-  case TK_Semicolon:
-    return ";";
-  case TK_LParen:
-    return "(";
-  case TK_RParen:
-    return ")";
-  case TK_LSquare:
-    return "[";
-  case TK_RSquare:
-    return "]";
-  case TK_LBrace:
-    return "{";
-  case TK_RBRace:
-    return "}";
-  case TK_Amp:
-    return "&";
-  case TK_Comma:
-    return ",";
-  case TK_Ident:
-    return "identifier";
-  case TK_Return:
-    return "return";
-  case TK_If:
-    return "if";
-  case TK_Else:
-    return "else";
-  case TK_For:
-    return "for";
-  case TK_While:
-    return "while";
-  case TK_Int:
-    return "int";
   default:
     RCC_UNREACHABLE("Unknown token kind");
     break;

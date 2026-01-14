@@ -3,6 +3,7 @@
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
 #include "Basic/Diagnostic.h"
+#include "Basic/SourceLocation.h"
 #include "Sema/DeclSpec.h"
 
 #include <algorithm>
@@ -167,6 +168,31 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
   auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, Ctx.IntTy, FD);
   return CallExpr::create(Ctx, IdentBegLoc, EndLoc, Ctx.IntTy, Ref,
                           std::move(Args));
+}
+
+Expr *Sema::actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS,
+                                    Expr *RHS) {
+  QualType LType = LHS->getType();
+  QualType RType = RHS->getType();
+  SourceLocation BegLoc = LHS->getBeginLoc();
+  QualType T;
+  // base[idx]
+  if (QualType ElemType = LType->getPointeeOrArrayElementType()) {
+    if (!RType.isIntegerType())
+      Diag.fatalAt(RHS->getBeginLoc(),
+                   "index-expression requires integer type");
+    T = ElemType;
+  } else if (QualType ElemType = RType->getPointeeOrArrayElementType()) {
+    if (!LType.isIntegerType())
+      Diag.fatalAt(LHS->getBeginLoc(),
+                   "index-expression requires integer type");
+    T = ElemType;
+  } else {
+    Diag.fatalAt(BegLoc, "base-expression requires pointer or array type");
+  }
+
+  return ArraySubscriptExpr::create(Ctx, LHS->getBeginLoc(), EndLoc, T, LHS,
+                                    RHS);
 }
 
 void Sema::checkScalarType(QualType T) {

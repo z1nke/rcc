@@ -1,8 +1,8 @@
 #ifndef RCC_PARSE_PARSER_H
 #define RCC_PARSE_PARSER_H
 
-#include "Lex/Token.h"
 #include "Basic/SourceLocation.h"
+#include "Lex/Token.h"
 
 #include <vector>
 
@@ -54,7 +54,8 @@ private:
   Expr *parsePrimaryExpr();
   Expr *parseParenExpr();
   Expr *parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
-                     SourceLocation IdentEndLoc);
+                      SourceLocation IdentEndLoc);
+  Expr *parseArraySubscriptExpr();
 
 private:
   void parseDeclSpec(DeclSpec &DS);

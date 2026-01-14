@@ -150,12 +150,16 @@ QualType Type::getBaseElementType() const {
   return QualType();
 }
 
-const Type *Type::getPointeeOrArrayElementType() const {
-  if (isPointerType())
-    return getPointeeType().getTypePtr();
-  if (isArraryType())
-    return getBaseElementType().getTypePtr();
-  return nullptr;
+const Type *Type::getPointeeOrArrayElementTypePtr() const {
+  return getPointeeOrArrayElementType().getTypePtr();
+}
+
+QualType Type::getPointeeOrArrayElementType() const {
+  if (const auto *PtrTy = dyn_cast<PointerType>(this))
+    return PtrTy->getPointeeType();
+  if (const auto *AT = dyn_cast<ArrayType>(this))
+    return AT->getElementType();
+  return QualType();
 }
 
 const char *BuiltinType::getKindStr() const {

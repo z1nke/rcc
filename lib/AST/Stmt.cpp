@@ -204,6 +204,21 @@ DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) DeclRefExpr(BegLoc, EndLoc, T, D);
 }
 
+ArraySubscriptExpr::ArraySubscriptExpr(SourceLocation BegLoc,
+                                       SourceLocation EndLoc, QualType T,
+                                       Expr *LHS, Expr *RHS)
+    : Expr(SK_ArraySubscriptExpr, BegLoc, EndLoc, T), LHS(LHS), RHS(RHS) {}
+
+ArraySubscriptExpr *ArraySubscriptExpr::create(ASTContext &Ctx,
+                                               SourceLocation BegLoc,
+                                               SourceLocation EndLoc,
+                                               QualType T, Expr *LHS,
+                                               Expr *RHS) {
+  static constexpr std::size_t Size = sizeof(ArraySubscriptExpr);
+  void *Mem = Ctx.Allocate(Size, alignof(ArraySubscriptExpr));
+  return new (Mem) ArraySubscriptExpr(BegLoc, EndLoc, T, LHS, RHS);
+}
+
 CallExpr::CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                    DeclRefExpr *Callee, std::vector<Expr *> Args)
     : Expr(SK_CallExpr, BegLoc, EndLoc, T), Callee(Callee), Args(Args) {}

@@ -1,6 +1,7 @@
 #ifndef RCC_CODEGEN_CODEGEN_H
 #define RCC_CODEGEN_CODEGEN_H
 
+#include "AST/Stmt.h"
 namespace rcc {
 
 class Decl;
@@ -37,8 +38,10 @@ private:
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
   void genCallExpr(const CallExpr *CE);
+  void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
+  void genAddr(const ArraySubscriptExpr *ASE);
 
 private:
   void push();

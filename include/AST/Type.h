@@ -101,7 +101,8 @@ public:
 
   QualType getPointeeType() const;
   QualType getBaseElementType() const;
-  const Type *getPointeeOrArrayElementType() const;
+  const Type *getPointeeOrArrayElementTypePtr() const;
+  QualType getPointeeOrArrayElementType() const;
 
   template <typename To> const To *getAs() const {
     if (const auto *Ty = dyn_cast<To>(this))

@@ -3,8 +3,10 @@
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
 #include "Basic/Casting.h"
+#include "Basic/SourceLocation.h"
 #include "Basic/SourceManager.h"
 #include "Basic/Unreachable.h"
+#include "Lex/Token.h"
 #include "Sema/DeclSpec.h"
 #include "Sema/Sema.h"
 
@@ -327,7 +329,7 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
   }
 }
 
-// unary-expr = ('+' | '-' | '*' | '&' ) (unary-expr | primary-expr)
+// unary-expr = ('+' | '-' | '*' | '&' ) (unary-expr | array-subscript-expr)
 Expr *Parser::parseUnaryOperator() {
   if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus, Token::TK_Star,
                       Token::TK_Amp)) {
@@ -338,7 +340,20 @@ Expr *Parser::parseUnaryOperator() {
     return S.actOnUnaryOperator(OpLoc, SubExpr, Op);
   }
 
-  return parsePrimaryExpr();
+  return parseArraySubscriptExpr();
+}
+
+// array-subscript-expr = primary-expr ( '[' expr ']' )*
+Expr *Parser::parseArraySubscriptExpr() {
+  Expr *LHS = parsePrimaryExpr();
+  while (tryConsume(Token::TK_LSquare)) {
+    Expr *RHS = parseExpr();
+    auto EndLoc = SM.createBeginLocation(CurTok);
+    skip(Token::TK_RSquare);
+    LHS = S.actOnArraySubscriptExpr(EndLoc, LHS, RHS);
+  }
+
+  return LHS;
 }
 
 // primary-expr: paren-expr | decl-ref-expr | call-expr | num

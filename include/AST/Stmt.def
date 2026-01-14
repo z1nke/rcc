@@ -23,6 +23,7 @@ EXPR(BinaryOperator)
 EXPR(IntegerLiteral)
 EXPR(ParenExpr)
 EXPR(DeclRefExpr)
+EXPR(ArraySubscriptExpr)
 EXPR(CallExpr)
 
 STMT_RANGE(Expr, UnaryOperator, CallExpr)

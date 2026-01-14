@@ -59,6 +59,7 @@ public:
   Expr *actOnCallExpr(SourceLocation IdentBegLoc, SourceLocation IdentEndLoc,
                       SourceLocation EndLoc, std::string_view Name,
                       std::vector<Expr *> Args);
+  Expr *actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS, Expr *RHS);
 
 private:
   VarDecl *findVar(std::string_view Ident);

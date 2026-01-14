@@ -316,6 +316,38 @@ private:
   ValueDecl *D;
 };
 
+class ArraySubscriptExpr : public Expr {
+public:
+  static ArraySubscriptExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                                    SourceLocation EndLoc, QualType T,
+                                    Expr *LHS, Expr *RHS);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_ArraySubscriptExpr;
+  }
+
+  Expr *getBase() { return isLHSBase() ? LHS : RHS; }
+  const Expr *getBase() const { return isLHSBase() ? LHS : RHS; }
+  Expr *getIdx() { return isLHSBase() ? RHS : LHS; }
+  const Expr *getIdx() const { return isLHSBase() ? RHS : LHS; }
+
+  const Expr *getLHS() const { return LHS; }
+  Expr *getLHS() { return LHS; }
+  const Expr *getRHS() const { return RHS; }
+  Expr *getRHS() { return RHS; }
+
+protected:
+  ArraySubscriptExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                     Expr *LHS, Expr *RHS);
+
+private:
+  bool isLHSBase() const { return RHS->getType().isIntegerType(); }
+
+private:
+  Expr *LHS;
+  Expr *RHS;
+};
+
 class CallExpr : public Expr {
 public:
   static CallExpr *create(ASTContext &Ctx, SourceLocation BegLoc,

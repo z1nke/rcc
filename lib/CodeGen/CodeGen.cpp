@@ -247,6 +247,9 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_CallExpr:
     genCallExpr(cast<CallExpr>(E));
     break;
+  case Stmt::SK_ArraySubscriptExpr:
+    genArraySubscriptExpr(cast<ArraySubscriptExpr>(E));
+    break;
   default:
     Diag.fatalAt(E->getBeginLoc(), "invalid expression");
   }
@@ -274,14 +277,13 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_Add: {
     QualType LType = LHS->getType();
     QualType RType = RHS->getType();
-    if (const auto *PointeeTy = LType->getPointeeOrArrayElementType()) {
+    if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
       // Ptr + Int(a1)
-      // FIXME: Consider the size and alignment of the element being pointed to.
       std::println("  li t0, {}", PointeeTy->getSize());
       std::println("  mul a1, a1, t0");
-    } else if (const auto *PointeeTy = RType->getPointeeOrArrayElementType()) {
+    } else if (const auto *PointeeTy =
+                   RType->getPointeeOrArrayElementTypePtr()) {
       // Int(a0) + Ptr
-      // FIXME: Consider the size and alignment of the element being pointed to.
       std::println("  li t0, {}", PointeeTy->getSize());
       std::println("  mul a0, a0, t0");
     }
@@ -292,7 +294,7 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_Sub: {
     QualType LType = LHS->getType();
     QualType RType = RHS->getType();
-    if (const auto *PointeeTy = LType->getPointeeOrArrayElementType()) {
+    if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
       if (RType->isPointerType()) {
         // Ptr - Ptr
         std::println("  sub a0, a0, a1");
@@ -403,6 +405,11 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   std::println("  call {}", Name);
 }
 
+void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
+  genAddr(ASE);
+  std::println("  ld a0, 0(a0)");
+}
+
 void CodeGen::genAddr(const Expr *E) {
   switch (E->getKind()) {
   case Stmt::SK_DeclRefExpr: {
@@ -418,11 +425,38 @@ void CodeGen::genAddr(const Expr *E) {
     }
     break;
   }
+  case Stmt::SK_ArraySubscriptExpr:
+    genAddr(cast<ArraySubscriptExpr>(E));
+    return;
   default:
     break;
   }
 
   Diag.fatalAt(E->getBeginLoc(), "not a lvalue");
+}
+
+void CodeGen::genAddr(const ArraySubscriptExpr *ASE) {
+  // base[idx] <=> *(base + idx)
+  const auto *Base = ASE->getBase();
+  const auto *Idx = ASE->getIdx();
+  QualType BaseType = Base->getType();
+  QualType ElemType = BaseType->getPointeeOrArrayElementType();
+  assert(ElemType);
+
+  std::println("  # array-subscript-expr");
+  // a0[a1]
+  genExpr(Idx);
+  push();
+  if (BaseType->isPointerType())
+    genExpr(Base);
+  else if (BaseType->isArraryType())
+    genAddr(Base);
+  else
+    Diag.fatalAt(Base->getBeginLoc(), "expect pointer or array type");
+  pop("a1");
+  std::println("  li t0, {}", ElemType->getSize());
+  std::println("  mul a1, a1, t0");
+  std::println("  add a0, a0, a1");
 }
 
 void CodeGen::genAddr(const Decl *D) {

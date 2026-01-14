@@ -33,6 +33,7 @@ int main(int Argc, char **Argv) {
   Sema S(Ctx, Diag);
   Parser P(Toks, Ctx, S, SM);
   TranslationUnitDecl *TU = P.parse();
+  //TU->dump();
   CodeGen CG(Diag);
   CG.codegen(TU);
   return 0;

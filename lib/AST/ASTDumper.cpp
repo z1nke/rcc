@@ -122,6 +122,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_CallExpr:
     visit(cast<CallExpr>(S));
     break;
+  case Stmt::SK_ArraySubscriptExpr:
+    visit(cast<ArraySubscriptExpr>(S));
+    break;
   default:
     RCC_UNREACHABLE("unknown stmt kind");
   }
@@ -248,6 +251,18 @@ void ASTDumper::visit(const CallExpr *Call) {
   for (const auto *E : Call->getArgs()) {
     ScopeIndent SI(*this, false);
     visit(E);
+  }
+}
+
+void ASTDumper::visit(const ArraySubscriptExpr *ASE) {
+  printName("ArraySubscriptExpr");
+  {
+    ScopeIndent SI(*this, false);
+    visit(ASE->getLHS());
+  }
+  {
+    ScopeIndent SI(*this, true);
+    visit(ASE->getRHS());
   }
 }
 

@@ -1,6 +1,7 @@
 #ifndef RCC_AST_ASTDUMPER
 #define RCC_AST_ASTDUMPER
 
+#include "AST/Stmt.h"
 #include <vector>
 
 namespace rcc {
@@ -50,6 +51,7 @@ public:
   void visit(const ParenExpr *Paren);
   void visit(const DeclRefExpr *Ref);
   void visit(const CallExpr *Call);
+  void visit(const ArraySubscriptExpr *ASE);
 
 private:
   friend class ScopeIndent;
