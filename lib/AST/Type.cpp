@@ -61,10 +61,10 @@ static TypeDumper dumpToString(QualType T) {
     std::string Params;
     Params.reserve(64);
     Params += '(';
-    for (unsigned i = 0; i < FT->getNumParams(); ++i) {
-      if (i)
+    for (unsigned I = 0; I < FT->getNumParams(); ++I) {
+      if (I)
         Params += ", ";
-      Params += FT->getParamType(i).getAsString();
+      Params += FT->getParamType(I).getAsString();
     }
     Params += ')';
     Dumper.Postfix += Params;

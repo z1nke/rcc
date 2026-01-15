@@ -250,6 +250,9 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_ArraySubscriptExpr:
     genArraySubscriptExpr(cast<ArraySubscriptExpr>(E));
     break;
+  case Stmt::SK_UnaryExprOrTypeTraitExpr:
+    genUnaryExprOrTypeTraitExpr(cast<UnaryExprOrTypeTraitExpr>(E));
+    break;
   default:
     Diag.fatalAt(E->getBeginLoc(), "invalid expression");
   }
@@ -408,6 +411,12 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
 void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
   genAddr(ASE);
   std::println("  ld a0, 0(a0)");
+}
+
+void CodeGen::genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
+  std::size_t Size = UE->getSize();
+  std::println("  # sizeof-expr");
+  std::println("  li a0, {}", Size);
 }
 
 void CodeGen::genAddr(const Expr *E) {

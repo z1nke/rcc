@@ -236,4 +236,42 @@ FunctionDecl *CallExpr::getCalleeDecl() const {
   return dyn_cast<FunctionDecl>(Callee->getDecl());
 }
 
+UnaryExprOrTypeTraitExpr *
+UnaryExprOrTypeTraitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                 SourceLocation EndLoc, QualType T, Expr *Ex) {
+  static constexpr std::size_t Size = sizeof(UnaryExprOrTypeTraitExpr);
+  void *Mem = Ctx.Allocate(Size, alignof(UnaryExprOrTypeTraitExpr));
+  return new (Mem) UnaryExprOrTypeTraitExpr(BegLoc, EndLoc, T, Ex);
+}
+
+UnaryExprOrTypeTraitExpr *
+UnaryExprOrTypeTraitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                 SourceLocation EndLoc, QualType T, Type *Ty) {
+  static constexpr std::size_t Size = sizeof(UnaryExprOrTypeTraitExpr);
+  void *Mem = Ctx.Allocate(Size, alignof(UnaryExprOrTypeTraitExpr));
+  return new (Mem) UnaryExprOrTypeTraitExpr(BegLoc, EndLoc, T, Ty);
+}
+
+UnaryExprOrTypeTraitExpr::UnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
+                                                   SourceLocation EndLoc,
+                                                   QualType T, Expr *Ex)
+    : Expr(SK_UnaryExprOrTypeTraitExpr, BegLoc, EndLoc, T), IsType(false) {
+  Argument.Ex = Ex;
+}
+
+UnaryExprOrTypeTraitExpr::UnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
+                                                   SourceLocation EndLoc,
+                                                   QualType T, Type *Ty)
+    : Expr(SK_UnaryExprOrTypeTraitExpr, BegLoc, EndLoc, T), IsType(true) {
+  Argument.Ty = Ty;
+}
+
+std::size_t UnaryExprOrTypeTraitExpr::getSize() const {
+  if (isArgumentType())
+    return Argument.Ty->getSize();
+
+  QualType Ty = Argument.Ex->getType();
+  return Ty->getSize();
+}
+
 } // namespace rcc

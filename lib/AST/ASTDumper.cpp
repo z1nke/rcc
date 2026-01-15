@@ -1,6 +1,7 @@
 #include "AST/ASTDumper.h"
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
+#include "AST/Type.h"
 #include "Basic/Unreachable.h"
 
 #include <print>
@@ -28,15 +29,15 @@ void ASTDumper::visit(const Decl *D) {
   }
 }
 
-class ScopeIndent {
+class ScopedIndent {
 public:
-  ScopeIndent(ASTDumper &Dumper, bool IsSingle)
+  ScopedIndent(ASTDumper &Dumper, bool IsSingle)
       : Dumper(Dumper), IsSingle(IsSingle) {
     Dumper.printIndent();
     std::print(stderr, "{}", IsSingle ? SinglePrefix : MultiPrefix);
     Dumper.indent(IsSingle);
   }
-  ~ScopeIndent() { Dumper.unindent(IsSingle); }
+  ~ScopedIndent() { Dumper.unindent(IsSingle); }
 
   static constexpr const char *SinglePrefix = "`-";
   static constexpr const char *MultiPrefix = "|-";
@@ -50,7 +51,7 @@ void ASTDumper::visit(const TranslationUnitDecl *TU) {
   printName("TranslationUnitDecl");
   bool IsSingle = TU->decls().size() == 1;
   for (const auto *D : TU->decls()) {
-    ScopeIndent SI(*this, IsSingle);
+    ScopedIndent SI(*this, IsSingle);
     visit(D);
   }
 }
@@ -58,12 +59,12 @@ void ASTDumper::visit(const TranslationUnitDecl *TU) {
 void ASTDumper::visit(const FunctionDecl *Func) {
   printName(Func);
   for (const auto *Param : Func->getParams()) {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(Param);
   }
 
   if (Stmt *Body = Func->getBody()) {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(Body);
   }
 }
@@ -71,7 +72,7 @@ void ASTDumper::visit(const FunctionDecl *Func) {
 void ASTDumper::visit(const VarDecl *Var) {
   printName(Var);
   if (const Expr *Init = Var->getInit()) {
-    ScopeIndent SI(*this, true);
+    ScopedIndent SI(*this, true);
     visit(Init);
   }
 }
@@ -134,7 +135,7 @@ void ASTDumper::visit(const DeclStmt *DS) {
   printName("DeclStmt");
   bool IsSingle = DS->getNumDecls() == 1;
   for (unsigned I = 0; I < DS->getNumDecls(); ++I) {
-    ScopeIndent SI(*this, IsSingle);
+    ScopedIndent SI(*this, IsSingle);
     visit(DS->getDecl(I));
   }
 }
@@ -143,7 +144,7 @@ void ASTDumper::visit(const ReturnStmt *Ret) {
   printName("ReturnStmt");
   const auto *RetVal = Ret->getRetValue();
   if (RetVal) {
-    ScopeIndent SI(*this, true);
+    ScopedIndent SI(*this, true);
     visit(RetVal);
   }
 }
@@ -152,7 +153,7 @@ void ASTDumper::visit(const CompoundStmt *CS) {
   printName("CompoundStmt");
   bool IsSingle = CS->getBody().size() == 1;
   for (const auto *S : CS->getBody()) {
-    ScopeIndent SI(*this, IsSingle);
+    ScopedIndent SI(*this, IsSingle);
     visit(S);
   }
 }
@@ -162,16 +163,16 @@ void ASTDumper::visit(const NullStmt *) { printName("NullStmt"); }
 void ASTDumper::visit(const IfStmt *If) {
   printName("IfStmt");
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(If->getCond());
   }
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(If->getThen());
   }
 
   if (const Stmt *Else = If->getElse()) {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(Else);
   }
 }
@@ -179,19 +180,19 @@ void ASTDumper::visit(const IfStmt *If) {
 void ASTDumper::visit(const ForStmt *For) {
   printName("ForStmt");
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(For->getInit());
   }
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(For->getCond());
   }
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(For->getInc());
   }
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(For->getBody());
   }
 }
@@ -199,29 +200,29 @@ void ASTDumper::visit(const ForStmt *For) {
 void ASTDumper::visit(const WhileStmt *While) {
   printName("WhileStmt");
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(While->getCond());
   }
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(While->getBody());
   }
 }
 
 void ASTDumper::visit(const UnaryOperator *UO) {
   std::println(stderr, "UnaryOperator prefix '{}'", UO->getOpcodeStr());
-  ScopeIndent SI(*this, true);
+  ScopedIndent SI(*this, true);
   visit(UO->getSubExpr());
 }
 
 void ASTDumper::visit(const BinaryOperator *BO) {
   std::println(stderr, "BinaryOperator '{}'", BO->getOpcodeStr());
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(BO->getLHS());
   }
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(BO->getRHS());
   }
 }
@@ -232,24 +233,24 @@ void ASTDumper::visit(const IntegerLiteral *IL) {
 
 void ASTDumper::visit(const ParenExpr *Paren) {
   printName("ParenExpr");
-  ScopeIndent SI(*this, true);
+  ScopedIndent SI(*this, true);
   visit(Paren->getSubExpr());
 }
 
 void ASTDumper::visit(const DeclRefExpr *Ref) {
   printName("DeclRefExpr");
-  ScopeIndent SI(*this, true);
+  ScopedIndent SI(*this, true);
   visit(Ref->getDecl());
 }
 
 void ASTDumper::visit(const CallExpr *Call) {
   printName("CallExpr");
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(Call->getCallee());
   }
   for (const auto *E : Call->getArgs()) {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(E);
   }
 }
@@ -257,13 +258,24 @@ void ASTDumper::visit(const CallExpr *Call) {
 void ASTDumper::visit(const ArraySubscriptExpr *ASE) {
   printName("ArraySubscriptExpr");
   {
-    ScopeIndent SI(*this, false);
+    ScopedIndent SI(*this, false);
     visit(ASE->getLHS());
   }
   {
-    ScopeIndent SI(*this, true);
+    ScopedIndent SI(*this, true);
     visit(ASE->getRHS());
   }
+}
+
+void ASTDumper::visit(const UnaryExprOrTypeTraitExpr *UE) {
+  if (UE->isArgumentType()) {
+    std::println(stderr, "UnaryExprOrTypeTraitExpr sizeof '{}'",
+                 UE->getArgumentType().getAsString());
+    return;
+  }
+  printName("UnaryExprOrTypeTraitExpr sizeof");
+  ScopedIndent SI(*this, true);
+  visit(UE->getArgumentExpr());
 }
 
 void ASTDumper::printName(const char *Name) const {
@@ -272,7 +284,7 @@ void ASTDumper::printName(const char *Name) const {
 
 void ASTDumper::printName(const ValueDecl *D) const {
   std::println(stderr, "{} {} '{}'", D->getKindStr(), D->getName(),
-          D->getType().getAsString());
+               D->getType().getAsString());
 }
 
 void ASTDumper::printNull() const { std::println(stderr, "<<<NULL>>>"); }

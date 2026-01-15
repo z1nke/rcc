@@ -2,7 +2,6 @@
 #include "Basic/Unreachable.h"
 
 #include <cassert>
-#include <cstdio>
 #include <print>
 
 namespace rcc {

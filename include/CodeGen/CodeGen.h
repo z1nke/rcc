@@ -39,6 +39,7 @@ private:
   void genUnaryOperator(const UnaryOperator *UO);
   void genCallExpr(const CallExpr *CE);
   void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);
+  void genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE);
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
   void genAddr(const ArraySubscriptExpr *ASE);

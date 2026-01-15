@@ -291,27 +291,27 @@ Expr *Parser::parseAssign() {
 
 // equality-expr: relational-expr { ('==' | '!=') relational-expr }
 Expr *Parser::parseEqualityExpr() {
-  return parseBinaryOperator<&Parser::parseRelationalExpr, Token::TK_EqualEqual,
-                             Token::TK_NotEqual>();
+  return parseBinaryExpr<&Parser::parseRelationalExpr, Token::TK_EqualEqual,
+                         Token::TK_NotEqual>();
 }
 
 // relational-expr: add-expr { ('<' | '<=' | '>' | '>=') add-expr }
 Expr *Parser::parseRelationalExpr() {
-  return parseBinaryOperator<&Parser::parseAddExpr, Token::TK_Less,
-                             Token::TK_LessEqual, Token::TK_Greater,
-                             Token::TK_GreaterEqual>();
+  return parseBinaryExpr<&Parser::parseAddExpr, Token::TK_Less,
+                         Token::TK_LessEqual, Token::TK_Greater,
+                         Token::TK_GreaterEqual>();
 }
 
 // add-expr: mul-expr { ('+' | '-') mul-expr }
 Expr *Parser::parseAddExpr() {
-  return parseBinaryOperator<&Parser::parseMulExpr, Token::TK_Plus,
-                             Token::TK_Minus>();
+  return parseBinaryExpr<&Parser::parseMulExpr, Token::TK_Plus,
+                         Token::TK_Minus>();
 }
 
 // mul-expr: unary-expr { ('*' | '/') unary-expr }
 Expr *Parser::parseMulExpr() {
-  return parseBinaryOperator<&Parser::parseUnaryOperator, Token::TK_Star,
-                             Token::TK_Slash>();
+  return parseBinaryExpr<&Parser::parseUnaryExpr, Token::TK_Star,
+                         Token::TK_Slash>();
 }
 
 static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
@@ -329,22 +329,35 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
   }
 }
 
-// unary-expr = ('+' | '-' | '*' | '&' ) (unary-expr | array-subscript-expr)
-Expr *Parser::parseUnaryOperator() {
+// unary-expr = postfix-expr
+//            | unary-operator unary-expr
+//            | sizeof unary-expr
+//            | sizeof '(' type-name ')'
+Expr *Parser::parseUnaryExpr() {
+  // unary-operator = '+' | '-' | '*' | '&'
   if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus, Token::TK_Star,
                       Token::TK_Amp)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
     auto OpLoc = SM.createBeginLocation(CurTok);
-    CurTok = CurTok->getNext();
-    Expr *SubExpr = parseUnaryOperator();
+    skip();
+    Expr *SubExpr = parseUnaryExpr();
     return S.actOnUnaryOperator(OpLoc, SubExpr, Op);
   }
 
-  return parseArraySubscriptExpr();
+  if (CurTok->is(Token::TK_Sizeof)) {
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    skip();
+    // FIXME: Support sizeof '(' type-name ')'
+    Expr *Ex = parseUnaryExpr();
+    return S.actOnUnaryExprOrTypeTraitExpr(BegLoc, Ex);
+  }
+
+  return parsePostfixExpr();
 }
 
-// array-subscript-expr = primary-expr ( '[' expr ']' )*
-Expr *Parser::parseArraySubscriptExpr() {
+// postfix-expr = primary-expr
+//              | postfix-expr '[' expr ']'
+Expr *Parser::parsePostfixExpr() {
   Expr *LHS = parsePrimaryExpr();
   while (tryConsume(Token::TK_LSquare)) {
     Expr *RHS = parseExpr();
@@ -448,7 +461,7 @@ static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
 }
 
 template <auto ParseOperand, Token::TokenKind... Tks>
-Expr *Parser::parseBinaryOperator() {
+Expr *Parser::parseBinaryExpr() {
   Expr *LHS = (this->*ParseOperand)();
   while (true) {
     if (CurTok->isOneOf(Tks...)) {

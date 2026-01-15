@@ -2,6 +2,10 @@
 #define TOKEN(KIND, STR)
 #endif
 
+#ifndef KEYWORD
+#define KEYWORD(KIND, STR) TOKEN(KIND, STR)
+#endif
+
 TOKEN(Plus, "+")
 TOKEN(Minus, "-")
 TOKEN(Star, "*")
@@ -24,11 +28,14 @@ TOKEN(Amp, "&")
 TOKEN(Comma, ",")
 TOKEN(Num, "numeric_constant")
 TOKEN(Ident, "identifier")
-TOKEN(Return, "return")
-TOKEN(If, "if")
-TOKEN(Else, "else")
-TOKEN(For, "for")
-TOKEN(While, "while")
-TOKEN(Int, "int")
 
+KEYWORD(Return, "return")
+KEYWORD(If, "if")
+KEYWORD(Else, "else")
+KEYWORD(For, "for")
+KEYWORD(While, "while")
+KEYWORD(Int, "int")
+KEYWORD(Sizeof, "sizeof")
+
+#undef KEYWORD
 #undef TOKEN

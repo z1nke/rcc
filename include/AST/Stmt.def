@@ -19,6 +19,7 @@ STMT(ForStmt)
 STMT(WhileStmt)
 
 EXPR(UnaryOperator)
+EXPR(UnaryExprOrTypeTraitExpr)
 EXPR(BinaryOperator)
 EXPR(IntegerLiteral)
 EXPR(ParenExpr)

@@ -52,9 +52,10 @@ public:
   void visit(const DeclRefExpr *Ref);
   void visit(const CallExpr *Call);
   void visit(const ArraySubscriptExpr *ASE);
+  void visit(const UnaryExprOrTypeTraitExpr *UE);
 
 private:
-  friend class ScopeIndent;
+  friend class ScopedIndent;
 
   void printName(const char *Name) const;
   void printName(const ValueDecl *D) const;

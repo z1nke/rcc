@@ -138,6 +138,18 @@ Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
                                SubExpr, static_cast<UnaryOperator::Opcode>(Op));
 }
 
+Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc, Expr *Ex) {
+  // FIXME: Fix sizeof type, int -> size_t.
+  return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, Ex->getEndLoc(),
+                                          Ctx.IntTy, Ex);
+}
+
+Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
+                                          SourceLocation EndLoc, Type *Ty) {
+  // FIXME: Fix sizeof type, int -> size_t.
+  return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Ty);
+}
+
 Expr *Sema::actOnParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                            Expr *SubExpr) {
   return ParenExpr::create(Ctx, BegLoc, EndLoc, SubExpr->getType(), SubExpr);

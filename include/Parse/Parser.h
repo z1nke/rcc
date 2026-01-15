@@ -50,12 +50,12 @@ private:
   Expr *parseRelationalExpr();
   Expr *parseAddExpr();
   Expr *parseMulExpr();
-  Expr *parseUnaryOperator();
+  Expr *parseUnaryExpr();
   Expr *parsePrimaryExpr();
   Expr *parseParenExpr();
   Expr *parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
                       SourceLocation IdentEndLoc);
-  Expr *parseArraySubscriptExpr();
+  Expr *parsePostfixExpr();
 
 private:
   void parseDeclSpec(DeclSpec &DS);
@@ -66,7 +66,7 @@ private:
 
 private:
   template <auto ParseOperand, Token::TokenKind... TKS>
-  Expr *parseBinaryOperator();
+  Expr *parseBinaryExpr();
 
   Token::TokenKind getKeyword(std::string_view Ident) const;
 

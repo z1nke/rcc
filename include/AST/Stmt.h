@@ -370,6 +370,52 @@ private:
   std::vector<Expr *> Args;
 };
 
+class UnaryExprOrTypeTraitExpr : public Expr {
+public:
+  static UnaryExprOrTypeTraitExpr *create(ASTContext &Ctx,
+                                          SourceLocation BegLoc,
+                                          SourceLocation EndLoc, QualType T,
+                                          Expr *Ex);
+
+  static UnaryExprOrTypeTraitExpr *create(ASTContext &Ctx,
+                                          SourceLocation BegLoc,
+                                          SourceLocation EndLoc, QualType T,
+                                          Type *Ty);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_UnaryExprOrTypeTraitExpr;
+  }
+
+  bool isArgumentType() const { return IsType; }
+  std::size_t getSize() const;
+  QualType getArgumentType() const {
+    assert(isArgumentType());
+    return QualType(Argument.Ty);
+  }
+
+  Expr *getArgumentExpr() {
+    assert(!isArgumentType());
+    return static_cast<Expr *>(Argument.Ex);
+  }
+  const Expr *getArgumentExpr() const {
+    return const_cast<UnaryExprOrTypeTraitExpr *>(this)->getArgumentExpr();
+  }
+
+private:
+  UnaryExprOrTypeTraitExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                           QualType T, Expr *Ex);
+
+  UnaryExprOrTypeTraitExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                           QualType T, Type *Ty);
+
+private:
+  bool IsType;
+  union {
+    Type *Ty;
+    Expr *Ex;
+  } Argument;
+};
+
 } // namespace rcc
 
 #endif

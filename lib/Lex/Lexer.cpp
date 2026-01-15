@@ -13,9 +13,10 @@ static bool isIdent0(char C) { return std::isalpha(C) || C == '_'; }
 static bool isIdent1(char C) { return isIdent0(C) || std::isdigit(C); }
 
 Lexer::Lexer(Diagnostic &Diag) : Diag(Diag) {
-  Keywords = {{"return", Token::TK_Return}, {"if", Token::TK_If},
-              {"else", Token::TK_Else},     {"for", Token::TK_For},
-              {"while", Token::TK_While},   {"int", Token::TK_Int}};
+  Keywords = {
+#define KEYWORD(KIND, STR) {STR, Token::TK_##KIND},
+#include "Lex/Token.def"
+  };
 }
 
 Token *Lexer::tokenize(char *P) {
