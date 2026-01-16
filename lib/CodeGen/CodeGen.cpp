@@ -46,6 +46,7 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   std::size_t StackSize = assignLVarOffsets(FD);
   const char *Name = FD->getName().c_str();
   std::println("  .globl {}", Name);
+  std::println("  .text");
   std::println("{}:", Name);
 
   // stack frame

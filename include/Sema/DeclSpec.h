@@ -75,6 +75,8 @@ public:
 
   SourceLocation getTypeSpecLoc() const { return DS.getTypeSpecLoc(); }
 
+  bool isFunction() const;
+
 private:
   const DeclSpec &DS;
   std::string Ident;

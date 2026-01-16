@@ -9,6 +9,7 @@
 #include "Lex/Token.h"
 #include "Sema/DeclSpec.h"
 #include "Sema/Sema.h"
+#include <vector>
 
 namespace rcc {
 
@@ -17,29 +18,41 @@ Parser::Parser(Token *CurTok, ASTContext &Ctx, Sema &S, SourceManager &SM)
 
 Parser::~Parser() = default;
 
-// program: function-decl* EOF
+// program: (function-decl | var-decl) EOF
 TranslationUnitDecl *Parser::parse() {
   auto *TU = TranslationUnitDecl::create(Ctx);
-  while (CurTok->isNot(Token::TK_EOF)) {
-    TU->addDecl(parseFunctionDecl());
-  }
+  while (CurTok->isNot(Token::TK_EOF))
+    parseGlobalDecl(TU);
 
   return TU;
 }
 
-// function-decl: function-definition
-// TODO:        | function-declaration
-FunctionDecl *Parser::parseFunctionDecl() {
+void Parser::parseGlobalDecl(TranslationUnitDecl *TU) {
   auto BegLoc = SM.createBeginLocation(CurTok);
   DeclSpec DS;
   parseDeclSpec(DS);
   Declarator D(DS);
-  D.setLocation(SM.createBeginLocation(CurTok));
   parseDeclarator(D);
-  FunctionDecl *FD = dyn_cast<FunctionDecl>(S.actOnDeclarator(D));
-  if (!FD)
-    Diag.fatalAt(BegLoc, "expected function declaration");
+  Decl *FirstDecl = S.actOnDeclarator(D);
+  // function-decl: function-definition
+  // TODO:        | function-declaration
+  if (auto *Func = dyn_cast<FunctionDecl>(FirstDecl)) {
+    TU->addDecl(parseFunctionBody(BegLoc, Func));
+    return;
+  }
 
+  if (auto *Var = dyn_cast<VarDecl>(FirstDecl)) {
+    std::vector<VarDecl *> Vars = parseGlobalVarDecl(BegLoc, DS, Var);
+    for (VarDecl *Var : Vars)
+      TU->addDecl(Var);
+    return;
+  }
+
+  Diag.fatalAt(BegLoc, "Unknown global declaration");
+}
+
+FunctionDecl *Parser::parseFunctionBody(SourceLocation BegLoc,
+                                        FunctionDecl *FD) {
   if (CurTok->is(Token::TK_LBrace)) {
     Stmt *Body = parseCompoundStmt();
     FD->setBody(Body);
@@ -48,6 +61,39 @@ FunctionDecl *Parser::parseFunctionDecl() {
 
   S.complete(FD);
   return FD;
+}
+
+// var-decl: declspec { init-declarator-list } ';'
+std::vector<VarDecl *> Parser::parseGlobalVarDecl(SourceLocation BegLoc,
+                                                  DeclSpec &DS,
+                                                  VarDecl *FirstVar) {
+  std::vector<VarDecl *> Vars;
+  parseVarInit(FirstVar);
+  Vars.push_back(FirstVar);
+  while (tryConsume(Token::TK_Comma)) {
+    auto *Var = dyn_cast<VarDecl>(parseInitDeclarator(DS));
+    if (!Var)
+      Diag.fatalAt(BegLoc, "expect variable declaration");
+
+    Vars.push_back(Var);
+  }
+
+  skip(Token::TK_Semicolon);
+  return Vars;
+}
+
+FunctionDecl *Parser::parseFunctionDecl() {
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  DeclSpec DS;
+  parseDeclSpec(DS);
+  Declarator D(DS);
+  D.setLocation(SM.createBeginLocation(CurTok));
+  parseDeclarator(D);
+  auto *FD = dyn_cast<FunctionDecl>(S.actOnDeclarator(D));
+  if (!FD)
+    Diag.fatalAt(BegLoc, "expected function declaration");
+
+  return parseFunctionBody(BegLoc, FD);
 }
 
 // stmt: return-stmt
@@ -202,14 +248,16 @@ Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
   if (!Var)
     Diag.fatalAt(D.getLocation(), "expect variable declarator");
 
+  parseVarInit(Var);
+  return Var;
+}
+
+void Parser::parseVarInit(VarDecl *Var) {
   if (tryConsume(Token::TK_Equal)) {
     Expr *E = parseExpr();
     Var->setInit(E);
     Var->setEndLoc(E->getEndLoc());
-    return Var;
   }
-
-  return Var;
 }
 
 // declarator: '*'* direct-declarator
@@ -329,12 +377,12 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
   }
 }
 
-// unary-expr = postfix-expr
-//            | unary-operator unary-expr
-//            | sizeof unary-expr
-//            | sizeof '(' type-name ')'
+// unary-expr: postfix-expr
+//           | unary-operator unary-expr
+//           | sizeof unary-expr
+//           | sizeof '(' type-name ')'
 Expr *Parser::parseUnaryExpr() {
-  // unary-operator = '+' | '-' | '*' | '&'
+  // unary-operator: '+' | '-' | '*' | '&'
   if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus, Token::TK_Star,
                       Token::TK_Amp)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
@@ -355,8 +403,8 @@ Expr *Parser::parseUnaryExpr() {
   return parsePostfixExpr();
 }
 
-// postfix-expr = primary-expr
-//              | postfix-expr '[' expr ']'
+// postfix-expr: primary-expr
+//             | postfix-expr '[' expr ']'
 Expr *Parser::parsePostfixExpr() {
   Expr *LHS = parsePrimaryExpr();
   while (tryConsume(Token::TK_LSquare)) {
@@ -422,7 +470,7 @@ Expr *Parser::parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
                          std::move(Args));
 }
 
-// paren-expr = '(' expr ')'
+// paren-expr: '(' expr ')'
 Expr *Parser::parseParenExpr() {
   assert(CurTok->is(Token::TK_LParen));
   auto BegLoc = SM.createBeginLocation(CurTok);

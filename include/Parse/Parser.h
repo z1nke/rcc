@@ -32,7 +32,11 @@ public:
   TranslationUnitDecl *parse();
 
 private:
+  void parseGlobalDecl(TranslationUnitDecl *TU);
   FunctionDecl *parseFunctionDecl();
+  FunctionDecl *parseFunctionBody(SourceLocation BegLoc, FunctionDecl *Func);
+  std::vector<VarDecl *> parseGlobalVarDecl(SourceLocation BegLoc, DeclSpec &DS,
+                                            VarDecl *FirstVar);
 
 private:
   Stmt *parseStmt();
@@ -61,12 +65,12 @@ private:
   void parseDeclSpec(DeclSpec &DS);
   std::vector<Decl *> parseInitDeclaratorList(DeclSpec &DS);
   Decl *parseInitDeclarator(DeclSpec &DS);
+  void parseVarInit(VarDecl *Var);
   void parseDeclarator(Declarator &D);
   void parseDirectDeclarator(Declarator &D);
 
 private:
-  template <auto ParseOperand, Token::TokenKind... TKS>
-  Expr *parseBinaryExpr();
+  template <auto ParseOperand, Token::TokenKind... TKS> Expr *parseBinaryExpr();
 
   Token::TokenKind getKeyword(std::string_view Ident) const;
 
