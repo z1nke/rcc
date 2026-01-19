@@ -69,12 +69,14 @@ std::vector<VarDecl *> Parser::parseGlobalVarDecl(SourceLocation BegLoc,
                                                   VarDecl *FirstVar) {
   std::vector<VarDecl *> Vars;
   parseVarInit(FirstVar);
+  FirstVar->setGlobal(true);
   Vars.push_back(FirstVar);
   while (tryConsume(Token::TK_Comma)) {
     auto *Var = dyn_cast<VarDecl>(parseInitDeclarator(DS));
     if (!Var)
       Diag.fatalAt(BegLoc, "expect variable declaration");
 
+    Var->setGlobal(true);
     Vars.push_back(Var);
   }
 

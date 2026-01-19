@@ -372,6 +372,11 @@ VarDecl *Sema::findVar(std::string_view Ident) {
       return Param;
   }
 
+  for (VarDecl *Var : GlobalVars) {
+    if (Var->getName() == Ident)
+      return Var;
+  }
+
   return nullptr;
 }
 

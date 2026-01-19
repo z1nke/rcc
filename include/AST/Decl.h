@@ -114,6 +114,8 @@ public:
   const Expr *getInit() const { return Init; }
   Expr *getInit() { return Init; }
   void setInit(Expr *E) { Init = E; }
+  void setGlobal(bool IsGlobal) { this->IsGlobal = IsGlobal; }
+  bool hasGlobalStorage() const { return IsGlobal; }
 
 protected:
   VarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
@@ -124,6 +126,7 @@ private:
   Expr *Init = nullptr;
   // Temporary handling.
   int Offset = 0;
+  bool IsGlobal;
 };
 
 class ParamVarDecl : public VarDecl {

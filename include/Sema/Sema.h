@@ -14,6 +14,7 @@ class Diagnostic;
 class Stmt;
 class Expr;
 class Decl;
+class NamedDecl;
 class VarDecl;
 class ParamVarDecl;
 class Declarator;
@@ -91,6 +92,7 @@ private:
   ASTContext &Ctx;
   Diagnostic &Diag;
   std::vector<VarDecl *> LocalVars;
+  std::vector<VarDecl *> GlobalVars;
   std::vector<ParamVarDecl *> Params;
   std::vector<FunctionDecl *> Funcs;
 };

@@ -32,11 +32,25 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
 static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
 void CodeGen::codegen(const TranslationUnitDecl *TU) {
+  emitData(TU);
+  emitText(TU);
+}
+
+void CodeGen::emitData(const TranslationUnitDecl *TU) {
+  for (const auto *D : TU->decls()) {
+    if (const auto *Var = dyn_cast<VarDecl>(D)) {
+      std::println("  .globl {}", Var->getName());
+      std::println("  .data");
+      std::println("{}:", Var->getName());
+      std::println("  .zero {}", Var->getType()->getSize());
+    }
+  }
+}
+
+void CodeGen::emitText(const TranslationUnitDecl *TU) {
   for (const auto *D : TU->decls()) {
     if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
       genFunction(FD);
-    } else {
-      Diag.fatalAt(D->getBeginLoc(), "only function declaration is allowed");
     }
   }
 }
@@ -474,9 +488,14 @@ void CodeGen::genAddr(const Decl *D) {
   if (!Var)
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
 
-  std::println("  # get address of variable {}, offset={}", Var->getName(),
-               Var->getOffset());
-  std::println("  addi a0, fp, {}", Var->getOffset());
+  if (Var->hasGlobalStorage()) {
+    std::println("  # get address of global variable {}", Var->getName());
+    std::println("  la a0, {}", Var->getName());
+  } else {
+    std::println("  # get address of local variable {}, offset={}",
+                 Var->getName(), Var->getOffset());
+    std::println("  addi a0, fp, {}", Var->getOffset());
+  }
 }
 
 void CodeGen::push() {

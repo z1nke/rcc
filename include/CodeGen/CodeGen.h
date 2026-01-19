@@ -23,7 +23,11 @@ class CodeGen {
 public:
   CodeGen(Diagnostic &Diag);
 
-  void codegen(const TranslationUnitDecl *FD);
+  void codegen(const TranslationUnitDecl *TU);
+
+private:
+  void emitData(const TranslationUnitDecl *TU);
+  void emitText(const TranslationUnitDecl *TU);
 
 private:
   void genFunction(const FunctionDecl *FD);
