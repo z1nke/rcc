@@ -27,6 +27,7 @@ TOKEN(RBRace, "}")
 TOKEN(Amp, "&")
 TOKEN(Comma, ",")
 TOKEN(Num, "numeric_constant")
+TOKEN(Str, "string_literal")
 TOKEN(Ident, "identifier")
 
 KEYWORD(Return, "return")

@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <format>
 #include <print>
 
 namespace rcc {
@@ -33,8 +34,8 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
 static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
 void CodeGen::codegen(const TranslationUnitDecl *TU) {
-  emitData(TU);
   emitText(TU);
+  emitData(TU);
 }
 
 void CodeGen::emitData(const TranslationUnitDecl *TU) {
@@ -42,9 +43,27 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
     if (const auto *Var = dyn_cast<VarDecl>(D)) {
       std::println("  .globl {}", Var->getName());
       std::println("  .data");
-      std::println("{}:", Var->getName());
-      std::println("  .zero {}", Var->getType()->getSize());
+      const auto *Init = Var->getInit();
+      if (Init) {
+        if (const auto *SL = dyn_cast<StringLiteral>(Init)) {
+          std::println("{}:", Var->getName());
+          std::println("  .asciz \"{}\"", SL->getString());
+        } else {
+          Diag.fatalAt(Var->getBeginLoc(),
+                       "only string literal is supported in global var init");
+        }
+      } else {
+        std::println("{}:", Var->getName());
+        std::println("  .zero {}", Var->getType()->getSize());
+      }
     }
+  }
+
+  for (std::size_t Idx = 0; Idx < StringLiterals.size(); ++Idx) {
+    const auto *SL = StringLiterals[Idx];
+    std::string Label = getStringLabel(SL);
+    std::println("{}:", Label);
+    std::println("  .asciz \"{}\"", SL->getString());
   }
 }
 
@@ -254,6 +273,9 @@ void CodeGen::genExpr(const Expr *E) {
     std::println("  li a0, {}", Val);
     break;
   }
+  case Stmt::SK_StringLiteral:
+    genStringLiteral(cast<StringLiteral>(E));
+    break;
   case Stmt::SK_ParenExpr:
     genExpr(cast<ParenExpr>(E)->getSubExpr());
     break;
@@ -275,6 +297,26 @@ void CodeGen::genExpr(const Expr *E) {
   default:
     Diag.fatalAt(E->getBeginLoc(), "invalid expression");
   }
+}
+
+static std::string getStringLabelImpl(std::size_t Idx) {
+  return std::format(".L.str.{}", Idx);
+}
+
+const std::string &CodeGen::getStringLabel(const StringLiteral *SL) {
+  std::string &Label = SLCache[SL];
+  if (!Label.empty())
+    return Label;
+
+  Label = getStringLabelImpl(StringLiterals.size());
+  StringLiterals.push_back(SL);
+  SLCache[SL] = Label;
+  return Label;
+}
+
+void CodeGen::genStringLiteral(const StringLiteral *SL) {
+  std::println("  # load address of string literal");
+  std::println("  la a0, {}", getStringLabel(SL));
 }
 
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
@@ -459,6 +501,9 @@ void CodeGen::genAddr(const Expr *E) {
   case Stmt::SK_ArraySubscriptExpr:
     genAddr(cast<ArraySubscriptExpr>(E));
     return;
+  case Stmt::SK_StringLiteral:
+    genAddr(cast<StringLiteral>(E));
+    return;
   default:
     break;
   }
@@ -503,6 +548,11 @@ void CodeGen::genAddr(const Decl *D) {
                  Var->getName(), Var->getOffset());
     std::println("  addi a0, fp, {}", Var->getOffset());
   }
+}
+
+void CodeGen::genAddr(const StringLiteral *SL) {
+  std::println("  # get address of string literal");
+  std::println("  la a0, {}", getStringLabel(SL));
 }
 
 void CodeGen::push() {

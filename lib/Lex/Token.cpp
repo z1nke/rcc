@@ -11,6 +11,11 @@ int Token::getVal() const {
   return Val;
 }
 
+std::string_view Token::getStringLiteral() const {
+  assert(Kind == TK_Str && "expect a string literal");
+  return std::string_view(Loc + 1, Len - 2);
+}
+
 const char *Token::getKindStr() const { return getKindStr(Kind); }
 
 std::string_view Token::getIdentifer() const {

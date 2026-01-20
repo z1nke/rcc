@@ -2,20 +2,13 @@
 #define RCC_CODEGEN_CODEGEN_H
 
 #include "AST/Stmt.h"
+#include <unordered_map>
+
 namespace rcc {
 
 class Decl;
 class TranslationUnitDecl;
 class FunctionDecl;
-class Stmt;
-class Expr;
-class DeclStmt;
-class IfStmt;
-class ForStmt;
-class WhileStmt;
-class BinaryOperator;
-class UnaryOperator;
-class CallExpr;
 class Type;
 class Diagnostic;
 
@@ -39,6 +32,7 @@ private:
   void genForStmt(const ForStmt *For);
   void genWhileStmt(const WhileStmt *While);
   void genExpr(const Expr *E);
+  void genStringLiteral(const StringLiteral *SL);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
   void genCallExpr(const CallExpr *CE);
@@ -47,6 +41,7 @@ private:
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
   void genAddr(const ArraySubscriptExpr *ASE);
+  void genAddr(const StringLiteral *SL);
 
 private:
   void push();
@@ -55,11 +50,14 @@ private:
   void store(const Type *Ty);
 
   int getCount() const;
+  const std::string &getStringLabel(const StringLiteral *SL);
 
 private:
   Diagnostic &Diag;
   const FunctionDecl *CurrFunc = nullptr;
   int Depth = 0;
+  std::vector<const StringLiteral *> StringLiterals;
+  std::unordered_map<const StringLiteral *, std::string> SLCache;
 };
 
 } // namespace rcc

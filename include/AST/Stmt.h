@@ -5,6 +5,7 @@
 #include "Basic/SourceLocation.h"
 
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 namespace rcc {
@@ -280,6 +281,26 @@ protected:
 private:
   // FIXME: Support different integer types.
   std::int64_t Val;
+};
+
+class StringLiteral : public Expr {
+public:
+  static StringLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
+                               SourceLocation EndLoc, QualType T,
+                               std::string_view Str);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_StringLiteral;
+  }
+
+  const std::string &getString() const { return Str; }
+
+protected:
+  StringLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                std::string_view Str);
+
+private:
+  std::string Str;
 };
 
 class ParenExpr : public Expr {

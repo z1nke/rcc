@@ -80,6 +80,11 @@ void Sema::complete(FunctionDecl *FD) {
   Funcs.push_back(FD);
 }
 
+Expr *Sema::actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                               QualType T, std::string_view Str) {
+  return StringLiteral::create(Ctx, BegLoc, EndLoc, T, Str);
+}
+
 Stmt *Sema::actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
                           SourceLocation EndLoc, std::vector<Decl *> Decls) {
   return DeclStmt::create(Ctx, BegLoc, EndLoc, std::move(Decls));

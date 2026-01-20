@@ -9,6 +9,7 @@
 #include "Lex/Token.h"
 #include "Sema/DeclSpec.h"
 #include "Sema/Sema.h"
+#include <print>
 #include <vector>
 
 namespace rcc {
@@ -427,17 +428,26 @@ Expr *Parser::parsePostfixExpr() {
   return LHS;
 }
 
-// primary-expr: paren-expr | decl-ref-expr | call-expr | num
+// primary-expr: paren-expr | decl-ref-expr | call-expr | str | num
 // decl-ref-expr: ident
 Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
     return parseParenExpr();
 
+  if (CurTok->is(Token::TK_Str)) {
+    auto SL = CurTok->getStringLiteral();
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    auto EndLoc = SM.createEndLocation(CurTok);
+    skip();
+    QualType CAT = Ctx.getConstantArrayType(Ctx.CharTy, SL.size() + 1);
+    return S.actOnStringLiteral(BegLoc, EndLoc, CAT, SL);
+  }
+
   if (CurTok->is(Token::TK_Num)) {
     auto Val = CurTok->getVal();
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
-    CurTok = CurTok->getNext();
+    skip();
     return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Val);
   }
 

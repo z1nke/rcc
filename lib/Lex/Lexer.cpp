@@ -47,6 +47,9 @@ Token *Lexer::tokenize(char *P) {
     }
 
     switch (*P) {
+    case '"':
+      lexStringLiteral(Curr, P);
+      break;
     case '+':
       lexPunctuator(Curr, Token::TK_Plus, P);
       break;
@@ -125,6 +128,20 @@ void Lexer::lexNumericLiteral(Token *&Curr, char *&P) {
   const char *Start = P;
   int Val = std::strtoul(P, &P, 10);
   Curr->setNext(newToken(Token::TK_Num, Start, P, Val));
+  Curr = Curr->getNext();
+}
+
+void Lexer::lexStringLiteral(Token *&Curr, char *&P) {
+  const char *Start = P;
+  ++P; // skip opening '"'
+  while (*P != '"') {
+    if (*P == '\n' || *P == '\0')
+      Diag.fatalAt(Start, "unclosed string literal");
+
+    ++P;
+  }
+
+  Curr->setNext(newToken(Token::TK_Str, Start, ++P));
   Curr = Curr->getNext();
 }
 
