@@ -52,7 +52,7 @@ private:
   void push();
   void pop(const char *Reg);
   void load(const Type *Ty);
-  void store(void);
+  void store(const Type *Ty);
 
   int getCount() const;
 

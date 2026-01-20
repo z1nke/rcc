@@ -121,6 +121,7 @@ Stmt *Parser::parseStmt() {
   case Token::TK_While:
     return parseWhileStmt();
   case Token::TK_Int:
+  case Token::TK_Char:
     return parseDeclStmt();
   default:
     break;
@@ -224,11 +225,18 @@ Stmt *Parser::parseDeclStmt() {
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
-// declspec: 'int'
+// declspec: int | char
 void Parser::parseDeclSpec(DeclSpec &DS) {
   auto TyLoc = SM.createBeginLocation(CurTok);
-  skip(Token::TK_Int);
-  DS.setTypeSpecType(DeclSpec::TST_Int, TyLoc);
+  if (tryConsume(Token::TK_Int)) {
+    DS.setTypeSpecType(DeclSpec::TST_Int, TyLoc);
+    return;
+  }
+
+  if (tryConsume(Token::TK_Char)) {
+    DS.setTypeSpecType(DeclSpec::TST_Char, TyLoc);
+    return;
+  }
 }
 
 // init-declarator-list: init-declarator { ',' init-declarator }*

@@ -35,6 +35,7 @@ KEYWORD(Else, "else")
 KEYWORD(For, "for")
 KEYWORD(While, "while")
 KEYWORD(Int, "int")
+KEYWORD(Char, "char")
 KEYWORD(Sizeof, "sizeof")
 
 #undef KEYWORD

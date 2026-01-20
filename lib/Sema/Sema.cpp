@@ -396,6 +396,9 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   case DeclSpec::TST_Int:
     T = Ctx.IntTy;
     break;
+  case DeclSpec::TST_Char:
+    T = Ctx.CharTy;
+    break;
   default:
     Diag.fatalAt(DS.getTypeSpecLoc(), "unknown type specifier");
   }

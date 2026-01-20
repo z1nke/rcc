@@ -4,6 +4,7 @@ namespace rcc {
 
 void ASTContext::initBuiltinTypes() {
   initBuiltinType(IntTy, BuiltinType::BK_Int, 8);
+  initBuiltinType(CharTy, BuiltinType::BK_Char, 1);
 }
 
 void ASTContext::initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,

@@ -26,6 +26,7 @@ public:
 public:
   using CanQualType = QualType;
   CanQualType IntTy;
+  CanQualType CharTy;
 
   void initBuiltinTypes();
   void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,

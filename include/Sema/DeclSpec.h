@@ -15,6 +15,7 @@ public:
   enum TypeSpecType {
     TST_Unspecified,
     TST_Int,
+    TST_Char,
   };
 
   DeclSpec() = default;

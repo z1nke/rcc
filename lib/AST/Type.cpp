@@ -103,7 +103,7 @@ QualType QualType::getCanonicalType() const {
 
 bool QualType::isIntegerType() const {
   if (const auto *BT = dyn_cast<BuiltinType>(getCanonicalType()))
-    return BT->getKind() == BuiltinType::BK_Int;
+    return BT->isIntegerType();
 
   return false;
 }
@@ -122,7 +122,7 @@ bool Type::isScalarType() const {
   QualType CanonicalType = getCanonicalType();
   if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType)) {
     // TODO: Other builtin type.
-    return BT->getKind() == BuiltinType::BK_Int;
+    return BT->isIntegerType();
   }
 
   return isa<PointerType>(CanonicalType);
@@ -132,7 +132,7 @@ bool Type::isArithmeticType() const {
   QualType CanonicalType = getCanonicalType();
   if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType)) {
     // TODO: Other builtin type.
-    return BT->getKind() == BuiltinType::BK_Int;
+    return BT->isIntegerType();
   }
   return false;
 }
@@ -166,6 +166,8 @@ const char *BuiltinType::getKindStr() const {
   switch (BK) {
   case BK_Int:
     return "int";
+  case BK_Char:
+    return "char";
   default:
     RCC_UNREACHABLE("Unknown builtin type");
   }

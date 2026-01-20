@@ -123,6 +123,7 @@ class BuiltinType : public Type {
 public:
   enum Kind {
     BK_Int,
+    BK_Char,
   };
 
   explicit BuiltinType(Kind BK, std::size_t Size)
@@ -130,6 +131,10 @@ public:
 
   static bool classof(const Type *T) {
     return T->getTypeKind() == Type::TK_Builtin;
+  }
+
+  bool isIntegerType() const {
+    return BK == BK_Char || BK == BK_Int;
   }
 
   Kind getKind() const { return BK; }

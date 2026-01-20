@@ -1,6 +1,7 @@
 #include "CodeGen/CodeGen.h"
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
+#include "AST/Type.h"
 #include "Basic/Allocator.h"
 #include "Basic/Casting.h"
 #include "Basic/Diagnostic.h"
@@ -93,7 +94,10 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     std::println("  # store {} parameters to stack", NumParams);
     for (unsigned I = 0; I < NumParams; ++I) {
       const auto *Param = FD->getParam(I);
-      std::println("  sd {}, {}(fp)", ArgReg[I], Param->getOffset());
+      if (Param->getType()->getSize() == 1)
+        std::println("  sb {}, {}(fp)", ArgReg[I], Param->getOffset());
+      else
+        std::println("  sd {}, {}(fp)", ArgReg[I], Param->getOffset());
     }
   }
 
@@ -278,9 +282,9 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   const auto *RHS = BO->getRHS();
   if (BO->getOpcode() == BinaryOperator::BO_Assign) {
     genAddr(LHS);
-    push();                // a1 = addrof(lhs)
-    genExpr(BO->getRHS()); // a0 = rhs
-    store();               // *(a1) = a0
+    push();                   // a1 = addrof(lhs)
+    genExpr(BO->getRHS());    // a0 = rhs
+    store(LHS->getTypePtr()); // *(a1) = a0
     return;
   }
 
@@ -424,7 +428,10 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
 }
 
 void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
+  // base[idx] <=> *(base + idx)
+  // addr = base + idx
   genAddr(ASE);
+  // a0 = *(addr)
   std::println("  ld a0, 0(a0)");
 }
 
@@ -460,7 +467,7 @@ void CodeGen::genAddr(const Expr *E) {
 }
 
 void CodeGen::genAddr(const ArraySubscriptExpr *ASE) {
-  // base[idx] <=> *(base + idx)
+  // addr = base + idx
   const auto *Base = ASE->getBase();
   const auto *Idx = ASE->getIdx();
   QualType BaseType = Base->getType();
@@ -516,13 +523,19 @@ void CodeGen::load(const Type *Ty) {
   if (Ty->isArraryType())
     return;
   std::println("  # load");
-  std::println("  ld a0, 0(a0)");
+  if (Ty->getSize() == 1)
+    std::println("  lb a0, 0(a0)");
+  else
+    std::println("  ld a0, 0(a0)");
 }
 
-void CodeGen::store(void) {
+void CodeGen::store(const Type *Ty) {
   std::println("  # store");
   pop("a1");
-  std::println("  sd a0, 0(a1)");
+  if (Ty->getSize() == 1)
+    std::println("  sb a0, 0(a1)");
+  else
+    std::println("  sd a0, 0(a1)");
 }
 
 int CodeGen::getCount() const {
