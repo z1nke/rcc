@@ -440,7 +440,7 @@ Expr *Parser::parsePrimaryExpr() {
     auto EndLoc = SM.createEndLocation(CurTok);
     skip();
     QualType CAT = Ctx.getConstantArrayType(Ctx.CharTy, SL.size() + 1);
-    return S.actOnStringLiteral(BegLoc, EndLoc, CAT, SL);
+    return S.actOnStringLiteral(BegLoc, EndLoc, CAT, std::move(SL));
   }
 
   if (CurTok->is(Token::TK_Num)) {

@@ -287,7 +287,7 @@ class StringLiteral : public Expr {
 public:
   static StringLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
                                SourceLocation EndLoc, QualType T,
-                               std::string_view Str);
+                               std::string Str);
 
   static bool classof(const Stmt *S) {
     return S->getKind() == SK_StringLiteral;
@@ -297,7 +297,7 @@ public:
 
 protected:
   StringLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
-                std::string_view Str);
+                std::string Str);
 
 private:
   std::string Str;

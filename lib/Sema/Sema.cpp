@@ -81,7 +81,7 @@ void Sema::complete(FunctionDecl *FD) {
 }
 
 Expr *Sema::actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
-                               QualType T, std::string_view Str) {
+                               QualType T, std::string Str) {
   return StringLiteral::create(Ctx, BegLoc, EndLoc, T, Str);
 }
 

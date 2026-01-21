@@ -51,7 +51,7 @@ public:
   Stmt *actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                        Stmt *Body);
   Expr *actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
-                           QualType T, std::string_view Str);
+                           QualType T, std::string Str);
   Expr *actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
                             unsigned Op);
   Expr *actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr, unsigned Op);

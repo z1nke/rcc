@@ -24,7 +24,7 @@ public:
 
   std::string_view getIdentifer() const;
   int getVal() const;
-  std::string_view getStringLiteral() const;
+  std::string getStringLiteral() const;
 
   bool is(TokenKind TK) const { return TK == Kind; }
 

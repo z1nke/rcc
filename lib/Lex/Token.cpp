@@ -11,9 +11,49 @@ int Token::getVal() const {
   return Val;
 }
 
-std::string_view Token::getStringLiteral() const {
+static char getEscapeChar(char C) {
+  switch (C) {
+  case 'a':
+    return '\a';
+  case 'b':
+    return '\b';
+  case 'f':
+    return '\f';
+  case 'n':
+    return '\n';
+  case 'r':
+    return '\r';
+  case 't':
+    return '\t';
+  case 'v':
+    return '\v';
+  case '\\':
+    return '\\';
+  case '\'':
+    return '\'';
+  case '"':
+    return '"';
+  case 'e':
+    return 27;
+  default:
+    return C;
+  }
+}
+
+std::string Token::getStringLiteral() const {
   assert(Kind == TK_Str && "expect a string literal");
-  return std::string_view(Loc + 1, Len - 2);
+  std::string Result;
+  Result.reserve(Len - 2);
+  for (const char *P = Loc + 1; P < Loc + Len - 1; ++P) {
+    if (*P != '\\') {
+      Result += *P;
+      continue;
+    }
+
+    ++P;
+    Result += getEscapeChar(*P);
+  }
+  return Result;
 }
 
 const char *Token::getKindStr() const { return getKindStr(Kind); }

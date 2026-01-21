@@ -185,14 +185,14 @@ IntegerLiteral *IntegerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
 
 StringLiteral *StringLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
                                      SourceLocation EndLoc, QualType T,
-                                     std::string_view Str) {
+                                     std::string Str) {
   void *Mem = Ctx.Allocate(sizeof(StringLiteral), alignof(StringLiteral));
-  return new (Mem) StringLiteral(BegLoc, EndLoc, T, Str);
+  return new (Mem) StringLiteral(BegLoc, EndLoc, T, std::move(Str));
 }
 
 StringLiteral::StringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
-                             QualType T, std::string_view Str)
-    : Expr(SK_StringLiteral, BegLoc, EndLoc, T), Str(std::string(Str)) {}
+                             QualType T, std::string Str)
+    : Expr(SK_StringLiteral, BegLoc, EndLoc, T), Str(std::move(Str)) {}
 
 ParenExpr::ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                      Expr *SubExpr)
