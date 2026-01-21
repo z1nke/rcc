@@ -5,6 +5,8 @@
 
 namespace rcc {
 
+class Diagnostic;
+
 class Token {
 public:
   enum TokenKind {
@@ -24,7 +26,7 @@ public:
 
   std::string_view getIdentifer() const;
   int getVal() const;
-  std::string getStringLiteral() const;
+  std::string lexStringLiteral(Diagnostic &Diag) const;
 
   bool is(TokenKind TK) const { return TK == Kind; }
 

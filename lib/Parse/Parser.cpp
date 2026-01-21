@@ -435,7 +435,7 @@ Expr *Parser::parsePrimaryExpr() {
     return parseParenExpr();
 
   if (CurTok->is(Token::TK_Str)) {
-    auto SL = CurTok->getStringLiteral();
+    auto SL = CurTok->lexStringLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
     skip();

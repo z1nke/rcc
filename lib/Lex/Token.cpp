@@ -1,4 +1,5 @@
 #include "Lex/Token.h"
+#include "Basic/Diagnostic.h"
 #include "Basic/Unreachable.h"
 
 #include <cassert>
@@ -11,10 +12,36 @@ int Token::getVal() const {
   return Val;
 }
 
-static char escapeChar(const char *&P) {
+static int fromHex(char C) {
+  if ('0' <= C && C <= '9')
+    return C - '0';
+  if ('a' <= C && C <= 'f')
+    return C - 'a' + 10;
+  if ('A' <= C && C <= 'F')
+    return C - 'A' + 10;
+
+  RCC_UNREACHABLE("invalid hex character");
+}
+
+static int escapeHex(const char *&P, Diagnostic &Diag) {
+  if (!std::isxdigit(*P))
+    Diag.fatalAt(P, "invalid hex escape sequence");
+  // \xWXYZ = ((16 * W + X) * 16 + Y) * 16 + Z
+  int C = fromHex(*P++);
+  unsigned Count = 1;
+  while (std::isxdigit(*P)) {
+    C = (C << 4) + fromHex(*P);
+    ++P;
+    if (++Count >= 4)
+      break;
+  }
+  return C;
+}
+
+static int escapeChar(const char *&P, Diagnostic &Diag) {
   if ('0' <= *P && *P <= '7') {
     // Octal escape sequence \abc <=> (a*8+b)*8+c
-    char C = *P++ - '0';
+    int C = *P++ - '0';
     if ('0' <= *P && *P <= '7') {
       C = (C << 3) + (*P++ - '0');
       if ('0' <= *P && *P <= '7')
@@ -23,7 +50,7 @@ static char escapeChar(const char *&P) {
     return C;
   }
 
-  char C = *P;
+  int C = *P;
   switch (*P++) {
   case 'a':
     return '\a';
@@ -47,12 +74,14 @@ static char escapeChar(const char *&P) {
     return '"';
   case 'e':
     return 27;
+  case 'x':
+    return escapeHex(P, Diag);
   default:
     return C;
   }
 }
 
-std::string Token::getStringLiteral() const {
+std::string Token::lexStringLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_Str && "expect a string literal");
   std::string Result;
   Result.reserve(Len - 2);
@@ -63,7 +92,7 @@ std::string Token::getStringLiteral() const {
     }
 
     ++P; // Skip the '\'.
-    Result += escapeChar(P);
+    Result += escapeChar(P, Diag);
   }
   return Result;
 }
