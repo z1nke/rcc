@@ -11,8 +11,20 @@ int Token::getVal() const {
   return Val;
 }
 
-static char getEscapeChar(char C) {
-  switch (C) {
+static char escapeChar(const char *&P) {
+  if ('0' <= *P && *P <= '7') {
+    // Octal escape sequence \abc <=> (a*8+b)*8+c
+    char C = *P++ - '0';
+    if ('0' <= *P && *P <= '7') {
+      C = (C << 3) + (*P++ - '0');
+      if ('0' <= *P && *P <= '7')
+        C = (C << 3) + (*P++ - '0');
+    }
+    return C;
+  }
+
+  char C = *P;
+  switch (*P++) {
   case 'a':
     return '\a';
   case 'b':
@@ -44,14 +56,14 @@ std::string Token::getStringLiteral() const {
   assert(Kind == TK_Str && "expect a string literal");
   std::string Result;
   Result.reserve(Len - 2);
-  for (const char *P = Loc + 1; P < Loc + Len - 1; ++P) {
+  for (const char *P = Loc + 1; P < Loc + Len - 1;) {
     if (*P != '\\') {
-      Result += *P;
+      Result += *P++;
       continue;
     }
 
-    ++P;
-    Result += getEscapeChar(*P);
+    ++P; // Skip the '\'.
+    Result += escapeChar(P);
   }
   return Result;
 }

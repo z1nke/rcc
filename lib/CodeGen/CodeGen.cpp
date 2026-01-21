@@ -47,7 +47,9 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
       if (Init) {
         if (const auto *SL = dyn_cast<StringLiteral>(Init)) {
           std::println("{}:", Var->getName());
-          std::println("  .asciz \"{}\"", SL->getString());
+          // std::println("  .asciz \"{}\"", SL->getString());
+          for (char C : SL->getString())
+            std::println("  .byte {}", static_cast<int>(C));
         } else {
           Diag.fatalAt(Var->getBeginLoc(),
                        "only string literal is supported in global var init");
@@ -63,7 +65,10 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
     const auto *SL = StringLiterals[Idx];
     std::string Label = getStringLabel(SL);
     std::println("{}:", Label);
-    std::println("  .asciz \"{}\"", SL->getString());
+    // std::println("  .asciz \"{}\"", SL->getString());
+    for (char C : SL->getString())
+      std::println("  .byte {}", static_cast<int>(C));
+    std::println("  .byte 0");
   }
 }
 
