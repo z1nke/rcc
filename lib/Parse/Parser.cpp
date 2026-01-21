@@ -428,11 +428,16 @@ Expr *Parser::parsePostfixExpr() {
   return LHS;
 }
 
-// primary-expr: paren-expr | decl-ref-expr | call-expr | str | num
+// primary-expr: paren-expr
+//             | decl-ref-expr
+//             | call-expr
+//             | stmt-expr
+//             | str
+//             | num
 // decl-ref-expr: ident
 Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
-    return parseParenExpr();
+    return parseParenOrStmtExpr();
 
   if (CurTok->is(Token::TK_Str)) {
     auto SL = CurTok->lexStringLiteral(Diag);
@@ -491,10 +496,17 @@ Expr *Parser::parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
 }
 
 // paren-expr: '(' expr ')'
-Expr *Parser::parseParenExpr() {
+// stmt-expr: '(' compound-stmt ')'
+Expr *Parser::parseParenOrStmtExpr() {
   assert(CurTok->is(Token::TK_LParen));
   auto BegLoc = SM.createBeginLocation(CurTok);
   skip();
+  if (CurTok->is(Token::TK_LBrace)) {
+    Stmt *CS = parseCompoundStmt();
+    auto EndLoc = SM.createBeginLocation(CurTok);
+    skip(Token::TK_RParen);
+    return S.actOnStmtExpr(BegLoc, EndLoc, CS);
+  }
   Expr *E = parseExpr();
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RParen);

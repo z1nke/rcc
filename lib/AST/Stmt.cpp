@@ -285,4 +285,15 @@ std::size_t UnaryExprOrTypeTraitExpr::getSize() const {
   return Ty->getSize();
 }
 
+StmtExpr *StmtExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc, QualType T,
+                           CompoundStmt *SubStmt) {
+  void *Mem = Ctx.Allocate(sizeof(StmtExpr), alignof(StmtExpr));
+  return new (Mem) StmtExpr(BegLoc, EndLoc, T, SubStmt);
+}
+
+StmtExpr::StmtExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                   CompoundStmt *SubStmt)
+    : Expr(SK_StmtExpr, BegLoc, EndLoc, T), SubStmt(SubStmt) {}
+
 } // namespace rcc

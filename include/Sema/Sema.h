@@ -65,6 +65,7 @@ public:
   Expr *actOnCallExpr(SourceLocation IdentBegLoc, SourceLocation IdentEndLoc,
                       SourceLocation EndLoc, std::string_view Name,
                       std::vector<Expr *> Args);
+  Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *SubStmt);
   Expr *actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS, Expr *RHS);
 
 private:

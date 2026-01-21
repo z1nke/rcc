@@ -299,6 +299,10 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_UnaryExprOrTypeTraitExpr:
     genUnaryExprOrTypeTraitExpr(cast<UnaryExprOrTypeTraitExpr>(E));
     break;
+  case Stmt::SK_StmtExpr:
+    for (const Stmt *Child : cast<StmtExpr>(E)->getSubStmt()->getBody())
+      genStmt(Child);
+    break;
   default:
     Diag.fatalAt(E->getBeginLoc(), "invalid expression");
   }

@@ -27,8 +27,9 @@ EXPR(ParenExpr)
 EXPR(DeclRefExpr)
 EXPR(ArraySubscriptExpr)
 EXPR(CallExpr)
+EXPR(StmtExpr)
 
-STMT_RANGE(Expr, UnaryOperator, CallExpr)
+STMT_RANGE(Expr, UnaryOperator, StmtExpr)
 
 #undef STMT_RANGE
 #undef EXPR

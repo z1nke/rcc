@@ -437,6 +437,25 @@ private:
   } Argument;
 };
 
+class StmtExpr : public Expr {
+public:
+  static StmtExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                          SourceLocation EndLoc, QualType T,
+                          CompoundStmt *SubStmt);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_StmtExpr; }
+
+  CompoundStmt *getSubStmt() { return SubStmt; }
+  const CompoundStmt *getSubStmt() const { return SubStmt; }
+
+private:
+  StmtExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+           CompoundStmt *SubStmt);
+
+private:
+  CompoundStmt *SubStmt;
+};
+
 } // namespace rcc
 
 #endif

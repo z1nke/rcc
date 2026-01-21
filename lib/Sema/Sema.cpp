@@ -2,6 +2,7 @@
 #include "AST/ASTContext.h"
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
+#include "AST/Type.h"
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceLocation.h"
 #include "Sema/DeclSpec.h"
@@ -185,6 +186,23 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
   auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, Ctx.IntTy, FD);
   return CallExpr::create(Ctx, IdentBegLoc, EndLoc, Ctx.IntTy, Ref,
                           std::move(Args));
+}
+
+Expr *Sema::actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                          Stmt *SubStmt) {
+  auto *CS = dyn_cast<CompoundStmt>(SubStmt);
+  if (!CS)
+    Diag.fatalAt(BegLoc, "statement expression requires compound statement");
+
+  const auto &Body = CS->getBody();
+  if (Body.empty())
+    Diag.fatalAt(BegLoc, "statement expression requires non-empty body");
+
+  const auto *Back = dyn_cast<Expr>(Body.back());
+  if (!Back)
+    Diag.fatalAt(Back->getBeginLoc(), "expected expression");
+
+  return StmtExpr::create(Ctx, BegLoc, EndLoc, Back->getType(), CS);
 }
 
 Expr *Sema::actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS,

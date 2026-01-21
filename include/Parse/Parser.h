@@ -56,7 +56,7 @@ private:
   Expr *parseMulExpr();
   Expr *parseUnaryExpr();
   Expr *parsePrimaryExpr();
-  Expr *parseParenExpr();
+  Expr *parseParenOrStmtExpr();
   Expr *parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
                       SourceLocation IdentEndLoc);
   Expr *parsePostfixExpr();
