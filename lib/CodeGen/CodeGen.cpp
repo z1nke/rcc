@@ -2,9 +2,9 @@
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
 #include "AST/Type.h"
-#include "Basic/Allocator.h"
-#include "Basic/Casting.h"
 #include "Basic/Diagnostic.h"
+#include "Support/Allocator.h"
+#include "Support/Casting.h"
 
 #include <cassert>
 #include <cstdio>

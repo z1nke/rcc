@@ -2,14 +2,14 @@
 #include "AST/ASTContext.h"
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
-#include "Basic/Casting.h"
 #include "Basic/SourceLocation.h"
 #include "Basic/SourceManager.h"
-#include "Basic/Unreachable.h"
 #include "Lex/Token.h"
 #include "Sema/DeclSpec.h"
 #include "Sema/Sema.h"
-#include <print>
+#include "Support/Casting.h"
+#include "Support/Unreachable.h"
+
 #include <vector>
 
 namespace rcc {
@@ -286,7 +286,8 @@ void Parser::parseDeclarator(Declarator &D) {
 //                  | direct-declarator '[' { assign-expr } ']'
 void Parser::parseDirectDeclarator(Declarator &D) {
   if (!CurTok->is(Token::TK_Ident)) {
-    Diag.fatalAt(CurTok->getLoc(), "expect identifier");
+    SourceLocation Loc = SM.createBeginLocation(CurTok);
+    Diag.fatalAt(Loc, "expect identifier");
     return;
   }
 
@@ -472,7 +473,8 @@ Expr *Parser::parsePrimaryExpr() {
     return S.actOnDeclRefExpr(IdentBegLoc, IdentEndLoc, Ident);
   }
 
-  Diag.fatalAt(CurTok->getLoc(), "expect a primary expression");
+  SourceLocation Loc = SM.createBeginLocation(CurTok);
+  Diag.fatalAt(Loc, "expect a primary expression");
   return nullptr;
 }
 
@@ -560,8 +562,10 @@ Expr *Parser::parseBinaryExpr() {
 }
 
 void Parser::expect(Token::TokenKind Kind, const char *Prompt) {
-  if (CurTok->isNot(Kind))
-    Diag.fatalAt(CurTok->getLoc(), "expect '{}'", Prompt);
+  if (CurTok->isNot(Kind)) {
+    SourceLocation Loc = SM.createBeginLocation(CurTok);
+    Diag.fatalAt(Loc, "expect '{}'", Prompt);
+  }
 }
 
 void Parser::skip(Token::TokenKind Kind) {

@@ -1,6 +1,6 @@
 #include "AST/Type.h"
-#include "Basic/Casting.h"
-#include "Basic/Unreachable.h"
+#include "Support/Casting.h"
+#include "Support/Unreachable.h"
 
 #include <cassert>
 #include <print>

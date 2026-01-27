@@ -2,7 +2,7 @@
 #include "AST/Decl.h"
 #include "AST/Stmt.h"
 #include "AST/Type.h"
-#include "Basic/Unreachable.h"
+#include "Support/Unreachable.h"
 
 #include <print>
 

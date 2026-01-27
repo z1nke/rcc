@@ -1,11 +1,11 @@
-#ifndef RCC_BASIC_UNREACHABLE_HPP
-#define RCC_BASIC_UNREACHABLE_HPP
+#ifndef RCC_SUPPORT_UNREACHABLE_HPP
+#define RCC_SUPPORT_UNREACHABLE_HPP
 
 namespace rcc {
 namespace details {
 
-[[noreturn]] void unreachableInternal(const char *msg, const char *filename,
-                                      unsigned lineno);
+[[noreturn]] void unreachableInternal(const char *Msg, const char *Filename,
+                                      unsigned Lineno);
 
 } // namespace details
 } // namespace rcc

@@ -3,6 +3,7 @@
 #include "AST/ASTContext.h"
 #include "AST/Decl.h"
 #include "Basic/Diagnostic.h"
+#include "Basic/FileManager.h"
 #include "Basic/SourceManager.h"
 #include "CodeGen/CodeGen.h"
 #include "Lex/Lexer.h"
@@ -19,11 +20,11 @@ int main(int Argc, char **Argv) {
     return 1;
   }
 
-  char *CodeStr = Argv[1];
-  SourceManager SM(CodeStr);
+  FileManager FileMgr;
+  SourceManager SM(FileMgr);
   Diagnostic Diag(SM);
   Lexer TheLexer(Diag);
-  Token *Toks = TheLexer.tokenize(CodeStr);
+  Token *Toks = TheLexer.tokenizeFile(Argv[1]);
   if (!Toks)
     Diag.fatal("tokenize failed");
 

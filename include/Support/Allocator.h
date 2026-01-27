@@ -1,5 +1,5 @@
-#ifndef RCC_BASIC_ALLOCATOR_H
-#define RCC_BASIC_ALLOCATOR_H
+#ifndef RCC_SUPPORT_ALLOCATOR_H
+#define RCC_SUPPORT_ALLOCATOR_H
 
 #include <cassert>
 #include <cstddef>
@@ -11,18 +11,18 @@ namespace rcc {
 
 template <typename Derived> class AllocatorBase {
 public:
-  void *Allocate(std::size_t Size, std::size_t Align) {
-    return static_cast<Derived *>(this)->Allocate(Size, Align);
+  void *allocate(std::size_t Size, std::size_t Align) {
+    return static_cast<Derived *>(this)->allocate(Size, Align);
   }
 
-  void Deallocate(const void *Ptr, std::size_t Size, std::size_t Align) {
-    static_cast<Derived *>(this)->Deallocate(Ptr, Size, Align);
+  void deallocate(const void *Ptr, std::size_t Size, std::size_t Align) {
+    static_cast<Derived *>(this)->deallocate(Ptr, Size, Align);
   }
 };
 
 class MallocAllocator : public AllocatorBase<MallocAllocator> {
 public:
-  void *Allocate(std::size_t Size, std::size_t Align) {
+  void *allocate(std::size_t Size, std::size_t Align) {
     return ::operator new(Size
 #ifdef __cpp_aligned_new
                           ,
@@ -31,7 +31,7 @@ public:
     );
   }
 
-  void Deallocate(void *Ptr, std::size_t Size, std::size_t Align) {
+  void deallocate(void *Ptr, std::size_t Size, std::size_t Align) {
     ::operator delete(Ptr
 #ifdef __cpp_sized_deallocation
                       ,
@@ -116,7 +116,7 @@ public:
     deallocateCustomSizedSlabs();
   }
 
-  void *Allocate(std::size_t Size, std::size_t Align) {
+  void *allocate(std::size_t Size, std::size_t Align) {
     BytesAllocated += Size;
 
     std::size_t Adjustment = offsetToAlignedAddr(CurPtr, Align);
@@ -129,7 +129,7 @@ public:
     std::size_t PaddedSize = Size + Align - 1;
     if (PaddedSize > SizeThreshold) {
       void *NewSlab =
-          AllocatorT::Allocate(PaddedSize, alignof(std::max_align_t));
+          AllocatorT::allocate(PaddedSize, alignof(std::max_align_t));
       CustomSizedSlabs.push_back(std::make_pair(NewSlab, PaddedSize));
       std::uintptr_t AlignedAddr = alignAddr(NewSlab, Align);
       assert(AlignedAddr + Size <= (std::uintptr_t(NewSlab) + PaddedSize) &&
@@ -147,7 +147,7 @@ public:
     return AlignedPtr;
   }
 
-  void Deallocate(void *Ptr, std::size_t Size, std::size_t Align) {
+  void deallocate(void *Ptr, std::size_t Size, std::size_t Align) {
     // Do nothing.
   }
 
@@ -160,20 +160,20 @@ private:
   void deallocateSlabs() {
     for (std::size_t Idx = 0; Idx < Slabs.size(); ++Idx) {
       std::size_t AllocatedSlabSize = computeSlabSize(Idx);
-      AllocatorT::Deallocate(Slabs[Idx], AllocatedSlabSize,
+      AllocatorT::deallocate(Slabs[Idx], AllocatedSlabSize,
                              alignof(std::max_align_t));
     }
   }
 
   void deallocateCustomSizedSlabs() {
     for (auto [Ptr, Size] : CustomSizedSlabs)
-      AllocatorT::Deallocate(Ptr, Size, alignof(std::max_align_t));
+      AllocatorT::deallocate(Ptr, Size, alignof(std::max_align_t));
   }
 
   void startNewSlab() {
     std::size_t NewSlabSize = computeSlabSize(Slabs.size());
     void *NewSlab =
-        AllocatorT::Allocate(NewSlabSize, alignof(std::max_align_t));
+        AllocatorT::allocate(NewSlabSize, alignof(std::max_align_t));
     Slabs.push_back(NewSlab);
     CurPtr = reinterpret_cast<char *>(NewSlab);
     End = CurPtr + NewSlabSize;

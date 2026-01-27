@@ -1,7 +1,7 @@
 #include "AST/Decl.h"
 #include "AST/ASTContext.h"
 #include "AST/ASTDumper.h"
-#include "Basic/Unreachable.h"
+#include "Support/Unreachable.h"
 
 namespace rcc {
 
@@ -25,14 +25,14 @@ const char *Decl::getKindStr() const {
 
 TranslationUnitDecl *TranslationUnitDecl::create(ASTContext &Ctx) {
   void *Mem =
-      Ctx.Allocate(sizeof(TranslationUnitDecl), alignof(TranslationUnitDecl));
+      Ctx.allocate(sizeof(TranslationUnitDecl), alignof(TranslationUnitDecl));
   return new (Mem) TranslationUnitDecl(Ctx);
 }
 
 VarDecl *VarDecl::create(ASTContext &Ctx, SourceLocation Loc,
                          SourceLocation BegLoc, SourceLocation EndLoc,
                          QualType T, std::string Name) {
-  void *Mem = Ctx.Allocate(sizeof(VarDecl), alignof(VarDecl));
+  void *Mem = Ctx.allocate(sizeof(VarDecl), alignof(VarDecl));
   return new (Mem) VarDecl(Ctx, Loc, BegLoc, EndLoc, T, std::move(Name));
 }
 
@@ -49,7 +49,7 @@ ParamVarDecl *ParamVarDecl::create(ASTContext &Ctx, SourceLocation Loc,
                                    SourceLocation BegLoc, SourceLocation EndLoc,
                                    QualType T, std::string Name,
                                    unsigned Index) {
-  void *Mem = Ctx.Allocate(sizeof(ParamVarDecl), alignof(ParamVarDecl));
+  void *Mem = Ctx.allocate(sizeof(ParamVarDecl), alignof(ParamVarDecl));
   return new (Mem)
       ParamVarDecl(Ctx, Loc, BegLoc, EndLoc, T, std::move(Name), Index);
 }
@@ -57,7 +57,7 @@ ParamVarDecl *ParamVarDecl::create(ASTContext &Ctx, SourceLocation Loc,
 FunctionDecl *FunctionDecl::create(ASTContext &Ctx, SourceLocation Loc,
                                    SourceLocation BegLoc, SourceLocation EndLoc,
                                    QualType T, std::string Name, Stmt *Body) {
-  void *Mem = Ctx.Allocate(sizeof(FunctionDecl), alignof(FunctionDecl));
+  void *Mem = Ctx.allocate(sizeof(FunctionDecl), alignof(FunctionDecl));
   return new (Mem)
       FunctionDecl(Ctx, Loc, BegLoc, EndLoc, T, std::move(Name), Body);
 }

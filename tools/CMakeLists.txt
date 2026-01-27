@@ -21,4 +21,5 @@ target_link_libraries(rcc
   Lexer
   Parser
   Sema
+  Support
 )

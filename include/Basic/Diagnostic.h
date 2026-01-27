@@ -1,7 +1,9 @@
 #ifndef RCC_BASIC_DIAGNOSTIC_H
 #define RCC_BASIC_DIAGNOSTIC_H
 
+#include "Basic/SourceLocation.h"
 #include "Basic/SourceManager.h"
+#include "Support/Error.h"
 
 #include <print>
 #include <utility>
@@ -17,30 +19,29 @@ public:
   template <typename... ARGS>
   [[noreturn]] void fatalAt(const char *Loc, std::format_string<ARGS...> Fmt,
                             ARGS &&...Args) const {
-    vfatal(Loc, Fmt, std::forward<ARGS>(Args)...);
+    SourceLocation SL = SM.createBeginLocation(Loc);
+    vfatal(SL, Fmt, std::forward<ARGS>(Args)...);
   }
 
   template <typename... ARGS>
   [[noreturn]] void fatalAt(SourceLocation SL, std::format_string<ARGS...> Fmt,
                             ARGS &&...Args) const {
-    const char *Loc = SM.getLoc(SL);
-    vfatal(Loc, Fmt, std::forward<ARGS>(Args)...);
+    vfatal(SL, Fmt, std::forward<ARGS>(Args)...);
   }
 
   template <typename... ARGS>
   [[noreturn]] void fatal(std::format_string<ARGS...> Fmt,
                           ARGS &&...Args) const {
-    vfatal(nullptr, Fmt, std::forward<ARGS>(Args)...);
+    vfatal(SourceLocation(), Fmt, std::forward<ARGS>(Args)...);
   }
 
   SourceManager &getSourceManager() const { return SM; }
 
 private:
   template <typename... ARGS>
-  [[noreturn]] void vfatal(const char *Loc, std::format_string<ARGS...> Fmt,
+  [[noreturn]] void vfatal(SourceLocation Loc, std::format_string<ARGS...> Fmt,
                            ARGS &&...Args) const {
-    if (Loc)
-      printLoc(Loc);
+    printLoc(Loc);
     printErrorWithColor();
     auto Msg = std::format(Fmt, std::forward<ARGS>(Args)...);
     std::println(stderr, "{}", Msg);
@@ -48,8 +49,7 @@ private:
     std::exit(1);
   }
 
-  void printLoc(const char *Loc) const;
-  void printErrorWithColor() const;
+  void printLoc(SourceLocation Loc) const;
 
 private:
   SourceManager &SM;

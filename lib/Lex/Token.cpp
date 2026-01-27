@@ -1,6 +1,7 @@
 #include "Lex/Token.h"
 #include "Basic/Diagnostic.h"
-#include "Basic/Unreachable.h"
+#include "Basic/SourceLocation.h"
+#include "Support/Unreachable.h"
 
 #include <cassert>
 #include <print>

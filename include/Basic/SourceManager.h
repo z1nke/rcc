@@ -1,22 +1,52 @@
 #ifndef RCC_BASIC_SOURCEMANAGER_H
 #define RCC_BASIC_SOURCEMANAGER_H
 
+#include "Basic/FileEntry.h"
+#include "Basic/FileManager.h"
 #include "Basic/SourceLocation.h"
+
 namespace rcc {
 
+class Diagnostic;
 class Token;
+
+struct SourceLineInfo {
+  unsigned LineNo;
+  unsigned ColNo;
+  std::string_view LineContent;
+};
+
 class SourceManager {
 public:
-  SourceManager(const char *Begin) : Begin(Begin) {}
+  SourceManager(FileManager &FileMgr) : FileMgr(FileMgr) {}
 
-  const char *getBegin() const { return Begin; }
+  SourceLocation getLocForStartOfFile(FileID FID) const;
+
   const char *getLoc(SourceLocation Loc) const;
 
+  std::string_view getFilename(SourceLocation Loc) const;
+  const FileEntry *getFileEntry(SourceLocation Loc) const;
+  std::optional<SourceLineInfo> getLineInfo(SourceLocation Loc) const;
+
   SourceLocation createBeginLocation(const Token *Tok);
+  SourceLocation createBeginLocation(const char *Loc);
   SourceLocation createEndLocation(const Token *Tok);
 
+  FileManager &getFileManager() { return FileMgr; }
+
+  FileID createFileID(const std::string &Path);
+
+  static constexpr unsigned NumBitsForFileID = 15;
+  static constexpr unsigned NumBitsForOffset = 48;
+
 private:
-  const char *Begin = nullptr;
+  SourceLocation createLocation(FileID FID, std::uint64_t Offset) const;
+
+private:
+  FileManager &FileMgr;
+  const char *CurrBegin = nullptr;
+  const char *CurrEnd = nullptr;
+  FileID CurrFileID;
 };
 
 } // namespace rcc

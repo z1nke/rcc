@@ -2,8 +2,8 @@
 #include "AST/ASTContext.h"
 #include "AST/ASTDumper.h"
 #include "AST/Decl.h"
-#include "Basic/Casting.h"
-#include "Basic/Unreachable.h"
+#include "Support/Casting.h"
+#include "Support/Unreachable.h"
 
 namespace rcc {
 
@@ -24,7 +24,7 @@ DeclStmt::DeclStmt(SourceLocation BegLoc, SourceLocation EndLoc,
 
 DeclStmt *DeclStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, std::vector<Decl *> Decls) {
-  void *Mem = Ctx.Allocate(sizeof(DeclStmt), alignof(DeclStmt));
+  void *Mem = Ctx.allocate(sizeof(DeclStmt), alignof(DeclStmt));
   return new (Mem) DeclStmt(BegLoc, EndLoc, std::move(Decls));
 }
 
@@ -35,7 +35,7 @@ CompoundStmt::CompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
 CompoundStmt *CompoundStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                                    SourceLocation EndLoc,
                                    std::vector<Stmt *> Body) {
-  void *Mem = Ctx.Allocate(sizeof(CompoundStmt), alignof(CompoundStmt));
+  void *Mem = Ctx.allocate(sizeof(CompoundStmt), alignof(CompoundStmt));
   return new (Mem) CompoundStmt(BegLoc, EndLoc, std::move(Body));
 }
 
@@ -45,7 +45,7 @@ ReturnStmt::ReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
 
 ReturnStmt *ReturnStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                                SourceLocation EndLoc, Expr *RetVal) {
-  void *Mem = Ctx.Allocate(sizeof(ReturnStmt), alignof(ReturnStmt));
+  void *Mem = Ctx.allocate(sizeof(ReturnStmt), alignof(ReturnStmt));
   return new (Mem) ReturnStmt(BegLoc, EndLoc, RetVal);
 }
 
@@ -54,7 +54,7 @@ NullStmt::NullStmt(SourceLocation BegLoc, SourceLocation EndLoc)
 
 NullStmt *NullStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc) {
-  void *Mem = Ctx.Allocate(sizeof(NullStmt), alignof(NullStmt));
+  void *Mem = Ctx.allocate(sizeof(NullStmt), alignof(NullStmt));
   return new (Mem) NullStmt(BegLoc, EndLoc);
 }
 
@@ -65,7 +65,7 @@ IfStmt::IfStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
 IfStmt *IfStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                        SourceLocation EndLoc, Expr *Cond, Stmt *Then,
                        Stmt *Else) {
-  void *Mem = Ctx.Allocate(sizeof(IfStmt), alignof(IfStmt));
+  void *Mem = Ctx.allocate(sizeof(IfStmt), alignof(IfStmt));
   return new (Mem) IfStmt(BegLoc, EndLoc, Cond, Then, Else);
 }
 
@@ -77,7 +77,7 @@ ForStmt::ForStmt(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *Init,
 ForStmt *ForStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                          SourceLocation EndLoc, Stmt *Init, Expr *Cond,
                          Expr *Inc, Stmt *Body) {
-  void *Mem = Ctx.Allocate(sizeof(ForStmt), alignof(ForStmt));
+  void *Mem = Ctx.allocate(sizeof(ForStmt), alignof(ForStmt));
   return new (Mem) ForStmt(BegLoc, EndLoc, Init, Cond, Inc, Body);
 }
 
@@ -87,7 +87,7 @@ WhileStmt::WhileStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
 
 WhileStmt *WhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
                              SourceLocation EndLoc, Expr *Cond, Stmt *Body) {
-  void *Mem = Ctx.Allocate(sizeof(WhileStmt), alignof(WhileStmt));
+  void *Mem = Ctx.allocate(sizeof(WhileStmt), alignof(WhileStmt));
   return new (Mem) WhileStmt(BegLoc, EndLoc, Cond, Body);
 }
 
@@ -98,7 +98,7 @@ UnaryOperator::UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
 UnaryOperator *UnaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
                                      SourceLocation EndLoc, QualType T,
                                      Expr *SubExpr, Opcode Op) {
-  void *Mem = Ctx.Allocate(sizeof(UnaryOperator), alignof(UnaryOperator));
+  void *Mem = Ctx.allocate(sizeof(UnaryOperator), alignof(UnaryOperator));
   return new (Mem) UnaryOperator(BegLoc, EndLoc, T, SubExpr, Op);
 }
 
@@ -139,7 +139,7 @@ BinaryOperator *BinaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
                                        SourceLocation EndLoc, QualType T,
                                        SourceLocation OpLoc, Expr *LHS,
                                        Expr *RHS, Opcode Op) {
-  void *Mem = Ctx.Allocate(sizeof(BinaryOperator), alignof(BinaryOperator));
+  void *Mem = Ctx.allocate(sizeof(BinaryOperator), alignof(BinaryOperator));
   return new (Mem) BinaryOperator(BegLoc, EndLoc, T, OpLoc, LHS, RHS, Op);
 }
 
@@ -179,14 +179,14 @@ IntegerLiteral::IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
 IntegerLiteral *IntegerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
                                        SourceLocation EndLoc, QualType T,
                                        std::int64_t Val) {
-  void *Mem = Ctx.Allocate(sizeof(IntegerLiteral), alignof(IntegerLiteral));
+  void *Mem = Ctx.allocate(sizeof(IntegerLiteral), alignof(IntegerLiteral));
   return new (Mem) IntegerLiteral(BegLoc, EndLoc, T, Val);
 }
 
 StringLiteral *StringLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
                                      SourceLocation EndLoc, QualType T,
                                      std::string Str) {
-  void *Mem = Ctx.Allocate(sizeof(StringLiteral), alignof(StringLiteral));
+  void *Mem = Ctx.allocate(sizeof(StringLiteral), alignof(StringLiteral));
   return new (Mem) StringLiteral(BegLoc, EndLoc, T, std::move(Str));
 }
 
@@ -200,7 +200,7 @@ ParenExpr::ParenExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
 
 ParenExpr *ParenExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                              SourceLocation EndLoc, QualType T, Expr *SubExpr) {
-  void *Mem = Ctx.Allocate(sizeof(ParenExpr), alignof(ParenExpr));
+  void *Mem = Ctx.allocate(sizeof(ParenExpr), alignof(ParenExpr));
   return new (Mem) ParenExpr(BegLoc, EndLoc, T, SubExpr);
 }
 
@@ -211,7 +211,7 @@ DeclRefExpr::DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
 DeclRefExpr *DeclRefExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                                  SourceLocation EndLoc, QualType T,
                                  ValueDecl *D) {
-  void *Mem = Ctx.Allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
+  void *Mem = Ctx.allocate(sizeof(DeclRefExpr), alignof(DeclRefExpr));
   return new (Mem) DeclRefExpr(BegLoc, EndLoc, T, D);
 }
 
@@ -226,7 +226,7 @@ ArraySubscriptExpr *ArraySubscriptExpr::create(ASTContext &Ctx,
                                                QualType T, Expr *LHS,
                                                Expr *RHS) {
   static constexpr std::size_t Size = sizeof(ArraySubscriptExpr);
-  void *Mem = Ctx.Allocate(Size, alignof(ArraySubscriptExpr));
+  void *Mem = Ctx.allocate(Size, alignof(ArraySubscriptExpr));
   return new (Mem) ArraySubscriptExpr(BegLoc, EndLoc, T, LHS, RHS);
 }
 
@@ -237,7 +237,7 @@ CallExpr::CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
 CallExpr *CallExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, QualType T,
                            DeclRefExpr *Callee, std::vector<Expr *> Args) {
-  void *Mem = Ctx.Allocate(sizeof(CallExpr), alignof(CallExpr));
+  void *Mem = Ctx.allocate(sizeof(CallExpr), alignof(CallExpr));
   return new (Mem) CallExpr(BegLoc, EndLoc, T, Callee, Args);
 }
 
@@ -251,7 +251,7 @@ UnaryExprOrTypeTraitExpr *
 UnaryExprOrTypeTraitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                                  SourceLocation EndLoc, QualType T, Expr *Ex) {
   static constexpr std::size_t Size = sizeof(UnaryExprOrTypeTraitExpr);
-  void *Mem = Ctx.Allocate(Size, alignof(UnaryExprOrTypeTraitExpr));
+  void *Mem = Ctx.allocate(Size, alignof(UnaryExprOrTypeTraitExpr));
   return new (Mem) UnaryExprOrTypeTraitExpr(BegLoc, EndLoc, T, Ex);
 }
 
@@ -259,7 +259,7 @@ UnaryExprOrTypeTraitExpr *
 UnaryExprOrTypeTraitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                                  SourceLocation EndLoc, QualType T, Type *Ty) {
   static constexpr std::size_t Size = sizeof(UnaryExprOrTypeTraitExpr);
-  void *Mem = Ctx.Allocate(Size, alignof(UnaryExprOrTypeTraitExpr));
+  void *Mem = Ctx.allocate(Size, alignof(UnaryExprOrTypeTraitExpr));
   return new (Mem) UnaryExprOrTypeTraitExpr(BegLoc, EndLoc, T, Ty);
 }
 
@@ -288,7 +288,7 @@ std::size_t UnaryExprOrTypeTraitExpr::getSize() const {
 StmtExpr *StmtExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, QualType T,
                            CompoundStmt *SubStmt) {
-  void *Mem = Ctx.Allocate(sizeof(StmtExpr), alignof(StmtExpr));
+  void *Mem = Ctx.allocate(sizeof(StmtExpr), alignof(StmtExpr));
   return new (Mem) StmtExpr(BegLoc, EndLoc, T, SubStmt);
 }
 

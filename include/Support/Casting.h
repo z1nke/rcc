@@ -1,5 +1,5 @@
-#ifndef RCC_BASIC_CASTING_H
-#define RCC_BASIC_CASTING_H
+#ifndef RCC_SUPPORT_CASTING_H
+#define RCC_SUPPORT_CASTING_H
 
 #include <cassert>
 #include <type_traits>

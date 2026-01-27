@@ -1,7 +1,8 @@
 #include "Lex/Lexer.h"
 #include "Basic/Diagnostic.h"
+#include "Basic/SourceLocation.h"
 #include "Basic/SourceManager.h"
-#include "Basic/Unreachable.h"
+#include "Support/Unreachable.h"
 
 #include <cctype>
 #include <cstdlib>
@@ -12,14 +13,14 @@ static bool isIdent0(char C) { return std::isalpha(C) || C == '_'; }
 
 static bool isIdent1(char C) { return isIdent0(C) || std::isdigit(C); }
 
-Lexer::Lexer(Diagnostic &Diag) : Diag(Diag) {
+Lexer::Lexer(Diagnostic &Diag) : Diag(Diag), SM(Diag.getSourceManager()) {
   Keywords = {
 #define KEYWORD(KIND, STR) {STR, Token::TK_##KIND},
 #include "Lex/Token.def"
   };
 }
 
-Token *Lexer::tokenize(char *P) {
+Token *Lexer::tokenize(const char *P) {
   Token Dummy;
   Token *Curr = &Dummy;
 
@@ -124,14 +125,21 @@ Token *Lexer::tokenize(char *P) {
   return Dummy.getNext();
 }
 
-void Lexer::lexNumericLiteral(Token *&Curr, char *&P) {
+Token *Lexer::tokenizeFile(const char *Path) {
+  FileID FID = SM.createFileID(Path);
+  SourceLocation Loc = SM.getLocForStartOfFile(FID);
+  CurrStart = SM.getLoc(Loc);
+  return tokenize(CurrStart);
+}
+
+void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
-  int Val = std::strtoul(P, &P, 10);
+  int Val = std::strtoul(P, &const_cast<char *&>(P), 10);
   Curr->setNext(newToken(Token::TK_Num, Start, P, Val));
   Curr = Curr->getNext();
 }
 
-void Lexer::lexStringLiteral(Token *&Curr, char *&P) {
+void Lexer::lexStringLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
   ++P; // skip opening '"'
   while (*P != '"') {
@@ -145,7 +153,7 @@ void Lexer::lexStringLiteral(Token *&Curr, char *&P) {
   Curr = Curr->getNext();
 }
 
-void Lexer::lexPunctuator(Token *&Curr, Token::TokenKind Kind, char *&P,
+void Lexer::lexPunctuator(Token *&Curr, Token::TokenKind Kind, const char *&P,
                           int Len) {
   Curr->setNext(newToken(Kind, P, P + Len));
   Curr = Curr->getNext();
@@ -168,7 +176,7 @@ Token::TokenKind Lexer::getTokenKindOfIdent(const char *Start,
 
 Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
                        const char *End, int Val) {
-  void *Mem = TokAlloc.Allocate(sizeof(Token), alignof(Token));
+  void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
   return new (Mem) Token(Kind, Start, End, Val);
 }
 

@@ -14,7 +14,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  ./bin/rcc "$input" > tmp.s || exit
+  echo "$input" | ./bin/rcc - > tmp.s || exit
   riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s tmp2.o
   qemu-riscv64 ./tmp
   actual="$?"

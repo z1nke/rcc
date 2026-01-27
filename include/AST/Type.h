@@ -1,7 +1,7 @@
 #ifndef RCC_AST_TYPE_H
 #define RCC_AST_TYPE_H
 
-#include "Basic/Casting.h"
+#include "Support/Casting.h"
 
 #include <cstdint>
 #include <string>
@@ -133,9 +133,7 @@ public:
     return T->getTypeKind() == Type::TK_Builtin;
   }
 
-  bool isIntegerType() const {
-    return BK == BK_Char || BK == BK_Int;
-  }
+  bool isIntegerType() const { return BK == BK_Char || BK == BK_Int; }
 
   Kind getKind() const { return BK; }
   const char *getKindStr() const;
@@ -216,7 +214,7 @@ template <typename To> inline bool isa(QualType T) {
   return isa<To>(T.getTypePtr());
 }
 
-template <typename To> inline const To *dyn_cast(QualType T) {
+template <typename To> inline const To *dyn_cast(QualType T) { // NOLINT
   return isa<To>(T) ? static_cast<const To *>(T.getTypePtr()) : nullptr;
 }
 

@@ -1,7 +1,8 @@
 add_library(Basic
   Diagnostic.cpp
+  FileManager.cpp
+  SourceLocation.cpp
   SourceManager.cpp
-  Unreachable.cpp
 )
 
 set_target_properties(Basic
