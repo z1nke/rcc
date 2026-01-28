@@ -1,39 +1,12 @@
-#include <cstdlib>
-
-#include "AST/ASTContext.h"
-#include "AST/Decl.h"
-#include "Basic/Diagnostic.h"
-#include "Basic/FileManager.h"
-#include "Basic/SourceManager.h"
-#include "CodeGen/CodeGen.h"
-#include "Lex/Lexer.h"
-#include "Parse/Parser.h"
-#include "Sema/Sema.h"
-
-#include <print>
+#include "Frontend/CompilerInstance.h"
 
 using namespace rcc;
 
 int main(int Argc, char **Argv) {
-  if (Argc != 2) {
-    std::println(stderr, "{}: invalid number of arguments", Argv[0]);
+  auto CI = rcc::CompilerInstance::create(Argc, Argv);
+  if (!CI)
     return 1;
-  }
 
-  FileManager FileMgr;
-  SourceManager SM(FileMgr);
-  Diagnostic Diag(SM);
-  Lexer TheLexer(Diag);
-  Token *Toks = TheLexer.tokenizeFile(Argv[1]);
-  if (!Toks)
-    Diag.fatal("tokenize failed");
-
-  ASTContext Ctx(Diag);
-  Ctx.initBuiltinTypes();
-  Sema S(Ctx, Diag);
-  Parser P(Toks, Ctx, S, SM);
-  TranslationUnitDecl *TU = P.parse();
-  CodeGen CG(Diag);
-  CG.codegen(TU);
+  CI->run();
   return 0;
 }

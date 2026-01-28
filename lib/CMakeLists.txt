@@ -1,6 +1,7 @@
 add_subdirectory(AST)
 add_subdirectory(Basic)
 add_subdirectory(CodeGen)
+add_subdirectory(Frontend)
 add_subdirectory(Lex)
 add_subdirectory(Parse)
 add_subdirectory(Sema)

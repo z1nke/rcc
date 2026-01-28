@@ -15,11 +15,14 @@ target_include_directories(rcc
 
 target_link_libraries(rcc
   PRIVATE
+  -Wl,--start-group
   AST
   Basic
   CodeGen
+  Frontend
   Lexer
   Parser
   Sema
   Support
+  -Wl,--end-group
 )

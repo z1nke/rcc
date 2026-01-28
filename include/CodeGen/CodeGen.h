@@ -2,6 +2,8 @@
 #define RCC_CODEGEN_CODEGEN_H
 
 #include "AST/Stmt.h"
+
+#include <print>
 #include <unordered_map>
 
 namespace rcc {
@@ -14,7 +16,7 @@ class Diagnostic;
 
 class CodeGen {
 public:
-  CodeGen(Diagnostic &Diag);
+  CodeGen(Diagnostic &Diag, FILE *Fp);
 
   void codegen(const TranslationUnitDecl *TU);
 
@@ -53,11 +55,18 @@ private:
   const std::string &getStringLabel(const StringLiteral *SL);
 
 private:
+  template <typename... ARGS>
+  void emit(std::format_string<ARGS...> Fmt, ARGS &&...Args) const {
+    std::println(Fp, Fmt, std::forward<ARGS &&>(Args)...);
+  }
+
+private:
   Diagnostic &Diag;
   const FunctionDecl *CurrFunc = nullptr;
   int Depth = 0;
   std::vector<const StringLiteral *> StringLiterals;
   std::unordered_map<const StringLiteral *, std::string> SLCache;
+  FILE *Fp;
 };
 
 } // namespace rcc
