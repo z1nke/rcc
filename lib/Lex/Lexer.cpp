@@ -61,6 +61,21 @@ Token *Lexer::tokenize(const char *P) {
       lexPunctuator(Curr, Token::TK_Star, P);
       break;
     case '/':
+      if (*(P + 1) == '/') {
+        P += 2;
+        while (*P && *P != '\n')
+          ++P;
+        continue;
+      }
+
+      if (*(P + 1) == '*') {
+        const char *End = strstr(P + 2, "*/");
+        if (!End)
+          Diag.fatalAt(P, "unclosed block comment");
+        P = End + 2;
+        continue;
+      }
+
       lexPunctuator(Curr, Token::TK_Slash, P);
       break;
     case '(':
