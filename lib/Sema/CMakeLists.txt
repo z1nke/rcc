@@ -1,5 +1,6 @@
 add_library(Sema
   DeclSpec.cpp
+  Scope.cpp
   Sema.cpp
 )
 

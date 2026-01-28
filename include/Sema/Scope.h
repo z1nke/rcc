@@ -1,0 +1,61 @@
+#ifndef RCC_SEMA_SCOPE_H
+#define RCC_SEMA_SCOPE_H
+
+#include <unordered_set>
+
+namespace rcc {
+
+class Decl;
+
+class Scope {
+public:
+  enum ScopeFlags {
+    NoScope = 0x0,
+    // Function scope.
+    FnScope = 0x1,
+
+    // Decl scope: can contain a declaration.
+    DeclScope = 0x2,
+
+    // Break scope: while, do, switch, for, etc that can have break statements
+    // embedded into it.
+    BreakScope = 0x4,
+
+    // Continue scope: while, do, for, which can have continue statements
+    // embedded into it.
+    ContinueScope = 0x8,
+
+    // Control scope: in a if/switch/while/for statement.
+    ControlScope = 0x10,
+
+    // Switch scope: in a switch statement.
+    SwitchScope = 0x20,
+
+    // Block scope: in a stmtexpr.
+    BlockScope = 0x40,
+
+    // Compound scope: in a compound statement.
+    CompoundScope = 0x80,
+  };
+
+  Scope(Scope *Parent, unsigned Flags);
+
+  void addDecl(Decl *D);
+  void removeDecl(Decl *D);
+
+  unsigned getDepth() const { return Depth; }
+  Scope *getParent() const { return Parent; }
+  unsigned getFlags() const { return Flags; }
+  const auto &decls() const { return Decls; }
+
+private:
+  std::unordered_set<Decl *> Decls;
+  Scope *Parent;
+  // The depth of translation unit is 0.
+  unsigned Depth;
+  unsigned Flags;
+};
+
+} // namespace rcc
+
+#endif

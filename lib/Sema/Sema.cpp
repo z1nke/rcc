@@ -26,16 +26,19 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
                                  D.getEndLoc(), T, D.getIdent());
   LocalVars.push_back(Var);
+  CurrScope->addDecl(Var);
   return Var;
 }
 
 ParamVarDecl *Sema::actOnParamVarDecl(Declarator &D, unsigned Index) {
+  assert(CurrScope->getFlags() & Scope::FnScope);
   QualType T = getTypeForDeclarator(D);
   const DeclSpec &DS = D.getDeclSpec();
   ParamVarDecl *Param =
       ParamVarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
                            D.getEndLoc(), T, D.getIdent(), Index);
   Params.push_back(Param);
+  CurrScope->addDecl(Param);
   return Param;
 }
 
@@ -385,19 +388,15 @@ QualType Sema::checkUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
 }
 
 VarDecl *Sema::findVar(std::string_view Ident) {
-  for (VarDecl *Var : LocalVars) {
-    if (Var->getName() == Ident)
-      return Var;
-  }
+  for (Scope *S = CurrScope; S; S = S->getParent()) {
+    for (auto *D : S->decls()) {
+      auto *Var = dyn_cast<VarDecl>(D);
+      if (!Var)
+        continue;
 
-  for (ParamVarDecl *Param : Params) {
-    if (Param->getName() == Ident)
-      return Param;
-  }
-
-  for (VarDecl *Var : GlobalVars) {
-    if (Var->getName() == Ident)
-      return Var;
+      if (Var->getName() == Ident)
+        return Var;
+    }
   }
 
   return nullptr;

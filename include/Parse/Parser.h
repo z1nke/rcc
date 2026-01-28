@@ -3,6 +3,7 @@
 
 #include "Basic/SourceLocation.h"
 #include "Lex/Token.h"
+#include "Sema/Scope.h"
 
 #include <vector>
 
@@ -60,6 +61,11 @@ private:
   Expr *parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
                       SourceLocation IdentEndLoc);
   Expr *parsePostfixExpr();
+
+public:
+  Scope *getCurrScope() const;
+  void enterScope(unsigned ScopeFlags);
+  void exitScope();
 
 private:
   void parseDeclSpec(DeclSpec &DS);

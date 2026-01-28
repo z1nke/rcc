@@ -15,9 +15,11 @@
 namespace rcc {
 
 Parser::Parser(Token *CurTok, ASTContext &Ctx, Sema &S, SourceManager &SM)
-    : CurTok(CurTok), Ctx(Ctx), S(S), SM(SM), Diag(Ctx.getDiagnostic()) {}
+    : CurTok(CurTok), Ctx(Ctx), S(S), SM(SM), Diag(Ctx.getDiagnostic()) {
+  enterScope(Scope::DeclScope); // translation unit scope
+}
 
-Parser::~Parser() = default;
+Parser::~Parser() { exitScope(); }
 
 // program: (function-decl | var-decl) EOF
 TranslationUnitDecl *Parser::parse() {
@@ -61,6 +63,8 @@ FunctionDecl *Parser::parseFunctionBody(SourceLocation BegLoc,
   }
 
   S.complete(FD);
+  if (getCurrScope()->getFlags() & Scope::FnScope)
+    exitScope();
   return FD;
 }
 
@@ -154,6 +158,7 @@ Stmt *Parser::parseReturnStmt() {
 Stmt *Parser::parseCompoundStmt() {
   assert(CurTok->is(Token::TK_LBrace));
   auto BegLoc = SM.createBeginLocation(CurTok);
+  enterScope(Scope::CompoundScope);
   skip();
   std::vector<Stmt *> Stmts;
   while (CurTok->isNot(Token::TK_RBRace))
@@ -161,6 +166,7 @@ Stmt *Parser::parseCompoundStmt() {
 
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RBRace);
+  exitScope();
   return S.actOnCompoundStmt(BegLoc, EndLoc, std::move(Stmts));
 }
 
@@ -184,6 +190,7 @@ Stmt *Parser::parseIfStmt() {
 Stmt *Parser::parseForStmt() {
   assert(CurTok->is(Token::TK_For));
   auto BegLoc = SM.createBeginLocation(CurTok);
+  enterScope(Scope::BreakScope | Scope::ContinueScope | Scope::ControlScope);
   skip();
   skip(Token::TK_LParen);
   Stmt *Init = parseStmt();
@@ -200,6 +207,7 @@ Stmt *Parser::parseForStmt() {
     Inc = parseExpr();
   skip(Token::TK_RParen);
   Stmt *Body = parseStmt();
+  exitScope();
   return S.actOnForStmt(BegLoc, Init, Cond, Inc, Body);
 }
 
@@ -207,11 +215,13 @@ Stmt *Parser::parseForStmt() {
 Stmt *Parser::parseWhileStmt() {
   assert(CurTok->is(Token::TK_While));
   auto BegLoc = SM.createBeginLocation(CurTok);
+  enterScope(Scope::BreakScope | Scope::ContinueScope | Scope::ControlScope);
   skip();
   skip(Token::TK_LParen);
   Expr *Cond = parseExpr();
   skip(Token::TK_RParen);
   Stmt *Body = parseStmt();
+  exitScope();
   return S.actOnWhileStmt(Ctx, BegLoc, Cond, Body);
 }
 
@@ -300,6 +310,7 @@ void Parser::parseDirectDeclarator(Declarator &D) {
     // Record function information in DeclaratorChunk.
     // params: param { ',' param }*
     // param: declspec declarator
+    enterScope(Scope::FnScope);
     unsigned Idx = 0;
     while (CurTok->isNot(Token::TK_RParen)) {
       if (Idx > 0)
@@ -559,6 +570,18 @@ Expr *Parser::parseBinaryExpr() {
   }
 
   return nullptr;
+}
+
+Scope *Parser::getCurrScope() const { return S.getCurrScope(); }
+
+void Parser::enterScope(unsigned ScopeFlags) {
+  S.CurrScope = new Scope(getCurrScope(), ScopeFlags);
+}
+
+void Parser::exitScope() {
+  Scope *OldScope = getCurrScope();
+  S.CurrScope = OldScope->getParent();
+  delete OldScope;
 }
 
 void Parser::expect(Token::TokenKind Kind, const char *Prompt) {

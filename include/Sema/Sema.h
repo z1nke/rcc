@@ -3,6 +3,7 @@
 
 #include "AST/Type.h"
 #include "Basic/SourceLocation.h"
+#include "Sema/Scope.h"
 
 #include <string_view>
 #include <vector>
@@ -22,6 +23,8 @@ class FunctionDecl;
 
 class Sema {
 public:
+  friend class Parser;
+
   Sema(ASTContext &Ctx, Diagnostic &Diag) : Ctx(Ctx), Diag(Diag) {}
 
   ASTContext &getASTContext() const { return Ctx; }
@@ -65,8 +68,12 @@ public:
   Expr *actOnCallExpr(SourceLocation IdentBegLoc, SourceLocation IdentEndLoc,
                       SourceLocation EndLoc, std::string_view Name,
                       std::vector<Expr *> Args);
-  Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *SubStmt);
+  Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                      Stmt *SubStmt);
   Expr *actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS, Expr *RHS);
+
+public:
+  Scope *getCurrScope() const { return CurrScope; }
 
 private:
   VarDecl *findVar(std::string_view Ident);
@@ -94,8 +101,9 @@ private:
 private:
   ASTContext &Ctx;
   Diagnostic &Diag;
+  Scope *CurrScope = nullptr;
+
   std::vector<VarDecl *> LocalVars;
-  std::vector<VarDecl *> GlobalVars;
   std::vector<ParamVarDecl *> Params;
   std::vector<FunctionDecl *> Funcs;
 };
