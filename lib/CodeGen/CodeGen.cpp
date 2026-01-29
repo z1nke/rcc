@@ -33,7 +33,8 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
 
 static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
 
-void CodeGen::codegen(const TranslationUnitDecl *TU) {
+void CodeGen::codegen(const TranslationUnitDecl *TU, const char *Input) {
+  emit(".file 1 \"{}\"", Input);
   emitText(TU);
   emitData(TU);
 }
@@ -143,6 +144,9 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
 }
 
 void CodeGen::genStmt(const Stmt *S) {
+  const SourceManager &SM = Diag.getSourceManager();
+  emit("  .loc 1 {}", SM.getLineNumber(S->getBeginLoc()));
+
   if (const auto *E = dyn_cast<Expr>(S)) {
     genExpr(E);
     return;

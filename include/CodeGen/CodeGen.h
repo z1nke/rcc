@@ -16,9 +16,9 @@ class Diagnostic;
 
 class CodeGen {
 public:
-  CodeGen(Diagnostic &Diag, FILE *Fp);
+  CodeGen(Diagnostic &Diag,  FILE *Fp);
 
-  void codegen(const TranslationUnitDecl *TU);
+  void codegen(const TranslationUnitDecl *TU, const char *Input);
 
 private:
   void emitData(const TranslationUnitDecl *TU);

@@ -60,6 +60,7 @@ SourceManager::getLineInfo(SourceLocation Loc) const {
   if (!FE)
     return std::nullopt;
 
+  // TODO: Optimize the performance of retrieving line information.
   const char *FileBegin = FE->getContent()->getBufferStart();
   const char *TargetLoc = getLoc(Loc);
 
@@ -82,6 +83,10 @@ SourceManager::getLineInfo(SourceLocation Loc) const {
   std::string_view CodeLine(LineBegin, LineEnd - LineBegin);
   SourceLineInfo Info{LineNo, ColNo, CodeLine};
   return Info;
+}
+
+unsigned SourceManager::getLineNumber(SourceLocation Loc) const {
+  return getLineInfo(Loc)->LineNo;
 }
 
 FileID SourceManager::createFileID(const std::string &Path) {

@@ -27,6 +27,7 @@ public:
   std::string_view getFilename(SourceLocation Loc) const;
   const FileEntry *getFileEntry(SourceLocation Loc) const;
   std::optional<SourceLineInfo> getLineInfo(SourceLocation Loc) const;
+  unsigned getLineNumber(SourceLocation Loc) const;
 
   SourceLocation createBeginLocation(const Token *Tok);
   SourceLocation createBeginLocation(const char *Loc);

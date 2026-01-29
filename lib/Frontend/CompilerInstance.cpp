@@ -39,14 +39,15 @@ void CompilerInstance::run() {
     Diag->fatal("open {} failed", Output);
 
   Lexer TheLexer(*Diag);
-  Token *Toks = TheLexer.tokenizeFile(Invocation->getInputs()[0]);
+  const auto &Inputs = Invocation->getInputs();
+  Token *Toks = TheLexer.tokenizeFile(Inputs[0]);
   if (!Toks)
     Diag->fatal("tokenize failed");
   Sema S(*ACtx, *Diag);
   Parser P(Toks, *ACtx, S, *SM);
   TranslationUnitDecl *TU = P.parse();
   CodeGen CG(*Diag, Fp);
-  CG.codegen(TU);
+  CG.codegen(TU, Inputs[0]);
 }
 
 } // namespace rcc
