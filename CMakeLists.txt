@@ -108,6 +108,21 @@ option(USE_FOLDERS
   ON
 )
 
+# Find Python3 Interpreter
+# Use PYTHON_HOME as a hint to find Python 3.
+set(Python3_ROOT_DIR "${PYTHON_HOME}")
+find_package(Python3 COMPONENTS Interpreter)
+
+if (Python3_Interpreter_FOUND)
+  set(PYTHON3_FOUND TRUE)
+else ()
+  message(FATAL_ERROR "Python3 interpreter could not be found")
+endif ()
+
+message(STATUS "Found Python3: ${Python3_EXECUTABLE}")
+
+set(RCC_TOOLS_DIR ${CMAKE_BINARY_DIR}/bin)
+
 if (USE_FOLDERS)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 endif ()
@@ -118,7 +133,6 @@ option(ENABLE_UNIT_TESTS "Enable unit tests" OFF)
 
 add_subdirectory(lib)
 add_subdirectory(tools)
-add_subdirectory(test)
 
 if (ENABLE_LIT_TESTS)
   set(LIT_TOOL_NAMES "llvm-lit" "lit")
@@ -147,5 +161,5 @@ if (ENABLE_LIT_TESTS)
   else ()
     message(STATUS "Found llvm-lit tool: ${LIT_TOOL}")
   endif ()
-  #add_subdirectory(test)
+  add_subdirectory(test)
 endif ()

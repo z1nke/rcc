@@ -1,9 +1,11 @@
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+  @ONLY
+)
+
 add_custom_target(run-test
-  COMMAND ${CMAKE_COMMAND} -E echo "== Running tests =="
-  COMMAND cp ${CMAKE_SOURCE_DIR}/test/driver_test.sh ${CMAKE_BINARY_DIR}/
-  COMMAND cp ${CMAKE_SOURCE_DIR}/test/simple_test.sh ${CMAKE_BINARY_DIR}/
-  COMMAND ${CMAKE_BINARY_DIR}/driver_test.sh
-  COMMAND ${CMAKE_BINARY_DIR}/simple_test.sh
+  COMMAND ${LIT_TOOL} ${LIT_ARGS} ${CMAKE_CURRENT_BINARY_DIR}/units
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   USES_TERMINAL
 )

@@ -483,7 +483,11 @@ void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
   // addr = base + idx
   genAddr(ASE);
   // a0 = *(addr)
-  emit("  ld a0, 0(a0)");
+  QualType AT = ASE->getType();
+  if (AT->getSize() == 1)
+    emit("  lb a0, 0(a0)");
+  else
+    emit("  ld a0, 0(a0)");
 }
 
 void CodeGen::genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {

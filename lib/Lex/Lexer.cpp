@@ -157,11 +157,12 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
 void Lexer::lexStringLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
   ++P; // skip opening '"'
-  while (*P != '"') {
+  for (; *P != '"'; ++P) {
     if (*P == '\n' || *P == '\0')
       Diag.fatalAt(Start, "unclosed string literal");
 
-    ++P;
+    if (*P == '\\')
+      ++P;
   }
 
   Curr->setNext(newToken(Token::TK_Str, Start, ++P));

@@ -203,7 +203,7 @@ Expr *Sema::actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
 
   const auto *Back = dyn_cast<Expr>(Body.back());
   if (!Back)
-    Diag.fatalAt(Back->getBeginLoc(), "expected expression");
+    Diag.fatalAt(Body.back()->getBeginLoc(), "expected expression");
 
   return StmtExpr::create(Ctx, BegLoc, EndLoc, Back->getType(), CS);
 }
