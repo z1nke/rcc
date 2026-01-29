@@ -133,7 +133,7 @@ Stmt *Sema::actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
 
 Expr *Sema::actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
                                 unsigned Op) {
-  QualType ResType = checkBinaryOperatorType(OpLoc, LHS, RHS, Op);
+  QualType ResType = getBinaryOperatorType(OpLoc, LHS, RHS, Op);
   auto BegLoc = LHS->getBeginLoc();
   auto EndLoc = RHS->getEndLoc();
   return BinaryOperator::create(Ctx, BegLoc, EndLoc, ResType, OpLoc, LHS, RHS,
@@ -142,7 +142,7 @@ Expr *Sema::actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
 
 Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
                                unsigned Op) {
-  QualType ResType = checkUnaryOperatorType(OpLoc, SubExpr, Op);
+  QualType ResType = getUnaryOperatorType(OpLoc, SubExpr, Op);
   return UnaryOperator::create(Ctx, OpLoc, SubExpr->getEndLoc(), ResType,
                                SubExpr, static_cast<UnaryOperator::Opcode>(Op));
 }
@@ -268,8 +268,8 @@ bool Sema::canCast(QualType LType, QualType RType) {
   return false;
 }
 
-QualType Sema::checkBinaryOperatorType(SourceLocation OpLoc, Expr *LHS,
-                                       Expr *RHS, unsigned Op) {
+QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
+                                     unsigned Op) {
   switch (Op) {
   case BinaryOperator::BO_Assign: {
     QualType LType = LHS->getType();
@@ -354,13 +354,15 @@ QualType Sema::checkBinaryOperatorType(SourceLocation OpLoc, Expr *LHS,
   case BinaryOperator::BO_GE:
     // TODO: Check operands and add implicit expr.
     return Ctx.IntTy;
+  case BinaryOperator::BO_Comma:
+    return RHS->getType();
   default:
     Diag.fatalAt(OpLoc, "unknown binary opcode");
   }
 }
 
-QualType Sema::checkUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
-                                      unsigned Op) {
+QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
+                                    unsigned Op) {
   switch (Op) {
   case UnaryOperator::UO_Plus:
   case UnaryOperator::UO_Minus:

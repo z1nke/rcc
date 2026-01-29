@@ -167,6 +167,8 @@ const char *BinaryOperator::getOpcodeStr() const {
     return "<=";
   case BO_GE:
     return ">=";
+  case BO_Comma:
+    return ",";
   default:
     RCC_UNREACHABLE("[AST] Unknown binary opcode");
   }

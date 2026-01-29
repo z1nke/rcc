@@ -343,6 +343,12 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     return;
   }
 
+  if (BO->getOpcode() == BinaryOperator::BO_Comma) {
+    genExpr(LHS);
+    genExpr(RHS);
+    return;
+  }
+
   // a0 op a1
   genExpr(RHS);
   push();
@@ -515,17 +521,29 @@ void CodeGen::genAddr(const Expr *E) {
     }
     break;
   }
+  case Stmt::SK_BinaryOperator: {
+    const auto *BO = cast<BinaryOperator>(E);
+    if (BO->getOpcode() == BinaryOperator::BO_Comma) {
+      genExpr(BO->getLHS());
+      genAddr(BO->getRHS());
+      return;
+    }
+    break;
+  }
   case Stmt::SK_ArraySubscriptExpr:
     genAddr(cast<ArraySubscriptExpr>(E));
     return;
   case Stmt::SK_StringLiteral:
     genAddr(cast<StringLiteral>(E));
     return;
+  case Stmt::SK_ParenExpr:
+    genAddr(cast<ParenExpr>(E)->getSubExpr());
+    return;
   default:
     break;
   }
 
-  Diag.fatalAt(E->getBeginLoc(), "not a lvalue");
+  Diag.fatalAt(E->getBeginLoc(), "{} not a lvalue", E->getKindStr());
 }
 
 void CodeGen::genAddr(const ArraySubscriptExpr *ASE) {

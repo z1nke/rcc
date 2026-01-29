@@ -275,11 +275,16 @@ Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
 
 void Parser::parseVarInit(VarDecl *Var) {
   if (tryConsume(Token::TK_Equal)) {
-    Expr *E = parseExpr();
+    Expr *E = parseInitExpr();
     Var->setInit(E);
     Var->setEndLoc(E->getEndLoc());
   }
 }
+
+// initializer: assign-expr
+// TODO:      | { initializer-list }
+// TODO:      | { initializer-list ',' }
+Expr *Parser::parseInitExpr() { return parseAssign(); }
 
 // declarator: '*'* direct-declarator
 void Parser::parseDeclarator(Declarator &D) {
@@ -347,7 +352,18 @@ Stmt *Parser::parseExprStmt() {
 }
 
 // expr: assign-expr
-Expr *Parser::parseExpr() { return parseAssign(); }
+//     | expr, assign-expr
+Expr *Parser::parseExpr() {
+  Expr *Assign = parseAssign();
+  if (CurTok->is(Token::TK_Comma)) {
+    skip();
+    auto OpLoc = SM.createBeginLocation(CurTok);
+    Expr *RHS = parseExpr();
+    return S.actOnBinaryOperator(OpLoc, Assign, RHS, BinaryOperator::BO_Comma);
+  }
+
+  return Assign;
+}
 
 // assign-expr: equality-expr { '=' assign-expr }
 Expr *Parser::parseAssign() {
@@ -489,8 +505,8 @@ Expr *Parser::parsePrimaryExpr() {
   return nullptr;
 }
 
-// call-expr: ident '(' args ')'
-// args: expr { ',' expr }*
+// call-expr: ident '(' args? ')'
+// args: assign-expr { ',' assign-expr }*
 Expr *Parser::parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
                             SourceLocation IdentEndLoc) {
   // Parsed ident '(' already.
@@ -499,7 +515,7 @@ Expr *Parser::parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
     if (!Args.empty())
       skip(Token::TK_Comma);
 
-    Args.push_back(parseExpr());
+    Args.push_back(parseAssign());
   }
 
   auto EndLoc = SM.createBeginLocation(CurTok);

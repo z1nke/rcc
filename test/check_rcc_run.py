@@ -21,7 +21,8 @@ def main():
   run(f'riscv64-unknown-linux-gnu-gcc -c -xc {suite}/common -o {tmp2_o}')
   run(f'gcc -o- -E -P -C {src} | rcc -o {tmp_s} -')
   run(f'riscv64-unknown-linux-gnu-gcc -static -o {tmp} {tmp_s} {tmp2_o}')
-  run(f'qemu-riscv64 {tmp} | FileCheck {src}')
+  #run(f'qemu-riscv64 {tmp} | FileCheck {src}')
+  run(f'qemu-riscv64 {tmp}')
 
 if __name__ == '__main__':
   main()

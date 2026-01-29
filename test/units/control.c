@@ -18,14 +18,19 @@ int main() {
 
   // [17] Support while statement
   ASSERT(10, ({ int i=0; while(i<10) i=i+1; i; }));
+  ASSERT(10, ({ int i=0; while(i<10) i=i+1; i; }));
+  ASSERT(55, ({ int i=0; int j=0; while(i<=10) {j=i+j; i=i+1;} j; }));
 
   // [13] Support {...}
   ASSERT(3, ({ 1; {2;} 3; }));
+
   // [14] Support null statement
   ASSERT(5, ({ ;;; 5; }));
 
-  ASSERT(10, ({ int i=0; while(i<10) i=i+1; i; }));
-  ASSERT(55, ({ int i=0; int j=0; while(i<=10) {j=i+j; i=i+1;} j; }));
+  // [48] 支持 , 运算符
+  ASSERT(3, (1,2,3));
+  ASSERT(5, ({ int i=2, j=3; (i=5,j)=6; i; }));
+  ASSERT(6, ({ int i=2, j=3; (i=5,j)=6; j; }));
 
   printf("OK\n");
   return 0;

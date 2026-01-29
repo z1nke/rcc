@@ -74,6 +74,7 @@ private:
   void parseVarInit(VarDecl *Var);
   void parseDeclarator(Declarator &D);
   void parseDirectDeclarator(Declarator &D);
+  Expr *parseInitExpr();
 
 private:
   template <auto ParseOperand, Token::TokenKind... TKS> Expr *parseBinaryExpr();

@@ -87,11 +87,11 @@ private:
   QualType getCommonArithmeticType(QualType LType, QualType RType);
   bool canCast(QualType LType, QualType RType);
 
-  QualType checkBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
-                                   unsigned Op);
+  QualType getBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
+                                 unsigned Op);
 
-  QualType checkUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
-                                  unsigned Op);
+  QualType getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
+                                unsigned Op);
 
 private:
   QualType getTypeForDeclarator(Declarator &D);

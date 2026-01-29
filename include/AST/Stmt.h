@@ -234,6 +234,7 @@ public:
     BO_GT,
     BO_LE,
     BO_GE,
+    BO_Comma,
   };
 
   static BinaryOperator *create(ASTContext &Ctx, SourceLocation BegLoc,
