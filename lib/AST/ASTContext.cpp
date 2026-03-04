@@ -40,8 +40,9 @@ QualType ASTContext::getConstantArrayType(QualType ElementType,
   return QualType(Ty);
 }
 
-QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size) {
-  auto *Ty = new (*this, alignof(RecordType)) RecordType(RD, Size);
+QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size,
+                                   std::size_t Align) {
+  auto *Ty = new (*this, alignof(RecordType)) RecordType(RD, Size, Align);
   return QualType(Ty);
 }
 

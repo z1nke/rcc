@@ -120,13 +120,20 @@ RecordDecl *Parser::parseStructDecl() {
     auto *Record = S.actOnRecordDecl(Loc, BegLoc, BegLoc, Ident);
     enterScope(Scope::StructScope, Record);
     std::vector<FieldDecl *> Fields = parseFields();
-    int Offset = 0;
+
+    std::size_t Offset = 0;
+    std::size_t Align = 1;
     for (auto *Field : Fields) {
+      std::size_t FieldAlign = Field->getType()->getAlign();
+      Offset = alignTo(Offset, FieldAlign);
       Field->setOffset(Offset);
       Offset += Field->getType()->getSize();
+      if (Align < FieldAlign)
+        Align = FieldAlign;
     }
 
-    QualType RT = Ctx.getRecordType(Record, static_cast<std::size_t>(Offset));
+    std::size_t Size = alignTo(Offset, Align);
+    QualType RT = Ctx.getRecordType(Record, Size, Align);
     Record->setTypeForDecl(RT.getTypePtr());
     Record->setFields(std::move(Fields));
     Record->setEndLoc(SM.createBeginLocation(CurTok));

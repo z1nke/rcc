@@ -33,7 +33,8 @@ public:
   QualType getPointerType(QualType PointeeType);
   QualType getFunctionType(QualType RetType, std::vector<QualType> ParamTypes);
   QualType getConstantArrayType(QualType ElementType, std::size_t Len);
-  QualType getRecordType(RecordDecl *RD, std::size_t Size);
+  QualType getRecordType(RecordDecl *RD, std::size_t Size,
+                         std::size_t Align = 0);
 
   std::vector<Type *> Types;
   std::unordered_map<void *, PointerType *> PointerTypes;

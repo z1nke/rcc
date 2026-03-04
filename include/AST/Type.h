@@ -88,6 +88,8 @@ public:
 
   TypeKind getTypeKind() const { return Kind; }
   std::size_t getSize() const { return Size; }
+  std::size_t getAlign() const { return Align; }
+  void setAlign(std::size_t Align) { this->Align = Align; }
 
   QualType getCanonicalType() const;
 
@@ -116,13 +118,15 @@ public:
   TagDecl *getAsTagDecl() const;
 
 protected:
-  Type(TypeKind Kind, std::size_t Size) : Kind(Kind), Size(Size) {}
+  Type(TypeKind Kind, std::size_t Size, std::size_t Align = 0)
+      : Kind(Kind), Size(Size), Align(Align) {}
   Type(const Type &) = delete;
   Type(Type &&) = delete;
 
 private:
   TypeKind Kind;
   std::size_t Size = 0;
+  std::size_t Align = 0;
 };
 
 class BuiltinType final : public Type {
@@ -145,7 +149,7 @@ private:
   friend class ASTContext;
 
   explicit BuiltinType(Kind BK, std::size_t Size)
-      : Type(TK_Builtin, Size), BK(BK) {}
+      : Type(TK_Builtin, Size, Size), BK(BK) {}
 
 private:
   Kind BK;
@@ -163,7 +167,7 @@ private:
   friend class ASTContext;
 
   explicit PointerType(QualType Pointee)
-      : Type(TK_Pointer, 8), PointeeType(Pointee) {}
+      : Type(TK_Pointer, 8, 8), PointeeType(Pointee) {}
 
 private:
   QualType PointeeType;
@@ -206,7 +210,8 @@ protected:
   friend class ASTContext;
 
   ArrayType(QualType ElementType, std::size_t Len)
-      : Type(TK_ConstantArray, Len * ElementType->getSize()),
+      : Type(TK_ConstantArray, Len * ElementType->getSize(),
+             ElementType->getAlign()),
         ElementType(ElementType) {}
 
 private:
@@ -243,8 +248,8 @@ public:
 protected:
   friend class ASTContext;
 
-  TagType(TypeKind TK, std::size_t Size, TagDecl *TD)
-      : Type(TK, Size), TD(TD) {}
+  TagType(TypeKind TK, std::size_t Size, std::size_t Align, TagDecl *TD)
+      : Type(TK, Size, Align), TD(TD) {}
 
 private:
   TagDecl *TD;
@@ -263,8 +268,8 @@ public:
 private:
   friend class ASTContext;
 
-  RecordType(RecordDecl *RD, std::size_t Size)
-      : TagType(TK_Record, Size, reinterpret_cast<TagDecl *>(RD)) {}
+  RecordType(RecordDecl *RD, std::size_t Size, std::size_t Align = 0)
+      : TagType(TK_Record, Size, Align, reinterpret_cast<TagDecl *>(RD)) {}
 };
 
 template <typename To> inline bool isa(QualType T) {
