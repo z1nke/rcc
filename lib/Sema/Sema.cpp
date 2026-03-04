@@ -15,8 +15,14 @@ namespace rcc {
 Decl *Sema::actOnDeclarator(Declarator &D) {
   QualType T = getTypeForDeclarator(D);
 
-  if (const auto *FT = dyn_cast<FunctionType>(T))
+  if (const auto *FT = dynCast<FunctionType>(T))
     return actOnFunctionDecl(D, FT, nullptr);
+
+  if (CurrScope->isStructScope()) {
+    auto *DeclCtx = CurrScope->getDeclContext();
+    assert(DeclCtx && isa<RecordDecl>(DeclCtx));
+    return actOnFieldDecl(D, T, cast<RecordDecl>(DeclCtx));
+  }
 
   return actOnVarDecl(D, T);
 }
@@ -28,6 +34,15 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   LocalVars.push_back(Var);
   CurrScope->addDecl(Var);
   return Var;
+}
+
+FieldDecl *Sema::actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent) {
+  const DeclSpec &DS = D.getDeclSpec();
+  FieldDecl *Field =
+      FieldDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
+                        D.getEndLoc(), T, D.getIdent(), Parent);
+  CurrScope->addDecl(Field);
+  return Field;
 }
 
 ParamVarDecl *Sema::actOnParamVarDecl(Declarator &D, unsigned Index) {
@@ -53,10 +68,17 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                                       SourceLocation BegLoc,
                                       SourceLocation EndLoc, std::string Name,
                                       QualType RetType, Stmt *Body) {
-
   return FunctionDecl::create(Ctx, Loc, BegLoc, EndLoc,
                               Ctx.getFunctionType(RetType, {}), std::move(Name),
                               Body);
+}
+
+RecordDecl *Sema::actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
+                                  SourceLocation EndLoc,
+                                  std::string_view Ident) {
+  RecordDecl *RD = RecordDecl::create(
+      Ctx, Loc, BegLoc, EndLoc, std::string(Ident), RecordDecl::TK_Struct);
+  return RD;
 }
 
 void Sema::complete(FunctionDecl *FD) {
@@ -73,7 +95,7 @@ void Sema::complete(FunctionDecl *FD) {
   std::swap(PVars, Params);
   FD->setParams(std::move(PVars));
   QualType FT = FD->getType();
-  const auto *FuncTy = dyn_cast<FunctionType>(FT);
+  const auto *FuncTy = dynCast<FunctionType>(FT);
   if (!FuncTy)
     Diag.fatalAt(FD->getLocation(), "expect function type");
 
@@ -193,7 +215,7 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
 
 Expr *Sema::actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                           Stmt *SubStmt) {
-  auto *CS = dyn_cast<CompoundStmt>(SubStmt);
+  auto *CS = dynCast<CompoundStmt>(SubStmt);
   if (!CS)
     Diag.fatalAt(BegLoc, "statement expression requires compound statement");
 
@@ -201,7 +223,7 @@ Expr *Sema::actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
   if (Body.empty())
     Diag.fatalAt(BegLoc, "statement expression requires non-empty body");
 
-  const auto *Back = dyn_cast<Expr>(Body.back());
+  const auto *Back = dynCast<Expr>(Body.back());
   if (!Back)
     Diag.fatalAt(Body.back()->getBeginLoc(), "expected expression");
 
@@ -231,6 +253,26 @@ Expr *Sema::actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS,
 
   return ArraySubscriptExpr::create(Ctx, LHS->getBeginLoc(), EndLoc, T, LHS,
                                     RHS);
+}
+
+Expr *Sema::actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
+                                  Expr *Base, std::string_view Ident,
+                                  bool IsArrow) {
+  QualType BaseType = Base->getType();
+  const auto *Record = BaseType->getAsRecordDecl();
+  auto BegLoc = Base->getBeginLoc();
+  if (!Record)
+    Diag.fatalAt(BegLoc, "member access requires struct or union type");
+
+  // TODO: Record type must be complete.
+  for (auto &Field : Record->fields()) {
+    if (Field->getName() != Ident)
+      continue;
+    return MemberExpr::create(Ctx, BegLoc, OpLoc, EndLoc, Field->getType(),
+                              Base, Field, IsArrow);
+  }
+
+  Diag.fatalAt(BegLoc, "field '{}' not found in record", Ident);
 }
 
 void Sema::checkScalarType(QualType T) {
@@ -392,7 +434,7 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
 VarDecl *Sema::findVar(std::string_view Ident) {
   for (Scope *S = CurrScope; S; S = S->getParent()) {
     for (auto *D : S->decls()) {
-      auto *Var = dyn_cast<VarDecl>(D);
+      auto *Var = dynCast<VarDecl>(D);
       if (!Var)
         continue;
 
@@ -423,6 +465,13 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   case DeclSpec::TST_Char:
     T = Ctx.CharTy;
     break;
+  case DeclSpec::TST_Struct: {
+     const auto *RD = dynCastOrNull<RecordDecl>(DS.getRepDecl());
+     if (!RD)
+       Diag.fatalAt(DS.getTypeSpecLoc(), "struct has no declaration");
+     T = RD->getType();
+     break;
+  }
   default:
     Diag.fatalAt(DS.getTypeSpecLoc(), "unknown type specifier");
   }
@@ -456,7 +505,7 @@ QualType Sema::tryDecayArrayType(QualType T) {
 }
 
 std::size_t Sema::getArrayLength(const Expr *E) const {
-  if (const auto *IL = dyn_cast<IntegerLiteral>(E)) {
+  if (const auto *IL = dynCast<IntegerLiteral>(E)) {
     std::int64_t Val = IL->getVal();
     if (Val <= 0)
       Diag.fatalAt(IL->getBeginLoc(), "array size must be positive");

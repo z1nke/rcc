@@ -44,6 +44,7 @@ private:
   void genAddr(const Decl *D);
   void genAddr(const ArraySubscriptExpr *ASE);
   void genAddr(const StringLiteral *SL);
+  void genAddr(const MemberExpr *ME);
 
 private:
   void push();

@@ -14,6 +14,8 @@ class Expr;
 class Decl;
 class TranslationUnitDecl;
 class FunctionDecl;
+class RecordDecl;
+class FieldDecl;
 class VarDecl;
 
 class ASTContext;
@@ -35,6 +37,8 @@ public:
 private:
   void parseGlobalDecl(TranslationUnitDecl *TU);
   FunctionDecl *parseFunctionDecl();
+  RecordDecl *parseStructDecl();
+  std::vector<FieldDecl *> parseFields();
   FunctionDecl *parseFunctionBody(SourceLocation BegLoc, FunctionDecl *Func);
   std::vector<VarDecl *> parseGlobalVarDecl(SourceLocation BegLoc, DeclSpec &DS,
                                             VarDecl *FirstVar);
@@ -64,7 +68,7 @@ private:
 
 public:
   Scope *getCurrScope() const;
-  void enterScope(unsigned ScopeFlags);
+  void enterScope(unsigned ScopeFlags, Decl *ScopeDecl = nullptr);
   void exitScope();
 
 private:
@@ -75,6 +79,7 @@ private:
   void parseDeclarator(Declarator &D);
   void parseDirectDeclarator(Declarator &D);
   Expr *parseInitExpr();
+  FieldDecl *parseField(DeclSpec &DS);
 
 private:
   template <auto ParseOperand, Token::TokenKind... TKS> Expr *parseBinaryExpr();

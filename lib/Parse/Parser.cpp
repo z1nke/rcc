@@ -39,12 +39,12 @@ void Parser::parseGlobalDecl(TranslationUnitDecl *TU) {
   Decl *FirstDecl = S.actOnDeclarator(D);
   // function-decl: function-definition
   // TODO:        | function-declaration
-  if (auto *Func = dyn_cast<FunctionDecl>(FirstDecl)) {
+  if (auto *Func = dynCast<FunctionDecl>(FirstDecl)) {
     TU->addDecl(parseFunctionBody(BegLoc, Func));
     return;
   }
 
-  if (auto *Var = dyn_cast<VarDecl>(FirstDecl)) {
+  if (auto *Var = dynCast<VarDecl>(FirstDecl)) {
     std::vector<VarDecl *> Vars = parseGlobalVarDecl(BegLoc, DS, Var);
     for (VarDecl *Var : Vars)
       TU->addDecl(Var);
@@ -77,7 +77,7 @@ std::vector<VarDecl *> Parser::parseGlobalVarDecl(SourceLocation BegLoc,
   FirstVar->setGlobal(true);
   Vars.push_back(FirstVar);
   while (tryConsume(Token::TK_Comma)) {
-    auto *Var = dyn_cast<VarDecl>(parseInitDeclarator(DS));
+    auto *Var = dynCast<VarDecl>(parseInitDeclarator(DS));
     if (!Var)
       Diag.fatalAt(BegLoc, "expect variable declaration");
 
@@ -96,11 +96,59 @@ FunctionDecl *Parser::parseFunctionDecl() {
   Declarator D(DS);
   D.setLocation(SM.createBeginLocation(CurTok));
   parseDeclarator(D);
-  auto *FD = dyn_cast<FunctionDecl>(S.actOnDeclarator(D));
+  auto *FD = dynCast<FunctionDecl>(S.actOnDeclarator(D));
   if (!FD)
     Diag.fatalAt(BegLoc, "expected function declaration");
 
   return parseFunctionBody(BegLoc, FD);
+}
+
+// struct-decl: 'struct' '{' struct-decl-list '}'
+// TODO       | 'struct' ident
+// TODO       | 'struct' ident '{' struct-decl-list '}'
+RecordDecl *Parser::parseStructDecl() {
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Struct);
+  auto Loc = SM.createBeginLocation(CurTok);
+  std::string_view Ident;
+  if (CurTok->is(Token::TK_Ident)) {
+    // TODO: handle struct declaration with identifier.
+    return nullptr;
+  }
+
+  if (tryConsume(Token::TK_LBrace)) {
+    auto *Record = S.actOnRecordDecl(Loc, BegLoc, BegLoc, Ident);
+    enterScope(Scope::StructScope, Record);
+    std::vector<FieldDecl *> Fields = parseFields();
+    int Offset = 0;
+    for (auto *Field : Fields) {
+      Field->setOffset(Offset);
+      Offset += Field->getType()->getSize();
+    }
+
+    QualType RT = Ctx.getRecordType(Record, static_cast<std::size_t>(Offset));
+    Record->setTypeForDecl(RT.getTypePtr());
+    Record->setFields(std::move(Fields));
+    Record->setEndLoc(SM.createBeginLocation(CurTok));
+    skip(Token::TK_RBrace);
+    exitScope();
+    return Record;
+  }
+
+  return nullptr;
+}
+
+std::vector<FieldDecl *> Parser::parseFields() {
+  std::vector<FieldDecl *> Fields;
+  while (CurTok->isNot(Token::TK_RBrace)) {
+    DeclSpec DS;
+    parseDeclSpec(DS);
+    Fields.push_back(parseField(DS));
+    while (tryConsume(Token::TK_Comma))
+      Fields.push_back(parseField(DS));
+    skip(Token::TK_Semicolon);
+  }
+  return Fields;
 }
 
 // stmt: return-stmt
@@ -127,6 +175,7 @@ Stmt *Parser::parseStmt() {
     return parseWhileStmt();
   case Token::TK_Int:
   case Token::TK_Char:
+  case Token::TK_Struct:
     return parseDeclStmt();
   default:
     break;
@@ -161,11 +210,11 @@ Stmt *Parser::parseCompoundStmt() {
   enterScope(Scope::CompoundScope);
   skip();
   std::vector<Stmt *> Stmts;
-  while (CurTok->isNot(Token::TK_RBRace))
+  while (CurTok->isNot(Token::TK_RBrace))
     Stmts.push_back(parseStmt());
 
   auto EndLoc = SM.createBeginLocation(CurTok);
-  skip(Token::TK_RBRace);
+  skip(Token::TK_RBrace);
   exitScope();
   return S.actOnCompoundStmt(BegLoc, EndLoc, std::move(Stmts));
 }
@@ -236,7 +285,7 @@ Stmt *Parser::parseDeclStmt() {
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
-// declspec: int | char
+// declspec: int | char | structDecl
 void Parser::parseDeclSpec(DeclSpec &DS) {
   auto TyLoc = SM.createBeginLocation(CurTok);
   if (tryConsume(Token::TK_Int)) {
@@ -246,6 +295,13 @@ void Parser::parseDeclSpec(DeclSpec &DS) {
 
   if (tryConsume(Token::TK_Char)) {
     DS.setTypeSpecType(DeclSpec::TST_Char, TyLoc);
+    return;
+  }
+
+  if (CurTok->is(Token::TK_Struct)) {
+    DS.setTypeSpecType(DeclSpec::TST_Struct, TyLoc);
+    RecordDecl *Record = parseStructDecl();
+    DS.setRepDecl(Record);
     return;
   }
 }
@@ -265,7 +321,7 @@ Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
   Declarator D(DS);
   parseDeclarator(D);
   Decl *DR = S.actOnDeclarator(D);
-  auto *Var = dyn_cast<VarDecl>(DR);
+  auto *Var = dynCast<VarDecl>(DR);
   if (!Var)
     Diag.fatalAt(D.getLocation(), "expect variable declarator");
 
@@ -342,6 +398,17 @@ void Parser::parseDirectDeclarator(Declarator &D) {
     skip(Token::TK_RSquare);
     D.addDeclChunk(DeclaratorChunk::createArray(LenExpr));
   }
+}
+
+FieldDecl *Parser::parseField(DeclSpec &DS) {
+  Declarator D(DS);
+  parseDeclarator(D);
+  Decl *DR = S.actOnDeclarator(D);
+  auto *Field = dynCast<FieldDecl>(DR);
+  if (!Field)
+    Diag.fatalAt(D.getLocation(), "expect field declarator");
+
+  return Field;
 }
 
 // expr-stmt: expr ';'
@@ -444,16 +511,36 @@ Expr *Parser::parseUnaryExpr() {
 
 // postfix-expr: primary-expr
 //             | postfix-expr '[' expr ']'
+//             | postfix-expr '.' identifier
+// TODO        | postfix-expr '->' identifier
 Expr *Parser::parsePostfixExpr() {
   Expr *LHS = parsePrimaryExpr();
-  while (tryConsume(Token::TK_LSquare)) {
-    Expr *RHS = parseExpr();
-    auto EndLoc = SM.createBeginLocation(CurTok);
-    skip(Token::TK_RSquare);
-    LHS = S.actOnArraySubscriptExpr(EndLoc, LHS, RHS);
-  }
+  while (true) {
+    if (tryConsume(Token::TK_LSquare)) {
+      Expr *RHS = parseExpr();
+      auto EndLoc = SM.createBeginLocation(CurTok);
+      skip(Token::TK_RSquare);
+      LHS = S.actOnArraySubscriptExpr(EndLoc, LHS, RHS);
+      continue;
+    }
 
-  return LHS;
+    auto OpLoc = SM.createBeginLocation(CurTok);
+    if (tryConsume(Token::TK_Dot)) {
+      if (!CurTok->is(Token::TK_Ident)) {
+        SourceLocation Loc = SM.createBeginLocation(CurTok);
+        Diag.fatalAt(Loc, "expect identifier after '.'");
+        return nullptr;
+      }
+
+      std::string_view Ident = CurTok->getIdentifer();
+      auto EndLoc = SM.createEndLocation(CurTok);
+      skip();
+      LHS = S.actOnMemberAccessExpr(OpLoc, EndLoc, LHS, Ident, false);
+      continue;
+    }
+
+    return LHS;
+  }
 }
 
 // primary-expr: paren-expr
@@ -590,8 +677,8 @@ Expr *Parser::parseBinaryExpr() {
 
 Scope *Parser::getCurrScope() const { return S.getCurrScope(); }
 
-void Parser::enterScope(unsigned ScopeFlags) {
-  S.CurrScope = new Scope(getCurrScope(), ScopeFlags);
+void Parser::enterScope(unsigned ScopeFlags, Decl *ScopeDecl) {
+  S.CurrScope = new Scope(getCurrScope(), ScopeFlags, ScopeDecl);
 }
 
 void Parser::exitScope() {

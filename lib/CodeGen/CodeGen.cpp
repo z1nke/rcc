@@ -41,12 +41,12 @@ void CodeGen::codegen(const TranslationUnitDecl *TU, const char *Input) {
 
 void CodeGen::emitData(const TranslationUnitDecl *TU) {
   for (const auto *D : TU->decls()) {
-    if (const auto *Var = dyn_cast<VarDecl>(D)) {
+    if (const auto *Var = dynCast<VarDecl>(D)) {
       emit("  .globl {}", Var->getName());
       emit("  .data");
       const auto *Init = Var->getInit();
       if (Init) {
-        if (const auto *SL = dyn_cast<StringLiteral>(Init)) {
+        if (const auto *SL = dynCast<StringLiteral>(Init)) {
           emit("{}:", Var->getName());
           // emit("  .asciz \"{}\"", SL->getString());
           for (char C : SL->getString())
@@ -75,7 +75,7 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
 
 void CodeGen::emitText(const TranslationUnitDecl *TU) {
   for (const auto *D : TU->decls()) {
-    if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
+    if (const auto *FD = dynCast<FunctionDecl>(D)) {
       genFunction(FD);
     }
   }
@@ -126,7 +126,7 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     }
   }
 
-  if (const auto *CS = dyn_cast<CompoundStmt>(FD->getBody())) {
+  if (const auto *CS = dynCast<CompoundStmt>(FD->getBody())) {
     for (const Stmt *S : CS->getBody()) {
       genStmt(S);
       assert(Depth == 0);
@@ -147,7 +147,7 @@ void CodeGen::genStmt(const Stmt *S) {
   const SourceManager &SM = Diag.getSourceManager();
   emit("  .loc 1 {}", SM.getLineNumber(S->getBeginLoc()));
 
-  if (const auto *E = dyn_cast<Expr>(S)) {
+  if (const auto *E = dynCast<Expr>(S)) {
     genExpr(E);
     return;
   }
@@ -186,7 +186,7 @@ void CodeGen::genStmt(const Stmt *S) {
 void CodeGen::genDeclStmt(const DeclStmt *DS) {
   emit("  # decl-stmt");
   for (auto *D : DS->getDecls()) {
-    if (const auto *Var = dyn_cast<VarDecl>(D)) {
+    if (const auto *Var = dynCast<VarDecl>(D)) {
       const auto *Init = Var->getInit();
       if (!Init)
         continue;
@@ -292,6 +292,12 @@ void CodeGen::genExpr(const Expr *E) {
     const auto *Ref = cast<DeclRefExpr>(E);
     genAddr(Ref->getDecl()); // a0 = addr
     load(Ref->getTypePtr()); // a0 = *a0
+    break;
+  }
+  case Stmt::SK_MemberExpr: {
+    const auto *Member = cast<MemberExpr>(E);
+    genAddr(Member);            // a0 = addr
+    load(Member->getTypePtr()); // a0 = *a0
     break;
   }
   case Stmt::SK_CallExpr:
@@ -539,6 +545,9 @@ void CodeGen::genAddr(const Expr *E) {
   case Stmt::SK_ParenExpr:
     genAddr(cast<ParenExpr>(E)->getSubExpr());
     return;
+  case Stmt::SK_MemberExpr:
+    genAddr(cast<MemberExpr>(E));
+    return;
   default:
     break;
   }
@@ -571,7 +580,7 @@ void CodeGen::genAddr(const ArraySubscriptExpr *ASE) {
 }
 
 void CodeGen::genAddr(const Decl *D) {
-  const auto *Var = dyn_cast<VarDecl>(D);
+  const auto *Var = dynCast<VarDecl>(D);
   if (!Var)
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
 
@@ -588,6 +597,14 @@ void CodeGen::genAddr(const Decl *D) {
 void CodeGen::genAddr(const StringLiteral *SL) {
   emit("  # get address of string literal");
   emit("  la a0, {}", getStringLabel(SL));
+}
+
+void CodeGen::genAddr(const MemberExpr *ME) {
+  emit("  # get address of member expr");
+  const auto *Base = ME->getBase();
+  genAddr(Base);                                         // a0 = addrof base
+  emit("  li t0, {}", ME->getMemberDecl()->getOffset()); // t0 = offset
+  emit("  add a0, a0, t0"); // a0 = addrof base + offset
 }
 
 void CodeGen::push() {

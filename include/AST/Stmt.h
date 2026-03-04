@@ -5,7 +5,6 @@
 #include "Basic/SourceLocation.h"
 
 #include <cstdint>
-#include <string_view>
 #include <vector>
 
 namespace rcc {
@@ -26,15 +25,16 @@ public:
 #include "AST/Stmt.def"
   };
 
-  Stmt(StmtKind Kind, SourceLocation BegLoc = SourceLocation(),
-       SourceLocation EndLoc = SourceLocation())
-      : Kind(Kind), BegLoc(BegLoc), EndLoc(EndLoc) {}
-
   StmtKind getKind() const { return Kind; }
   const char *getKindStr() const;
   SourceLocation getBeginLoc() const { return BegLoc; }
   SourceLocation getEndLoc() const { return EndLoc; }
   void dump() const;
+
+protected:
+  Stmt(StmtKind Kind, SourceLocation BegLoc = SourceLocation(),
+       SourceLocation EndLoc = SourceLocation())
+      : Kind(Kind), BegLoc(BegLoc), EndLoc(EndLoc) {}
 
 private:
   StmtKind Kind = NoStmtKind;
@@ -42,7 +42,7 @@ private:
   SourceLocation EndLoc;
 };
 
-class DeclStmt : public Stmt {
+class DeclStmt final : public Stmt {
 public:
   static DeclStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
                           SourceLocation EndLoc, std::vector<Decl *> Decls);
@@ -53,7 +53,7 @@ public:
   Decl *getDecl(unsigned Idx) const { return Decls[Idx]; }
   const std::vector<Decl *> &getDecls() const { return Decls; }
 
-protected:
+private:
   DeclStmt(SourceLocation BegLoc, SourceLocation EndLoc,
            std::vector<Decl *> Decls);
 
@@ -61,7 +61,7 @@ private:
   std::vector<Decl *> Decls;
 };
 
-class CompoundStmt : public Stmt {
+class CompoundStmt final : public Stmt {
 public:
   static CompoundStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
                               SourceLocation EndLoc, std::vector<Stmt *> Body);
@@ -71,7 +71,7 @@ public:
   const std::vector<Stmt *> &getBody() const { return Body; }
   std::vector<Stmt *> &getBody() { return Body; }
 
-protected:
+private:
   CompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                std::vector<Stmt *> Body);
 
@@ -97,7 +97,7 @@ private:
   QualType Ty;
 };
 
-class ReturnStmt : public Stmt {
+class ReturnStmt final : public Stmt {
 public:
   static ReturnStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
                             SourceLocation EndLoc, Expr *RetVal);
@@ -106,25 +106,25 @@ public:
 
   Expr *getRetValue() const { return RetVal; }
 
-protected:
+private:
   ReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *RetVal);
 
 private:
   Expr *RetVal;
 };
 
-class NullStmt : public Stmt {
+class NullStmt final : public Stmt {
 public:
   static NullStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
                           SourceLocation EndLoc);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_NullStmt; }
 
-protected:
+private:
   NullStmt(SourceLocation BegLoc, SourceLocation EndLoc);
 };
 
-class IfStmt : public Stmt {
+class IfStmt final : public Stmt {
 public:
   static IfStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
                         SourceLocation EndLoc, Expr *Cond, Stmt *Then,
@@ -136,7 +136,7 @@ public:
   Stmt *getThen() const { return Then; }
   Stmt *getElse() const { return Else; }
 
-protected:
+private:
   IfStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond, Stmt *Then,
          Stmt *Else);
 
@@ -146,7 +146,7 @@ private:
   Stmt *Else;
 };
 
-class ForStmt : public Stmt {
+class ForStmt final : public Stmt {
 public:
   static ForStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
                          SourceLocation EndLoc, Stmt *Init, Expr *Cond,
@@ -159,7 +159,7 @@ public:
   Expr *getInc() const { return Inc; }
   Stmt *getBody() const { return Body; }
 
-protected:
+private:
   ForStmt(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *Init, Expr *Cond,
           Expr *Inc, Stmt *Body);
 
@@ -170,7 +170,7 @@ private:
   Stmt *Body;
 };
 
-class WhileStmt : public Stmt {
+class WhileStmt final : public Stmt {
 public:
   static WhileStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, Expr *Cond, Stmt *Body);
@@ -180,7 +180,7 @@ public:
   Expr *getCond() const { return Cond; }
   Stmt *getBody() const { return Body; }
 
-protected:
+private:
   WhileStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
             Stmt *Body);
 
@@ -189,7 +189,7 @@ private:
   Stmt *Body;
 };
 
-class UnaryOperator : public Expr {
+class UnaryOperator final : public Expr {
 public:
   enum Opcode {
     UO_Plus,
@@ -211,7 +211,7 @@ public:
   Opcode getOpcode() const { return Kind; }
   const char *getOpcodeStr() const;
 
-protected:
+private:
   UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                 Expr *SubExpr, Opcode Op);
 
@@ -220,7 +220,7 @@ private:
   Opcode Kind;
 };
 
-class BinaryOperator : public Expr {
+class BinaryOperator final : public Expr {
 public:
   enum Opcode {
     BO_Assign,
@@ -252,7 +252,7 @@ public:
   Expr *getLHS() const { return LHS; }
   Expr *getRHS() const { return RHS; }
 
-protected:
+private:
   BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                  SourceLocation OpLoc, Expr *LHS, Expr *RHS, Opcode Op);
 
@@ -263,7 +263,7 @@ private:
   SourceLocation OpLoc;
 };
 
-class IntegerLiteral : public Expr {
+class IntegerLiteral final : public Expr {
 public:
   static IntegerLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
                                 SourceLocation EndLoc, QualType T,
@@ -275,7 +275,7 @@ public:
 
   std::int64_t getVal() const { return Val; }
 
-protected:
+private:
   IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                  std::int64_t Val);
 
@@ -284,7 +284,7 @@ private:
   std::int64_t Val;
 };
 
-class StringLiteral : public Expr {
+class StringLiteral final : public Expr {
 public:
   static StringLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
                                SourceLocation EndLoc, QualType T,
@@ -296,7 +296,7 @@ public:
 
   const std::string &getString() const { return Str; }
 
-protected:
+private:
   StringLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                 std::string Str);
 
@@ -321,7 +321,7 @@ private:
   Expr *SubExpr;
 };
 
-class DeclRefExpr : public Expr {
+class DeclRefExpr final : public Expr {
 public:
   static DeclRefExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
                              SourceLocation EndLoc, QualType T, ValueDecl *D);
@@ -330,7 +330,7 @@ public:
 
   ValueDecl *getDecl() const { return D; }
 
-protected:
+private:
   DeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
               ValueDecl *D);
 
@@ -338,7 +338,7 @@ private:
   ValueDecl *D;
 };
 
-class ArraySubscriptExpr : public Expr {
+class ArraySubscriptExpr final : public Expr {
 public:
   static ArraySubscriptExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
                                     SourceLocation EndLoc, QualType T,
@@ -358,7 +358,7 @@ public:
   const Expr *getRHS() const { return RHS; }
   Expr *getRHS() { return RHS; }
 
-protected:
+private:
   ArraySubscriptExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                      Expr *LHS, Expr *RHS);
 
@@ -370,7 +370,7 @@ private:
   Expr *RHS;
 };
 
-class CallExpr : public Expr {
+class CallExpr final : public Expr {
 public:
   static CallExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
                           SourceLocation EndLoc, QualType T,
@@ -388,11 +388,12 @@ private:
   CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
            DeclRefExpr *Callee, std::vector<Expr *> Args);
 
+private:
   DeclRefExpr *Callee;
   std::vector<Expr *> Args;
 };
 
-class UnaryExprOrTypeTraitExpr : public Expr {
+class UnaryExprOrTypeTraitExpr final : public Expr {
 public:
   static UnaryExprOrTypeTraitExpr *create(ASTContext &Ctx,
                                           SourceLocation BegLoc,
@@ -438,7 +439,33 @@ private:
   } Argument;
 };
 
-class StmtExpr : public Expr {
+class FieldDecl;
+
+class MemberExpr final : public Expr {
+public:
+  static MemberExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                            SourceLocation OpLoc, SourceLocation EndLoc,
+                            QualType T, Expr *Base, FieldDecl *Field,
+                            bool IsArrow);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_MemberExpr; }
+
+  const Expr *getBase() const { return Base; }
+  bool isArrow() const { return IsArrow; }
+  FieldDecl *getMemberDecl() const { return Member; }
+
+private:
+  MemberExpr(SourceLocation BegLoc, SourceLocation OpLoc, SourceLocation EndLoc,
+             QualType T, Expr *Base, FieldDecl *Field, bool IsArrow);
+
+private:
+  SourceLocation OpLoc;
+  const Expr *Base;
+  FieldDecl *Member;
+  bool IsArrow;
+};
+
+class StmtExpr final : public Expr {
 public:
   static StmtExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
                           SourceLocation EndLoc, QualType T,

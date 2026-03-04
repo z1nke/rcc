@@ -53,6 +53,8 @@ public:
   void visit(const CallExpr *Call);
   void visit(const ArraySubscriptExpr *ASE);
   void visit(const UnaryExprOrTypeTraitExpr *UE);
+  void visit(const MemberExpr *ME);
+  void visit(const StmtExpr *SE);
 
 private:
   friend class ScopedIndent;

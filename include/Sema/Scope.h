@@ -36,9 +36,12 @@ public:
 
     // Compound scope: in a compound statement.
     CompoundScope = 0x80,
+
+    // Struct scope: in a struct declaration.
+    StructScope = 0x100,
   };
 
-  Scope(Scope *Parent, unsigned Flags);
+  Scope(Scope *Parent, unsigned Flags, Decl *DeclCtx = nullptr);
 
   void addDecl(Decl *D);
   void removeDecl(Decl *D);
@@ -48,12 +51,18 @@ public:
   unsigned getFlags() const { return Flags; }
   const auto &decls() const { return Decls; }
 
+  bool isStructScope() const { return Flags & StructScope; }
+
+  const Decl *getDeclContext() const { return DeclCtx; }
+  Decl *getDeclContext() { return DeclCtx; }
+
 private:
   std::unordered_set<Decl *> Decls;
   Scope *Parent;
   // The depth of translation unit is 0.
   unsigned Depth;
   unsigned Flags;
+  Decl *DeclCtx;
 };
 
 } // namespace rcc

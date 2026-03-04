@@ -34,6 +34,9 @@ std::unique_ptr<CompilerInstance> CompilerInstance::create(int Argc,
 
 void CompilerInstance::run() {
   const char *Output = Invocation->getOutputPath().c_str();
+  if (Output == nullptr || Output[0] == '\0')
+    Output = "a.out";
+
   FILE *Fp = std::fopen(Output, "w");
   if (!Fp)
     Diag->fatal("open {} failed", Output);

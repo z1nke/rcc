@@ -11,6 +11,8 @@ namespace rcc {
 
 class QualType;
 class Type;
+class TagDecl;
+class RecordDecl;
 
 class Qualifiers {
 public:
@@ -44,6 +46,8 @@ class QualType {
 public:
   QualType() = default;
   QualType(const Type *Ptr, unsigned Quals = 0);
+  QualType(const QualType &) = default;
+  QualType &operator=(const QualType &) = default;
 
   void *getOpaquePtr() const { return Value; }
 
@@ -59,11 +63,7 @@ public:
   const Type *operator->() const { return getTypePtr(); }
 
   QualType getCanonicalType() const;
-
   bool isIntegerType() const;
-
-  QualType(const QualType &) = default;
-  QualType &operator=(const QualType &) = default;
 
 private:
   void *Value = nullptr;
@@ -77,12 +77,10 @@ public:
     TK_Typedef,
     TK_Function,
     TK_ConstantArray,
+    TK_Record,
+    TK_Enum,
   };
 
-  Type(TypeKind Kind) : Kind(Kind) {}
-  Type(TypeKind Kind, std::size_t Size) : Kind(Kind), Size(Size) {}
-  Type(const Type &) = delete;
-  Type(Type &&) = delete;
   Type &operator=(const Type &) = delete;
   Type &operator=(Type &&) = delete;
 
@@ -105,29 +103,34 @@ public:
   QualType getPointeeOrArrayElementType() const;
 
   template <typename To> const To *getAs() const {
-    if (const auto *Ty = dyn_cast<To>(this))
+    if (const auto *Ty = dynCast<To>(this))
       return Ty;
 
     if (Kind != TK_Typedef)
       return nullptr;
 
-    return dyn_cast<To>(getCanonicalType());
+    return dynCast<To>(getCanonicalType());
   }
+
+  RecordDecl *getAsRecordDecl() const;
+  TagDecl *getAsTagDecl() const;
+
+protected:
+  Type(TypeKind Kind, std::size_t Size) : Kind(Kind), Size(Size) {}
+  Type(const Type &) = delete;
+  Type(Type &&) = delete;
 
 private:
   TypeKind Kind;
   std::size_t Size = 0;
 };
 
-class BuiltinType : public Type {
+class BuiltinType final : public Type {
 public:
   enum Kind {
     BK_Int,
     BK_Char,
   };
-
-  explicit BuiltinType(Kind BK, std::size_t Size)
-      : Type(TK_Builtin, Size), BK(BK) {}
 
   static bool classof(const Type *T) {
     return T->getTypeKind() == Type::TK_Builtin;
@@ -139,32 +142,37 @@ public:
   const char *getKindStr() const;
 
 private:
+  friend class ASTContext;
+
+  explicit BuiltinType(Kind BK, std::size_t Size)
+      : Type(TK_Builtin, Size), BK(BK) {}
+
+private:
   Kind BK;
 };
 
-class PointerType : public Type {
+class PointerType final : public Type {
 public:
   static bool classof(const Type *T) {
     return T->getTypeKind() == Type::TK_Pointer;
   }
 
+  QualType getPointeeType() const { return PointeeType; }
+
+private:
+  friend class ASTContext;
+
   explicit PointerType(QualType Pointee)
       : Type(TK_Pointer, 8), PointeeType(Pointee) {}
-
-  QualType getPointeeType() const { return PointeeType; }
 
 private:
   QualType PointeeType;
 };
 
-class FunctionType : public Type {
+class FunctionType final : public Type {
 public:
   static bool classof(const Type *T) {
     return T->getTypeKind() == TypeKind::TK_Function;
-  }
-
-  FunctionType(QualType RetType, std::vector<QualType> ParamTypes)
-      : Type(TK_Function), RetType(RetType), ParamTypes(std::move(ParamTypes)) {
   }
 
   QualType getReturnType() const { return RetType; }
@@ -172,6 +180,13 @@ public:
   unsigned getNumParams() const { return ParamTypes.size(); }
   QualType getParamType(unsigned Idx) const { return ParamTypes[Idx]; }
   const std::vector<QualType> &getParamTypes() const { return ParamTypes; }
+
+private:
+  friend class ASTContext;
+
+  FunctionType(QualType RetType, std::vector<QualType> ParamTypes)
+      : Type(TK_Function, 0), RetType(RetType),
+        ParamTypes(std::move(ParamTypes)) {}
 
 private:
   // TODO: Function type details.
@@ -185,36 +200,78 @@ public:
     return T->getTypeKind() == Type::TK_ConstantArray;
   }
 
+  QualType getElementType() const { return ElementType; }
+
+protected:
+  friend class ASTContext;
+
   ArrayType(QualType ElementType, std::size_t Len)
       : Type(TK_ConstantArray, Len * ElementType->getSize()),
         ElementType(ElementType) {}
-
-  QualType getElementType() const { return ElementType; }
 
 private:
   QualType ElementType;
 };
 
-class ConstantArrayType : public ArrayType {
+class ConstantArrayType final : public ArrayType {
 public:
   static bool classof(const Type *T) {
     return T->getTypeKind() == Type::TK_ConstantArray;
   }
 
-  ConstantArrayType(QualType ElementType, std::size_t Len)
-      : ArrayType(ElementType, Len), Len(Len) {}
-
   std::size_t getLength() const { return Len; }
 
 private:
+  friend class ASTContext;
+
+  ConstantArrayType(QualType ElementType, std::size_t Len)
+      : ArrayType(ElementType, Len), Len(Len) {}
+
+private:
   std::size_t Len;
+};
+
+class TagType : public Type {
+public:
+  TagDecl *getDecl() const { return TD; }
+
+  static bool classof(const Type *T) {
+    auto Kind = T->getTypeKind();
+    return Kind == Type::TK_Record || Kind == Type::TK_Enum;
+  }
+
+protected:
+  friend class ASTContext;
+
+  TagType(TypeKind TK, std::size_t Size, TagDecl *TD)
+      : Type(TK, Size), TD(TD) {}
+
+private:
+  TagDecl *TD;
+};
+
+class RecordType final : public TagType {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_Record;
+  }
+
+  RecordDecl *getDecl() const {
+    return reinterpret_cast<RecordDecl *>(TagType::getDecl());
+  }
+
+private:
+  friend class ASTContext;
+
+  RecordType(RecordDecl *RD, std::size_t Size)
+      : TagType(TK_Record, Size, reinterpret_cast<TagDecl *>(RD)) {}
 };
 
 template <typename To> inline bool isa(QualType T) {
   return isa<To>(T.getTypePtr());
 }
 
-template <typename To> inline const To *dyn_cast(QualType T) { // NOLINT
+template <typename To> inline const To *dynCast(QualType T) {
   return isa<To>(T) ? static_cast<const To *>(T.getTypePtr()) : nullptr;
 }
 

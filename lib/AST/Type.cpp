@@ -1,4 +1,5 @@
 #include "AST/Type.h"
+#include "AST/Decl.h"
 #include "Support/Casting.h"
 #include "Support/Unreachable.h"
 
@@ -86,6 +87,17 @@ static TypeDumper dumpToString(QualType T) {
     }
     return Dumper;
   }
+  case Type::TK_Record: {
+    const auto *RT = cast<RecordType>(Ty);
+    const auto *Record = dynCast<RecordDecl>(RT->getDecl());
+    if (!Record)
+      RCC_UNREACHABLE("Unknown record decl");
+
+    TypeDumper Dumper;
+    Dumper.Base = "struct ";
+    Dumper.Postfix = Record->getName();
+    return Dumper;
+  }
   default:
     RCC_UNREACHABLE("Unknown type kind");
   }
@@ -102,7 +114,7 @@ QualType QualType::getCanonicalType() const {
 }
 
 bool QualType::isIntegerType() const {
-  if (const auto *BT = dyn_cast<BuiltinType>(getCanonicalType()))
+  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
     return BT->isIntegerType();
 
   return false;
@@ -120,7 +132,7 @@ QualType Type::getCanonicalType() const {
 
 bool Type::isScalarType() const {
   QualType CanonicalType = getCanonicalType();
-  if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType)) {
+  if (const auto *BT = dynCast<BuiltinType>(CanonicalType)) {
     // TODO: Other builtin type.
     return BT->isIntegerType();
   }
@@ -130,7 +142,7 @@ bool Type::isScalarType() const {
 
 bool Type::isArithmeticType() const {
   QualType CanonicalType = getCanonicalType();
-  if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType)) {
+  if (const auto *BT = dynCast<BuiltinType>(CanonicalType)) {
     // TODO: Other builtin type.
     return BT->isIntegerType();
   }
@@ -138,14 +150,14 @@ bool Type::isArithmeticType() const {
 }
 
 QualType Type::getPointeeType() const {
-  if (const auto *PtrTy = dyn_cast<PointerType>(this))
+  if (const auto *PtrTy = dynCast<PointerType>(this))
     return PtrTy->getPointeeType();
 
   return QualType();
 }
 
 QualType Type::getBaseElementType() const {
-  if (const auto *AT = dyn_cast<ArrayType>(this))
+  if (const auto *AT = dynCast<ArrayType>(this))
     return AT->getElementType();
   return QualType();
 }
@@ -155,11 +167,21 @@ const Type *Type::getPointeeOrArrayElementTypePtr() const {
 }
 
 QualType Type::getPointeeOrArrayElementType() const {
-  if (const auto *PtrTy = dyn_cast<PointerType>(this))
+  if (const auto *PtrTy = dynCast<PointerType>(this))
     return PtrTy->getPointeeType();
-  if (const auto *AT = dyn_cast<ArrayType>(this))
+  if (const auto *AT = dynCast<ArrayType>(this))
     return AT->getElementType();
   return QualType();
+}
+
+RecordDecl *Type::getAsRecordDecl() const {
+  return dynCastOrNull<RecordDecl>(getAsTagDecl());
+}
+
+TagDecl *Type::getAsTagDecl() const {
+  if (const auto *TT = getAs<TagType>())
+    return TT->getDecl();
+  return nullptr;
 }
 
 const char *BuiltinType::getKindStr() const {

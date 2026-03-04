@@ -278,6 +278,20 @@ void ASTDumper::visit(const UnaryExprOrTypeTraitExpr *UE) {
   visit(UE->getArgumentExpr());
 }
 
+void ASTDumper::visit(const MemberExpr *ME) {
+  std::println(stderr, "MemberExpr '{}' {} {}", ME->getType().getAsString(),
+               ME->isArrow() ? "->" : ".",
+               ME->getBase()->getType().getAsString());
+  ScopedIndent SI(*this, true);
+  visit(ME->getBase());
+}
+
+void ASTDumper::visit(const StmtExpr *SE) {
+  printName("StmtExpr");
+  ScopedIndent SI(*this, true);
+  visit(SE->getSubStmt());
+}
+
 void ASTDumper::printName(const char *Name) const {
   std::println(stderr, "{}", Name);
 }

@@ -16,12 +16,21 @@ inline bool isa(const Y &Val) {
 }
 
 template <typename To, typename From>
-inline const To *dyn_cast(const From *Val) { // NOLINT
+inline const To *dynCast(const From *Val) {
   return isa<To>(Val) ? static_cast<const To *>(Val) : nullptr;
 }
 
-template <typename To, typename From> inline To *dyn_cast(From *Val) { // NOLINT
+template <typename To, typename From> inline To *dynCast(From *Val) {
   return isa<To>(Val) ? static_cast<To *>(Val) : nullptr;
+}
+
+template <typename To, typename From>
+inline const To *dynCastOrNull(const From *Val) {
+  return Val ? dynCast<To>(Val) : nullptr;
+}
+
+template <typename To, typename From> inline To *dynCastOrNull(From *Val) {
+  return Val ? dynCast<To>(Val) : nullptr;
 }
 
 template <typename To, typename From> inline const To *cast(const From *Val) {

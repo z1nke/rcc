@@ -20,6 +20,7 @@ class VarDecl;
 class ParamVarDecl;
 class Declarator;
 class FunctionDecl;
+class FieldDecl;
 
 class Sema {
 public:
@@ -31,6 +32,7 @@ public:
 
   Decl *actOnDeclarator(Declarator &D);
   VarDecl *actOnVarDecl(Declarator &D, QualType T);
+  FieldDecl *actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent);
   ParamVarDecl *actOnParamVarDecl(Declarator &D, unsigned Index);
   FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                                   SourceLocation BegLoc, SourceLocation EndLoc,
@@ -38,6 +40,9 @@ public:
                                   Stmt *Body);
   FunctionDecl *actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                   Stmt *Body);
+
+  RecordDecl *actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
+                              SourceLocation EndLoc, std::string_view Ident);
 
   void complete(FunctionDecl *FD);
 
@@ -71,6 +76,8 @@ public:
   Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                       Stmt *SubStmt);
   Expr *actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS, Expr *RHS);
+  Expr *actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc, Expr *Base,
+                              std::string_view Ident, bool IsArrow);
 
 public:
   Scope *getCurrScope() const { return CurrScope; }
@@ -102,6 +109,7 @@ private:
   ASTContext &Ctx;
   Diagnostic &Diag;
   Scope *CurrScope = nullptr;
+  Decl *CurrScopeDecl = nullptr;
 
   std::vector<VarDecl *> LocalVars;
   std::vector<ParamVarDecl *> Params;

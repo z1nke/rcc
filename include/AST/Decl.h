@@ -21,6 +21,12 @@ public:
     DK_TranslationUnit,
     DK_Var,
     DK_Function,
+    DK_Field,
+    DK_Record,
+    FirstTypeDeclKind = DK_Record,
+    LastTypeDeclKind = DK_Record,
+    FirstTagDeclKind = DK_Record,
+    LastTagDeclKind = DK_Record,
   };
 
   Decl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
@@ -53,7 +59,7 @@ private:
   bool IsImplicit = false;
 };
 
-class TranslationUnitDecl : public Decl {
+class TranslationUnitDecl final : public Decl {
 public:
   static TranslationUnitDecl *create(ASTContext &Ctx);
 
@@ -126,10 +132,10 @@ private:
   Expr *Init = nullptr;
   // Temporary handling.
   int Offset = 0;
-  bool IsGlobal;
+  bool IsGlobal = false;
 };
 
-class ParamVarDecl : public VarDecl {
+class ParamVarDecl final : public VarDecl {
 public:
   static ParamVarDecl *create(ASTContext &Ctx, SourceLocation Loc,
                               SourceLocation BegLoc, SourceLocation EndLoc,
@@ -146,7 +152,7 @@ private:
   unsigned Index = 0;
 };
 
-class FunctionDecl : public ValueDecl {
+class FunctionDecl final : public ValueDecl {
 public:
   static FunctionDecl *create(ASTContext &Ctx, SourceLocation Loc,
                               SourceLocation BegLoc, SourceLocation EndLoc,
@@ -175,6 +181,104 @@ private:
   Stmt *Body = nullptr;
   std::vector<ParamVarDecl *> Params;
   std::vector<VarDecl *> LocalVars; // Temporary handling.
+};
+
+class RecordDecl;
+
+class FieldDecl final : public ValueDecl {
+public:
+  static FieldDecl *create(ASTContext &Ctx, SourceLocation Loc,
+                           SourceLocation BegLoc, SourceLocation EndLoc,
+                           QualType T, std::string Name, RecordDecl *Parent);
+
+  static bool classof(const Decl *D) { return D->getKind() == DK_Field; }
+
+  int getOffset() const { return Offset; }
+  void setOffset(int Offset) { this->Offset = Offset; }
+
+  RecordDecl *getParent() const { return Parent; }
+
+private:
+  FieldDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+            SourceLocation EndLoc, QualType T, std::string Name,
+            RecordDecl *Parent);
+
+private:
+  int Offset = 0;
+  RecordDecl *Parent = nullptr; // Temporary handling.
+};
+
+class TypeDecl : public NamedDecl {
+public:
+  const Type *getTypeForDecl() const { return Ty; }
+  void setTypeForDecl(const Type *Ty) { this->Ty = Ty; }
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+
+  static bool classofKind(DeclKind DK) {
+    return DK >= FirstTypeDeclKind && DK <= LastTypeDeclKind;
+  }
+
+  QualType getType() const { return QualType(Ty, 0); }
+
+protected:
+  TypeDecl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
+           SourceLocation BegLoc, SourceLocation EndLoc, std::string Name)
+      : NamedDecl(Ctx, Kind, Loc, BegLoc, EndLoc, std::move(Name)) {}
+
+private:
+  const Type *Ty = nullptr;
+};
+
+class TagDecl : public TypeDecl {
+public:
+  enum TagKind : std::uint8_t {
+    TK_Struct,
+    TK_Union,
+    TK_Enum,
+  };
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(DeclKind DK) {
+    return DK >= FirstTagDeclKind && DK <= LastTagDeclKind;
+  }
+
+  TagKind getTagKind() const { return TK; }
+  void setTagKind(TagKind TK) { this->TK = TK; }
+
+  bool isStruct() const { return TK == TK_Struct; }
+  bool isUnion() const { return TK == TK_Union; }
+  bool isEnum() const { return TK == TK_Enum; }
+
+protected:
+  TagDecl(ASTContext &Ctx, DeclKind DK, TagKind TK, SourceLocation Loc,
+          SourceLocation BegLoc, SourceLocation EndLoc, std::string Name)
+      : TypeDecl(Ctx, DK, Loc, BegLoc, EndLoc, std::move(Name)), TK(TK) {}
+
+private:
+  TagKind TK;
+};
+
+class RecordDecl final : public TagDecl {
+public:
+  static RecordDecl *create(ASTContext &Ctx, SourceLocation Loc,
+                            SourceLocation BegLoc, SourceLocation EndLoc,
+                            std::string Name, TagKind TK);
+
+  static bool classof(const Decl *D) { return D->getKind() == DK_Record; }
+
+  const std::vector<FieldDecl *> &fields() const { return Fields; }
+  void addField(FieldDecl *D) { Fields.push_back(D); }
+  void setFields(std::vector<FieldDecl *> Fields) {
+    this->Fields = std::move(Fields);
+  }
+
+private:
+  RecordDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+             SourceLocation EndLoc, std::string Name, TagKind TK);
+
+private:
+  std::vector<FieldDecl *> Fields;
 };
 
 } // namespace rcc

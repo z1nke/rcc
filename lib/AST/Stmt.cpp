@@ -125,7 +125,7 @@ void Stmt::dump() const {
 void Expr::setType(QualType T) {
   Ty = T;
   // FIXME: Temporary handling.
-  if (auto *Ref = dyn_cast<DeclRefExpr>(this))
+  if (auto *Ref = dynCast<DeclRefExpr>(this))
     Ref->getDecl()->setType(T);
 }
 
@@ -246,7 +246,7 @@ CallExpr *CallExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
 FunctionDecl *CallExpr::getCalleeDecl() const {
   if (!Callee)
     return nullptr;
-  return dyn_cast<FunctionDecl>(Callee->getDecl());
+  return dynCast<FunctionDecl>(Callee->getDecl());
 }
 
 UnaryExprOrTypeTraitExpr *
@@ -286,6 +286,20 @@ std::size_t UnaryExprOrTypeTraitExpr::getSize() const {
   QualType Ty = Argument.Ex->getType();
   return Ty->getSize();
 }
+
+MemberExpr *MemberExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                               SourceLocation OpLoc, SourceLocation EndLoc,
+                               QualType T, Expr *Base, FieldDecl *Member,
+                               bool IsArrow) {
+  void *Mem = Ctx.allocate(sizeof(MemberExpr), alignof(MemberExpr));
+  return new (Mem) MemberExpr(BegLoc, OpLoc, EndLoc, T, Base, Member, IsArrow);
+}
+
+MemberExpr::MemberExpr(SourceLocation BegLoc, SourceLocation OpLoc,
+                       SourceLocation EndLoc, QualType T, Expr *Base,
+                       FieldDecl *Member, bool IsArrow)
+    : Expr(SK_MemberExpr, BegLoc, EndLoc, T), OpLoc(OpLoc), Base(Base),
+      Member(Member), IsArrow(IsArrow) {}
 
 StmtExpr *StmtExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, QualType T,

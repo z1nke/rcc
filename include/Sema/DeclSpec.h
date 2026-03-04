@@ -9,6 +9,7 @@
 namespace rcc {
 
 class Expr;
+class Decl;
 
 class DeclSpec {
 public:
@@ -16,6 +17,7 @@ public:
     TST_Unspecified,
     TST_Int,
     TST_Char,
+    TST_Struct,
   };
 
   DeclSpec() = default;
@@ -26,9 +28,13 @@ public:
   TypeSpecType getTypeSpecType() const { return TST; }
   SourceLocation getTypeSpecLoc() const { return TSTLoc; }
 
+  Decl *getRepDecl() const { return RepDecl; }
+  void setRepDecl(Decl *D) { RepDecl = D; }
+
 private:
   TypeSpecType TST = TST_Unspecified;
   SourceLocation TSTLoc;
+  Decl *RepDecl = nullptr;
 };
 
 struct DeclaratorChunk {
