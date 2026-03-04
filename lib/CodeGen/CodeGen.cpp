@@ -20,11 +20,13 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   int Offset = 0;
   for (auto *Var : FD->getLocalVars()) {
     Offset += Var->getType()->getSize();
+    Offset = alignTo(Offset, Var->getType()->getAlign());
     Var->setOffset(-Offset);
   }
 
   for (auto *Param : FD->getParams()) {
     Offset += Param->getType()->getSize();
+    Offset = alignTo(Offset, Param->getType()->getAlign());
     Param->setOffset(-Offset);
   }
 
@@ -585,11 +587,10 @@ void CodeGen::genAddr(const Decl *D) {
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
 
   if (Var->hasGlobalStorage()) {
-    emit("  # get address of global variable {}", Var->getName());
+    emit("  # genAddr gvar {}", Var->getName());
     emit("  la a0, {}", Var->getName());
   } else {
-    emit("  # get address of local variable {}, offset={}", Var->getName(),
-         Var->getOffset());
+    emit("  # genAddr lvar {}, offset={}", Var->getName(), Var->getOffset());
     emit("  addi a0, fp, {}", Var->getOffset());
   }
 }
