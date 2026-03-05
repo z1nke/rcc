@@ -604,6 +604,10 @@ void CodeGen::genAddr(const MemberExpr *ME) {
   emit("  # get address of member expr");
   const auto *Base = ME->getBase();
   genAddr(Base);                                         // a0 = addrof base
+  if (ME->isArrow()) {
+    emit("  # deref base of arrow member expr");
+    load(Base->getTypePtr()); // a0 = *a0
+  }
   emit("  li t0, {}", ME->getMemberDecl()->getOffset()); // t0 = offset
   emit("  add a0, a0, t0"); // a0 = addrof base + offset
 }

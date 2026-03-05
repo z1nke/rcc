@@ -259,6 +259,16 @@ Expr *Sema::actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
                                   Expr *Base, std::string_view Ident,
                                   bool IsArrow) {
   QualType BaseType = Base->getType();
+  if (IsArrow) {
+    QualType PointeeType = BaseType->getPointeeType();
+    if (BaseType.isNull()) {
+      Diag.fatalAt(Base->getBeginLoc(),
+                   "member reference type '{}' is not a pointer",
+                   BaseType.getAsString());
+    }
+    BaseType = PointeeType;
+  }
+
   const auto *Record = BaseType->getAsRecordDecl();
   auto BegLoc = Base->getBeginLoc();
   if (!Record)

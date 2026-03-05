@@ -90,8 +90,7 @@ static TypeDumper dumpToString(QualType T) {
   case Type::TK_Record: {
     const auto *RT = cast<RecordType>(Ty);
     const auto *Record = dynCast<RecordDecl>(RT->getDecl());
-    if (!Record)
-      RCC_UNREACHABLE("Unknown record decl");
+    assert(Record);
 
     TypeDumper Dumper;
     Dumper.Base = "struct ";

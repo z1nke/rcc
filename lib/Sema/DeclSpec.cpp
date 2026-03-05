@@ -1,5 +1,4 @@
 #include "Sema/DeclSpec.h"
-#include <algorithm>
 
 namespace rcc {
 

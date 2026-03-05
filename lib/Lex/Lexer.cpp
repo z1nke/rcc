@@ -55,7 +55,10 @@ Token *Lexer::tokenize(const char *P) {
       lexPunctuator(Curr, Token::TK_Plus, P);
       break;
     case '-':
-      lexPunctuator(Curr, Token::TK_Minus, P);
+      if (*(P + 1) == '>')
+        lexPunctuator(Curr, Token::TK_Arrow, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Minus, P);
       break;
     case '*':
       lexPunctuator(Curr, Token::TK_Star, P);

@@ -531,7 +531,7 @@ Expr *Parser::parseUnaryExpr() {
 // postfix-expr: primary-expr
 //             | postfix-expr '[' expr ']'
 //             | postfix-expr '.' identifier
-// TODO        | postfix-expr '->' identifier
+//             | postfix-expr '->' identifier
 Expr *Parser::parsePostfixExpr() {
   Expr *LHS = parsePrimaryExpr();
   while (true) {
@@ -555,6 +555,20 @@ Expr *Parser::parsePostfixExpr() {
       auto EndLoc = SM.createEndLocation(CurTok);
       skip();
       LHS = S.actOnMemberAccessExpr(OpLoc, EndLoc, LHS, Ident, false);
+      continue;
+    }
+
+    if (tryConsume(Token::TK_Arrow)) {
+      if (!CurTok->is(Token::TK_Ident)) {
+        SourceLocation Loc = SM.createBeginLocation(CurTok);
+        Diag.fatalAt(Loc, "expect identifier after '->'");
+        return nullptr;
+      }
+
+      std::string_view Ident = CurTok->getIdentifer();
+      auto EndLoc = SM.createEndLocation(CurTok);
+      skip();
+      LHS = S.actOnMemberAccessExpr(OpLoc, EndLoc, LHS, Ident, true);
       continue;
     }
 
