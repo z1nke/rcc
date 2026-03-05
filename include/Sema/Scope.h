@@ -6,6 +6,7 @@
 namespace rcc {
 
 class Decl;
+class TagDecl;
 
 class Scope {
 public:
@@ -45,11 +46,14 @@ public:
 
   void addDecl(Decl *D);
   void removeDecl(Decl *D);
+  void addTag(TagDecl *D);
+  void removeTag(TagDecl *D);
 
   unsigned getDepth() const { return Depth; }
   Scope *getParent() const { return Parent; }
   unsigned getFlags() const { return Flags; }
   const auto &decls() const { return Decls; }
+  const auto &tags() const { return TagDecls; }
 
   bool isStructScope() const { return Flags & StructScope; }
 
@@ -58,6 +62,7 @@ public:
 
 private:
   std::unordered_set<Decl *> Decls;
+  std::unordered_set<TagDecl *> TagDecls;
   Scope *Parent;
   // The depth of translation unit is 0.
   unsigned Depth;

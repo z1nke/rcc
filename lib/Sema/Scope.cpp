@@ -9,4 +9,7 @@ Scope::Scope(Scope *Parent, unsigned Flags, Decl *DeclCtx)
 void Scope::addDecl(Decl *D) { Decls.insert(D); }
 void Scope::removeDecl(Decl *D) { Decls.erase(D); }
 
+void Scope::addTag(TagDecl *D) { TagDecls.insert(D); }
+void Scope::removeTag(TagDecl *D) { TagDecls.erase(D); }
+
 } // namespace rcc

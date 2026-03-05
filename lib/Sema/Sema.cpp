@@ -431,7 +431,7 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
   }
 }
 
-VarDecl *Sema::findVar(std::string_view Ident) {
+VarDecl *Sema::findVar(std::string_view Ident) const {
   for (Scope *S = CurrScope; S; S = S->getParent()) {
     for (auto *D : S->decls()) {
       auto *Var = dynCast<VarDecl>(D);
@@ -446,7 +446,18 @@ VarDecl *Sema::findVar(std::string_view Ident) {
   return nullptr;
 }
 
-FunctionDecl *Sema::findFunction(std::string_view Name) {
+TagDecl *Sema::findTagDecl(std::string_view Ident) const {
+  for (Scope *S = CurrScope; S; S = S->getParent()) {
+    for (auto *Tag : S->tags()) {
+      if (Tag->getName() == Ident)
+        return Tag;
+    }
+  }
+
+  return nullptr;
+}
+
+FunctionDecl *Sema::findFunction(std::string_view Name) const {
   for (FunctionDecl *FD : Funcs) {
     if (FD->getName() == Name)
       return FD;
@@ -466,11 +477,11 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
     T = Ctx.CharTy;
     break;
   case DeclSpec::TST_Struct: {
-     const auto *RD = dynCastOrNull<RecordDecl>(DS.getRepDecl());
-     if (!RD)
-       Diag.fatalAt(DS.getTypeSpecLoc(), "struct has no declaration");
-     T = RD->getType();
-     break;
+    const auto *RD = dynCastOrNull<RecordDecl>(DS.getRepDecl());
+    if (!RD)
+      Diag.fatalAt(DS.getTypeSpecLoc(), "struct has no declaration");
+    T = RD->getType();
+    break;
   }
   default:
     Diag.fatalAt(DS.getTypeSpecLoc(), "unknown type specifier");

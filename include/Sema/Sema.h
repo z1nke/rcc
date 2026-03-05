@@ -76,15 +76,16 @@ public:
   Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                       Stmt *SubStmt);
   Expr *actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS, Expr *RHS);
-  Expr *actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc, Expr *Base,
-                              std::string_view Ident, bool IsArrow);
+  Expr *actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
+                              Expr *Base, std::string_view Ident, bool IsArrow);
 
 public:
   Scope *getCurrScope() const { return CurrScope; }
 
 private:
-  VarDecl *findVar(std::string_view Ident);
-  FunctionDecl *findFunction(std::string_view Name);
+  VarDecl *findVar(std::string_view Ident) const;
+  TagDecl *findTagDecl(std::string_view Ident) const;
+  FunctionDecl *findFunction(std::string_view Name) const;
 
 private:
   void checkScalarType(QualType T);

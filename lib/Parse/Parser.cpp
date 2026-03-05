@@ -104,22 +104,31 @@ FunctionDecl *Parser::parseFunctionDecl() {
 }
 
 // struct-decl: 'struct' '{' struct-decl-list '}'
-// TODO       | 'struct' ident
-// TODO       | 'struct' ident '{' struct-decl-list '}'
+//            | 'struct' ident
+//            | 'struct' ident '{' struct-decl-list '}'
 RecordDecl *Parser::parseStructDecl() {
   auto BegLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Struct);
   auto Loc = SM.createBeginLocation(CurTok);
   std::string_view Ident;
   if (CurTok->is(Token::TK_Ident)) {
-    // TODO: handle struct declaration with identifier.
-    return nullptr;
+    Ident = CurTok->getIdentifer();
+    skip();
+  }
+
+  if (!Ident.empty() && CurTok->isNot(Token::TK_LBrace)) {
+    TagDecl *Tag = S.findTagDecl(Ident);
+    if (!Tag)
+      Diag.fatalAt(Loc, "unknown struct {} type", Ident);
+
+    return dynCast<RecordDecl>(Tag);
   }
 
   if (tryConsume(Token::TK_LBrace)) {
     auto *Record = S.actOnRecordDecl(Loc, BegLoc, BegLoc, Ident);
     enterScope(Scope::StructScope, Record);
     std::vector<FieldDecl *> Fields = parseFields();
+    exitScope();
 
     std::size_t Offset = 0;
     std::size_t Align = 1;
@@ -137,8 +146,8 @@ RecordDecl *Parser::parseStructDecl() {
     Record->setTypeForDecl(RT.getTypePtr());
     Record->setFields(std::move(Fields));
     Record->setEndLoc(SM.createBeginLocation(CurTok));
+    getCurrScope()->addTag(Record);
     skip(Token::TK_RBrace);
-    exitScope();
     return Record;
   }
 
@@ -363,47 +372,50 @@ void Parser::parseDeclarator(Declarator &D) {
 //                  | direct-declarator '(' { params } ')'
 //                  | direct-declarator '[' { assign-expr } ']'
 void Parser::parseDirectDeclarator(Declarator &D) {
-  if (!CurTok->is(Token::TK_Ident)) {
-    SourceLocation Loc = SM.createBeginLocation(CurTok);
-    Diag.fatalAt(Loc, "expect identifier");
-    return;
-  }
-
-  D.setIdent(std::string(CurTok->getIdentifer()));
-  D.setEndLoc(SM.createEndLocation(CurTok));
-  skip();
-
-  if (tryConsume(Token::TK_LParen)) {
-    // Try parse function declarator.
-    // Record function information in DeclaratorChunk.
-    // params: param { ',' param }*
-    // param: declspec declarator
-    enterScope(Scope::FnScope);
-    unsigned Idx = 0;
-    while (CurTok->isNot(Token::TK_RParen)) {
-      if (Idx > 0)
-        skip(Token::TK_Comma);
-
-      DeclSpec ParamDS;
-      parseDeclSpec(ParamDS);
-      Declarator ParamD(ParamDS);
-      parseDeclarator(ParamD);
-      (void)S.actOnParamVarDecl(ParamD, Idx);
-      ++Idx;
-    }
-
+  if (CurTok->is(Token::TK_Ident)) {
+    D.setIdent(std::string(CurTok->getIdentifer()));
     D.setEndLoc(SM.createEndLocation(CurTok));
     skip();
-    D.addDeclChunk(DeclaratorChunk::createFunction());
-    return;
   }
 
-  while (tryConsume(Token::TK_LSquare)) {
-    // Try parse array declarator.
-    Expr *LenExpr = parseAssign();
-    D.setEndLoc(SM.createBeginLocation(CurTok));
-    skip(Token::TK_RSquare);
-    D.addDeclChunk(DeclaratorChunk::createArray(LenExpr));
+  // TODO: direct-declarator: '(' declarator ')'
+
+  while (true) {
+    if (tryConsume(Token::TK_LParen)) {
+      // Try parse function declarator.
+      // Record function information in DeclaratorChunk.
+      // params: param { ',' param }*
+      // param: declspec declarator
+      enterScope(Scope::FnScope);
+      unsigned Idx = 0;
+      while (CurTok->isNot(Token::TK_RParen)) {
+        if (Idx > 0)
+          skip(Token::TK_Comma);
+
+        DeclSpec ParamDS;
+        parseDeclSpec(ParamDS);
+        Declarator ParamD(ParamDS);
+        parseDeclarator(ParamD);
+        (void)S.actOnParamVarDecl(ParamD, Idx);
+        ++Idx;
+      }
+
+      D.setEndLoc(SM.createEndLocation(CurTok));
+      skip();
+      D.addDeclChunk(DeclaratorChunk::createFunction());
+      continue;
+    }
+
+    if (tryConsume(Token::TK_LSquare)) {
+      // Try parse array declarator.
+      Expr *LenExpr = parseAssign();
+      D.setEndLoc(SM.createBeginLocation(CurTok));
+      skip(Token::TK_RSquare);
+      D.addDeclChunk(DeclaratorChunk::createArray(LenExpr));
+      continue;
+    }
+
+    break;
   }
 }
 
