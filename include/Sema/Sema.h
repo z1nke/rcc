@@ -42,7 +42,8 @@ public:
                                   Stmt *Body);
 
   RecordDecl *actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
-                              SourceLocation EndLoc, std::string_view Ident);
+                              SourceLocation EndLoc, std::string_view Ident,
+                              unsigned TagKind);
 
   void complete(FunctionDecl *FD);
 

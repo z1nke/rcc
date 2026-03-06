@@ -103,12 +103,60 @@ FunctionDecl *Parser::parseFunctionDecl() {
   return parseFunctionBody(BegLoc, FD);
 }
 
-// struct-decl: 'struct' '{' struct-decl-list '}'
-//            | 'struct' ident
-//            | 'struct' ident '{' struct-decl-list '}'
+// struct-union-decl: struct-or-union '{' struct-decl-list '}'
+//                  | struct-or-union ident
+//                  | struct-or-union ident '{' struct-decl-list '}'
+// struct-or-union: 'struct' | 'union'
 RecordDecl *Parser::parseStructDecl() {
   auto BegLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Struct);
+  RecordDecl *Struct = parseStructUnionDecl(BegLoc, DeclSpec::TST_Struct);
+  if (!Struct)
+    Diag.fatalAt(BegLoc, "expected struct declaration");
+
+  std::size_t Offset = 0;
+  std::size_t Align = 1;
+  for (auto *Field : Struct->fields()) {
+    std::size_t FieldAlign = Field->getType()->getAlign();
+    Offset = alignTo(Offset, FieldAlign);
+    Field->setOffset(Offset);
+    Offset += Field->getType()->getSize();
+    if (Align < FieldAlign)
+      Align = FieldAlign;
+  }
+
+  std::size_t Size = alignTo(Offset, Align);
+  QualType RT = Ctx.getRecordType(Struct, Size, Align);
+  Struct->setTypeForDecl(RT.getTypePtr());
+  return Struct;
+}
+
+RecordDecl *Parser::parseUnionDecl() {
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Union);
+  RecordDecl *Union = parseStructUnionDecl(BegLoc, DeclSpec::TST_Union);
+  if (!Union)
+    Diag.fatalAt(BegLoc, "expected union declaration");
+
+  std::size_t Size = 0;
+  std::size_t Align = 1;
+  for (auto *Field : Union->fields()) {
+    std::size_t FieldAlign = Field->getType()->getAlign();
+    std::size_t FieldSize = Field->getType()->getSize();
+    if (Align < FieldAlign)
+      Align = FieldAlign;
+    if (Size < FieldSize)
+      Size = FieldSize;
+  }
+
+  Size = alignTo(Size, Align);
+  QualType RT = Ctx.getRecordType(Union, Size, Align);
+  Union->setTypeForDecl(RT.getTypePtr());
+  return Union;
+}
+
+RecordDecl *Parser::parseStructUnionDecl(SourceLocation BegLoc,
+                                         unsigned TagKind) {
   auto Loc = SM.createBeginLocation(CurTok);
   std::string_view Ident;
   if (CurTok->is(Token::TK_Ident)) {
@@ -125,26 +173,11 @@ RecordDecl *Parser::parseStructDecl() {
   }
 
   if (tryConsume(Token::TK_LBrace)) {
-    auto *Record = S.actOnRecordDecl(Loc, BegLoc, BegLoc, Ident);
+    auto *Record = S.actOnRecordDecl(Loc, BegLoc, BegLoc, Ident, TagKind);
     enterScope(Scope::StructScope, Record);
     std::vector<FieldDecl *> Fields = parseFields();
-    exitScope();
-
-    std::size_t Offset = 0;
-    std::size_t Align = 1;
-    for (auto *Field : Fields) {
-      std::size_t FieldAlign = Field->getType()->getAlign();
-      Offset = alignTo(Offset, FieldAlign);
-      Field->setOffset(Offset);
-      Offset += Field->getType()->getSize();
-      if (Align < FieldAlign)
-        Align = FieldAlign;
-    }
-
-    std::size_t Size = alignTo(Offset, Align);
-    QualType RT = Ctx.getRecordType(Record, Size, Align);
-    Record->setTypeForDecl(RT.getTypePtr());
     Record->setFields(std::move(Fields));
+    exitScope();
     Record->setEndLoc(SM.createBeginLocation(CurTok));
     getCurrScope()->addTag(Record);
     skip(Token::TK_RBrace);
@@ -192,6 +225,7 @@ Stmt *Parser::parseStmt() {
   case Token::TK_Int:
   case Token::TK_Char:
   case Token::TK_Struct:
+  case Token::TK_Union:
     return parseDeclStmt();
   default:
     break;
@@ -301,7 +335,7 @@ Stmt *Parser::parseDeclStmt() {
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
-// declspec: int | char | structDecl
+// declspec: int | char | structDecl | unionDecl
 void Parser::parseDeclSpec(DeclSpec &DS) {
   auto TyLoc = SM.createBeginLocation(CurTok);
   if (tryConsume(Token::TK_Int)) {
@@ -317,6 +351,13 @@ void Parser::parseDeclSpec(DeclSpec &DS) {
   if (CurTok->is(Token::TK_Struct)) {
     DS.setTypeSpecType(DeclSpec::TST_Struct, TyLoc);
     RecordDecl *Record = parseStructDecl();
+    DS.setRepDecl(Record);
+    return;
+  }
+
+  if (CurTok->is(Token::TK_Union)) {
+    DS.setTypeSpecType(DeclSpec::TST_Union, TyLoc);
+    RecordDecl *Record = parseUnionDecl();
     DS.setRepDecl(Record);
     return;
   }

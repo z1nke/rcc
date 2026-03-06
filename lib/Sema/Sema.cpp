@@ -74,11 +74,10 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
 }
 
 RecordDecl *Sema::actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
-                                  SourceLocation EndLoc,
-                                  std::string_view Ident) {
-  RecordDecl *RD = RecordDecl::create(
-      Ctx, Loc, BegLoc, EndLoc, std::string(Ident), RecordDecl::TK_Struct);
-  return RD;
+                                  SourceLocation EndLoc, std::string_view Ident,
+                                  unsigned TagKind) {
+  return RecordDecl::create(Ctx, Loc, BegLoc, EndLoc, std::string(Ident),
+                            static_cast<RecordDecl::TagKind>(TagKind));
 }
 
 void Sema::complete(FunctionDecl *FD) {
@@ -486,10 +485,11 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   case DeclSpec::TST_Char:
     T = Ctx.CharTy;
     break;
-  case DeclSpec::TST_Struct: {
+  case DeclSpec::TST_Struct:
+  case DeclSpec::TST_Union: {
     const auto *RD = dynCastOrNull<RecordDecl>(DS.getRepDecl());
     if (!RD)
-      Diag.fatalAt(DS.getTypeSpecLoc(), "struct has no declaration");
+      Diag.fatalAt(DS.getTypeSpecLoc(), "struct/union has no declaration");
     T = RD->getType();
     break;
   }

@@ -38,6 +38,8 @@ private:
   void parseGlobalDecl(TranslationUnitDecl *TU);
   FunctionDecl *parseFunctionDecl();
   RecordDecl *parseStructDecl();
+  RecordDecl *parseUnionDecl();
+  RecordDecl *parseStructUnionDecl(SourceLocation BegLoc, unsigned TagKind);
   std::vector<FieldDecl *> parseFields();
   FunctionDecl *parseFunctionBody(SourceLocation BegLoc, FunctionDecl *Func);
   std::vector<VarDecl *> parseGlobalVarDecl(SourceLocation BegLoc, DeclSpec &DS,

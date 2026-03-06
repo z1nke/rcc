@@ -41,6 +41,7 @@ KEYWORD(Int, "int")
 KEYWORD(Char, "char")
 KEYWORD(Sizeof, "sizeof")
 KEYWORD(Struct, "struct")
+KEYWORD(Union, "union")
 
 #undef KEYWORD
 #undef TOKEN

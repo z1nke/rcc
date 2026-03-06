@@ -18,6 +18,7 @@ public:
     TST_Int,
     TST_Char,
     TST_Struct,
+    TST_Union,
   };
 
   DeclSpec() = default;
