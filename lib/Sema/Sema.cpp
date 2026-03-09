@@ -304,6 +304,9 @@ QualType Sema::getCommonArithmeticType(QualType LType, QualType RType) {
 }
 
 bool Sema::canCast(QualType LType, QualType RType) {
+  if (LType == RType)
+    return true;
+
   bool LIsPtr = LType->isPointerType();
   bool RIsPtr = RType->isPointerType();
   if (LIsPtr && RIsPtr) {
@@ -334,7 +337,7 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
       LHS->setType(LType);
     } else {
       if (!canCast(LType, RType))
-        Diag.fatalAt(OpLoc, "invalid operand");
+        Diag.fatalAt(OpLoc, "invalid assignment operand");
     }
 
     return LType;

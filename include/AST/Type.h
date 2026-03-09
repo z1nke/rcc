@@ -65,6 +65,14 @@ public:
   QualType getCanonicalType() const;
   bool isIntegerType() const;
 
+  friend bool operator==(const QualType &LHS, const QualType &RHS) {
+    return LHS.Value == RHS.Value;
+  }
+
+  friend auto operator<(const QualType &LHS, const QualType &RHS) {
+    return LHS.Value < RHS.Value;
+  }
+
 private:
   void *Value = nullptr;
 };
@@ -93,11 +101,12 @@ public:
 
   QualType getCanonicalType() const;
 
+  bool isScalarType() const;
+  bool isArithmeticType() const;
   bool isPointerType() const { return Kind == TK_Pointer; }
   bool isFunctionType() const { return Kind == TK_Function; }
   bool isArraryType() const { return Kind == TK_ConstantArray; }
-  bool isScalarType() const;
-  bool isArithmeticType() const;
+  bool isRecordType() const { return Kind == TK_Record; }
 
   QualType getPointeeType() const;
   QualType getBaseElementType() const;

@@ -50,6 +50,9 @@ public:
   bool isImplicit() const { return IsImplicit; }
   void setImplicit(bool Val) { IsImplicit = Val; }
 
+  Decl *getCanonicalDecl() { return this; }
+  const Decl *getCanonicalDecl() const { return this; }
+
 private:
   ASTContext &Ctx;
   DeclKind Kind;
@@ -272,6 +275,8 @@ public:
   void setFields(std::vector<FieldDecl *> Fields) {
     this->Fields = std::move(Fields);
   }
+
+  const RecordDecl *getCanonicalDecl() const { return this; }
 
 private:
   RecordDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,

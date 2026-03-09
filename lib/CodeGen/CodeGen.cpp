@@ -626,9 +626,11 @@ void CodeGen::pop(const char *Reg) {
   --Depth;
 }
 
+// load *a0 to a0.
 void CodeGen::load(const Type *Ty) {
-  if (Ty->isArraryType())
+  if (Ty->isArraryType() || Ty->isRecordType())
     return;
+
   emit("  # load");
   if (Ty->getSize() == 1)
     emit("  lb a0, 0(a0)");
@@ -636,9 +638,27 @@ void CodeGen::load(const Type *Ty) {
     emit("  ld a0, 0(a0)");
 }
 
+// store a0 to *a1.
 void CodeGen::store(const Type *Ty) {
   emit("  # store");
   pop("a1");
+
+  if (Ty->isRecordType()) {
+    emit("  # store record type");
+    for (std::size_t Idx = 0; Idx < Ty->getSize(); ++Idx) {
+      // t1 = a0[Idx]
+      emit("  li t0, {}", Idx);
+      emit("  add t0, a0, t0");
+      emit("  lb t1, 0(t0)");
+
+      // *a1[Idx] = t1
+      emit("  li t0, {}", Idx);
+      emit("  add t0, a1, t0");
+      emit("  sb t1, 0(t0)");
+    }
+    return;
+  }
+
   if (Ty->getSize() == 1)
     emit("  sb a0, 0(a1)");
   else

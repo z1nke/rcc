@@ -38,6 +38,7 @@ public:
 
   std::vector<Type *> Types;
   std::unordered_map<void *, PointerType *> PointerTypes;
+  std::unordered_map<const RecordDecl *, RecordType *> RecordTypes;
 
 private:
   Diagnostic &Diag;

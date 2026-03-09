@@ -1,4 +1,5 @@
 #include "AST/ASTContext.h"
+#include "AST/Decl.h"
 
 namespace rcc {
 
@@ -42,7 +43,12 @@ QualType ASTContext::getConstantArrayType(QualType ElementType,
 
 QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size,
                                    std::size_t Align) {
-  auto *Ty = new (*this, alignof(RecordType)) RecordType(RD, Size, Align);
+  const auto *Canonical = RD->getCanonicalDecl();
+  RecordType *&Ty = RecordTypes[Canonical];
+  if (Ty)
+    return QualType(Ty);
+
+  Ty = new (*this, alignof(RecordType)) RecordType(RD, Size, Align);
   return QualType(Ty);
 }
 
