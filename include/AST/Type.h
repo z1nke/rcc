@@ -157,8 +157,8 @@ public:
 private:
   friend class ASTContext;
 
-  explicit BuiltinType(Kind BK, std::size_t Size)
-      : Type(TK_Builtin, Size, Size), BK(BK) {}
+  explicit BuiltinType(Kind BK, std::size_t Size, std::size_t Align)
+      : Type(TK_Builtin, Size, Align), BK(BK) {}
 
 private:
   Kind BK;

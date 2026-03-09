@@ -52,6 +52,10 @@ private:
   void load(const Type *Ty);
   void store(const Type *Ty);
 
+  void storeGenReg(int Reg, int Offset, int Size);
+
+  char getWidthSuffix(std::size_t Size) const;
+
   int getCount() const;
   const std::string &getStringLabel(const StringLiteral *SL);
 

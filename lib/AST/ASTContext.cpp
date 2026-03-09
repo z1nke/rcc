@@ -4,13 +4,13 @@
 namespace rcc {
 
 void ASTContext::initBuiltinTypes() {
-  initBuiltinType(IntTy, BuiltinType::BK_Int, 8);
-  initBuiltinType(CharTy, BuiltinType::BK_Char, 1);
+  initBuiltinType(IntTy, BuiltinType::BK_Int, 4, 4);
+  initBuiltinType(CharTy, BuiltinType::BK_Char, 1, 1);
 }
 
 void ASTContext::initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,
-                                 std::size_t Size) {
-  auto *Ty = new (*this, alignof(BuiltinType)) BuiltinType(Kind, Size);
+                                 std::size_t Size, std::size_t Align) {
+  auto *Ty = new (*this, alignof(BuiltinType)) BuiltinType(Kind, Size, Align);
   R = CanQualType(Ty);
   Types.push_back(Ty);
 }

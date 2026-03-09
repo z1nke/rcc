@@ -5,6 +5,7 @@
 #include "Basic/Diagnostic.h"
 #include "Support/Allocator.h"
 #include "Support/Casting.h"
+#include "Support/Unreachable.h"
 
 #include <cassert>
 #include <cstdio>
@@ -121,10 +122,7 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     emit("  # store {} parameters to stack", NumParams);
     for (unsigned I = 0; I < NumParams; ++I) {
       const auto *Param = FD->getParam(I);
-      if (Param->getType()->getSize() == 1)
-        emit("  sb {}, {}(fp)", ArgReg[I], Param->getOffset());
-      else
-        emit("  sd {}, {}(fp)", ArgReg[I], Param->getOffset());
+      storeGenReg(I, Param->getOffset(), Param->getType()->getSize());
     }
   }
 
@@ -200,7 +198,8 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       // a1 = &var
       pop("a1");
       emit("  # initialize variable '{}'", Var->getName());
-      emit("  sd a0, 0(a1)"); // *a1 = a0
+      //emit("  sd a0, 0(a1)"); // *a1 = a0
+      emit("  s{} a0, 0(a1)", getWidthSuffix(Var->getType()->getSize()));
 
     } else {
       Diag.fatalAt(D->getBeginLoc(), "invalid declaration in decl-stmt");
@@ -502,10 +501,8 @@ void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
   genAddr(ASE);
   // a0 = *(addr)
   QualType AT = ASE->getType();
-  if (AT->getSize() == 1)
-    emit("  lb a0, 0(a0)");
-  else
-    emit("  ld a0, 0(a0)");
+  std::size_t Size = AT->getSize();
+  emit("  l{} a0, 0(a0)", getWidthSuffix(Size));
 }
 
 void CodeGen::genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
@@ -603,7 +600,7 @@ void CodeGen::genAddr(const StringLiteral *SL) {
 void CodeGen::genAddr(const MemberExpr *ME) {
   emit("  # get address of member expr");
   const auto *Base = ME->getBase();
-  genAddr(Base);                                         // a0 = addrof base
+  genAddr(Base); // a0 = addrof base
   if (ME->isArrow()) {
     emit("  # deref base of arrow member expr");
     load(Base->getTypePtr()); // a0 = *a0
@@ -632,10 +629,7 @@ void CodeGen::load(const Type *Ty) {
     return;
 
   emit("  # load");
-  if (Ty->getSize() == 1)
-    emit("  lb a0, 0(a0)");
-  else
-    emit("  ld a0, 0(a0)");
+  emit("  l{} a0, 0(a0)", getWidthSuffix(Ty->getSize()));
 }
 
 // store a0 to *a1.
@@ -659,10 +653,24 @@ void CodeGen::store(const Type *Ty) {
     return;
   }
 
-  if (Ty->getSize() == 1)
-    emit("  sb a0, 0(a1)");
-  else
-    emit("  sd a0, 0(a1)");
+  emit("  s{} a0, 0(a1)", getWidthSuffix(Ty->getSize()));
+}
+
+void CodeGen::storeGenReg(int Reg, int Offset, int Size) {
+  emit("  s{} {}, {}(fp)", getWidthSuffix(Size), ArgReg[Reg], Offset);
+}
+
+char CodeGen::getWidthSuffix(std::size_t Size) const {
+  switch (Size) {
+  case 1:
+    return 'b';
+  case 4:
+    return 'w';
+  case 8:
+    return 'd';
+  default:
+    RCC_UNREACHABLE("unknown type size");
+  }
 }
 
 int CodeGen::getCount() const {

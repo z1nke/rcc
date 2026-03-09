@@ -29,7 +29,7 @@ public:
 
   void initBuiltinTypes();
   void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,
-                       std::size_t Size);
+                       std::size_t Size, std::size_t Align);
   QualType getPointerType(QualType PointeeType);
   QualType getFunctionType(QualType RetType, std::vector<QualType> ParamTypes);
   QualType getConstantArrayType(QualType ElementType, std::size_t Len);
