@@ -58,6 +58,11 @@ int comment2() {
   return 2;
 }
 
+// [57] Add long type
+int sub_long(long a, long b, long c) {
+  return a - b - c;
+}
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());

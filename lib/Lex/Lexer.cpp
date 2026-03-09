@@ -155,7 +155,7 @@ Token *Lexer::tokenizeFile(const char *Path) {
 
 void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
-  int Val = std::strtoul(P, &const_cast<char *&>(P), 10);
+  std::int64_t Val = std::strtoul(P, &const_cast<char *&>(P), 10);
   Curr->setNext(newToken(Token::TK_Num, Start, P, Val));
   Curr = Curr->getNext();
 }

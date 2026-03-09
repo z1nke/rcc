@@ -222,8 +222,9 @@ Stmt *Parser::parseStmt() {
     return parseForStmt();
   case Token::TK_While:
     return parseWhileStmt();
-  case Token::TK_Int:
   case Token::TK_Char:
+  case Token::TK_Int:
+  case Token::TK_Long:
   case Token::TK_Struct:
   case Token::TK_Union:
     return parseDeclStmt();
@@ -335,16 +336,21 @@ Stmt *Parser::parseDeclStmt() {
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
-// declspec: int | char | structDecl | unionDecl
+// declspec: char | int | long | structDecl | unionDecl
 void Parser::parseDeclSpec(DeclSpec &DS) {
   auto TyLoc = SM.createBeginLocation(CurTok);
+  if (tryConsume(Token::TK_Char)) {
+    DS.setTypeSpecType(DeclSpec::TST_Char, TyLoc);
+    return;
+  }
+
   if (tryConsume(Token::TK_Int)) {
     DS.setTypeSpecType(DeclSpec::TST_Int, TyLoc);
     return;
   }
 
-  if (tryConsume(Token::TK_Char)) {
-    DS.setTypeSpecType(DeclSpec::TST_Char, TyLoc);
+  if (tryConsume(Token::TK_Long)) {
+    DS.setTypeSpecType(DeclSpec::TST_Long, TyLoc);
     return;
   }
 

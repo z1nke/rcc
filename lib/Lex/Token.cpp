@@ -7,7 +7,7 @@
 
 namespace rcc {
 
-int Token::getVal() const {
+std::int64_t Token::getVal() const {
   assert(Kind == TK_Num && "expect a number");
   return Val;
 }

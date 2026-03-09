@@ -25,7 +25,7 @@ public:
   void setNext(Token *Next) { this->Next = Next; }
 
   std::string_view getIdentifer() const;
-  int getVal() const;
+  std::int64_t getVal() const;
   std::string lexStringLiteral(Diagnostic &Diag) const;
 
   bool is(TokenKind TK) const { return TK == Kind; }
@@ -49,7 +49,7 @@ private:
   const char *Loc = nullptr;
   Token *Next = nullptr;
   TokenKind Kind = TK_Unknown;
-  int Val = 0;
+  std::int64_t Val = 0;
   int Len = 0;
 };
 

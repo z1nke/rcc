@@ -141,15 +141,16 @@ private:
 class BuiltinType final : public Type {
 public:
   enum Kind {
-    BK_Int,
     BK_Char,
+    BK_Int,
+    BK_Long,
   };
 
   static bool classof(const Type *T) {
     return T->getTypeKind() == Type::TK_Builtin;
   }
 
-  bool isIntegerType() const { return BK == BK_Char || BK == BK_Int; }
+  bool isIntegerType() const { return BK >= BK_Char && BK <= BK_Long ; }
 
   Kind getKind() const { return BK; }
   const char *getKindStr() const;

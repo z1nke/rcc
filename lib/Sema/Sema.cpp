@@ -482,11 +482,14 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   QualType T;
   const DeclSpec &DS = D.getDeclSpec();
   switch (DS.getTypeSpecType()) {
+  case DeclSpec::TST_Char:
+    T = Ctx.CharTy;
+    break;
   case DeclSpec::TST_Int:
     T = Ctx.IntTy;
     break;
-  case DeclSpec::TST_Char:
-    T = Ctx.CharTy;
+  case DeclSpec::TST_Long:
+    T = Ctx.LongTy;
     break;
   case DeclSpec::TST_Struct:
   case DeclSpec::TST_Union: {
