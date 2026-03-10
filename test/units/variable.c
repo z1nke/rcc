@@ -68,6 +68,9 @@ int main() {
   // [57] Add long type
   ASSERT(8, ({ long x; sizeof(x); }));
 
+  // [58] Add short type
+  ASSERT(2, ({ short x; sizeof(x); }));
+
   printf("OK\n");
   return 0;
 }

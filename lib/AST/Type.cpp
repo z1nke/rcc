@@ -183,6 +183,10 @@ TagDecl *Type::getAsTagDecl() const {
   return nullptr;
 }
 
+bool BuiltinType::isIntegerType() const {
+  return BK >= BK_Char && BK <= BK_Long;
+}
+
 const char *BuiltinType::getKindStr() const {
   switch (BK) {
   case BK_Int:

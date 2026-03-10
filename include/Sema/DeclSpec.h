@@ -16,6 +16,7 @@ public:
   enum TypeSpecType {
     TST_Unspecified,
     TST_Char,
+    TST_Short,
     TST_Int,
     TST_Long,
     TST_Struct,

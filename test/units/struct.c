@@ -61,6 +61,9 @@ int main() {
   // [57] Add long type
   ASSERT(16, ({ struct {char a; long b;} x; sizeof(x); }));
 
+  // [58] Add short type
+  ASSERT(4, ({ struct {char a; short b;} x; sizeof(x); }));
+
   printf("OK\n");
   return 0;
 }

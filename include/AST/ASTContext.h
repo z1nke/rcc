@@ -24,8 +24,9 @@ public:
 
 public:
   using CanQualType = QualType;
-  CanQualType IntTy;
   CanQualType CharTy;
+  CanQualType ShortTy;
+  CanQualType IntTy;
   CanQualType LongTy;
 
   void initBuiltinTypes();

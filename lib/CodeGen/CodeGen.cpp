@@ -664,6 +664,8 @@ char CodeGen::getWidthSuffix(std::size_t Size) const {
   switch (Size) {
   case 1:
     return 'b';
+  case 2:
+    return 'h';
   case 4:
     return 'w';
   case 8:

@@ -63,6 +63,11 @@ int sub_long(long a, long b, long c) {
   return a - b - c;
 }
 
+// [58] Add short type
+int sub_short(short a, short b, short c) {
+  return a - b - c;
+}
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());

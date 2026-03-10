@@ -488,6 +488,9 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   case DeclSpec::TST_Int:
     T = Ctx.IntTy;
     break;
+  case DeclSpec::TST_Short:
+    T = Ctx.ShortTy;
+    break;
   case DeclSpec::TST_Long:
     T = Ctx.LongTy;
     break;

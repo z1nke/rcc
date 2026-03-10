@@ -223,6 +223,7 @@ Stmt *Parser::parseStmt() {
   case Token::TK_While:
     return parseWhileStmt();
   case Token::TK_Char:
+  case Token::TK_Short:
   case Token::TK_Int:
   case Token::TK_Long:
   case Token::TK_Struct:
@@ -336,21 +337,29 @@ Stmt *Parser::parseDeclStmt() {
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
-// declspec: char | int | long | structDecl | unionDecl
+static std::optional<DeclSpec::TypeSpecType>
+getBuiltinTypeSpecType(Token::TokenKind TK) {
+  switch (TK) {
+  case Token::TK_Char:
+    return DeclSpec::TST_Char;
+  case Token::TK_Short:
+    return DeclSpec::TST_Short;
+  case Token::TK_Int:
+    return DeclSpec::TST_Int;
+  case Token::TK_Long:
+    return DeclSpec::TST_Long;
+  default:
+    return std::nullopt;
+  }
+}
+
+// declspec: char | short | int | long | structDecl | unionDecl
 void Parser::parseDeclSpec(DeclSpec &DS) {
   auto TyLoc = SM.createBeginLocation(CurTok);
-  if (tryConsume(Token::TK_Char)) {
-    DS.setTypeSpecType(DeclSpec::TST_Char, TyLoc);
-    return;
-  }
-
-  if (tryConsume(Token::TK_Int)) {
-    DS.setTypeSpecType(DeclSpec::TST_Int, TyLoc);
-    return;
-  }
-
-  if (tryConsume(Token::TK_Long)) {
-    DS.setTypeSpecType(DeclSpec::TST_Long, TyLoc);
+  auto TST = getBuiltinTypeSpecType(CurTok->getKind());
+  if (TST) {
+    skip();
+    DS.setTypeSpecType(*TST, TyLoc);
     return;
   }
 
