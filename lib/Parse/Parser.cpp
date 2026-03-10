@@ -326,7 +326,7 @@ Stmt *Parser::parseWhileStmt() {
   return S.actOnWhileStmt(Ctx, BegLoc, Cond, Body);
 }
 
-// decl-stmt: declspec { init-declarator-list } ';'
+// decl-stmt: declspec init-declarator-list? ';'
 Stmt *Parser::parseDeclStmt() {
   DeclSpec DS;
   auto BegLoc = SM.createBeginLocation(CurTok);
@@ -417,25 +417,38 @@ Expr *Parser::parseInitExpr() { return parseAssign(); }
 // declarator: '*'* direct-declarator
 void Parser::parseDeclarator(Declarator &D) {
   while (tryConsume(Token::TK_Star)) {
+    // Recursively parse the declarator.
+    // Type suffixes have higher priority than stars.
+    parseDeclarator(D);
     auto Chunk = DeclaratorChunk::createPointer();
     D.addDeclChunk(Chunk);
   }
 
-  parseDirectDeclarator(D);
+  if (CurTok->isOneOf(Token::TK_Ident, Token::TK_LParen))
+    parseDirectDeclarator(D);
 }
 
 // direct-declarator: ident
-//                  | direct-declarator '(' { params } ')'
-//                  | direct-declarator '[' { assign-expr } ']'
+//                  | ( declarator )
+//                  | direct-declarator type-suffix
 void Parser::parseDirectDeclarator(Declarator &D) {
   if (CurTok->is(Token::TK_Ident)) {
     D.setIdent(std::string(CurTok->getIdentifer()));
     D.setEndLoc(SM.createEndLocation(CurTok));
     skip();
+  } else if (tryConsume(Token::TK_LParen)) {
+    parseDeclarator(D);
+    skip(Token::TK_RParen);
+  } else {
+    Diag.fatalAt(CurTok->getLoc(), "expect identifier or left parenthes");
   }
 
-  // TODO: direct-declarator: '(' declarator ')'
+  parseTypeSuffix(D);
+}
 
+// [type-suffix]: '(' { params } ')'
+//              | '[' { assign-expr } ']'
+void Parser::parseTypeSuffix(Declarator &D) {
   while (true) {
     if (tryConsume(Token::TK_LParen)) {
       // Try parse function declarator.

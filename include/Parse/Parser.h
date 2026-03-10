@@ -80,6 +80,7 @@ private:
   void parseVarInit(VarDecl *Var);
   void parseDeclarator(Declarator &D);
   void parseDirectDeclarator(Declarator &D);
+  void parseTypeSuffix(Declarator &D);
   Expr *parseInitExpr();
   FieldDecl *parseField(DeclSpec &DS);
 

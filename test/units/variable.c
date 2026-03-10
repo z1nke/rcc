@@ -71,6 +71,16 @@ int main() {
   // [58] Add short type
   ASSERT(2, ({ short x; sizeof(x); }));
 
+  // [59] Add nested type declarators
+  ASSERT(24, ({ char *x[3]; sizeof(x); }));
+  ASSERT(8, ({ char (*x)[3]; sizeof(x); }));
+  ASSERT(1, ({ char (x); sizeof(x); }));
+  ASSERT(3, ({ char (x)[3]; sizeof(x); }));
+  ASSERT(12, ({ char (x[3])[4]; sizeof(x); }));
+  ASSERT(4, ({ char (x[3])[4]; sizeof(x[0]); }));
+  ASSERT(3, ({ char *x[3]; char y; x[0]=&y; y=3; x[0][0]; }));
+  ASSERT(4, ({ char x[3]; char (*y)[3]=x; y[0][0]=4; y[0][0]; }));
+
   printf("OK\n");
   return 0;
 }
