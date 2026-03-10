@@ -85,6 +85,9 @@ void CodeGen::emitText(const TranslationUnitDecl *TU) {
 }
 
 void CodeGen::genFunction(const FunctionDecl *FD) {
+  if (!FD->getBody())
+    return;
+
   CurrFunc = FD;
   std::size_t StackSize = assignLVarOffsets(FD);
   const char *Name = FD->getName().c_str();

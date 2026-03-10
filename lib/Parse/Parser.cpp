@@ -38,9 +38,9 @@ void Parser::parseGlobalDecl(TranslationUnitDecl *TU) {
   parseDeclarator(D);
   Decl *FirstDecl = S.actOnDeclarator(D);
   // function-decl: function-definition
-  // TODO:        | function-declaration
+  //              | function-declaration
   if (auto *Func = dynCast<FunctionDecl>(FirstDecl)) {
-    TU->addDecl(parseFunctionBody(BegLoc, Func));
+    TU->addDecl(parseFunctionDecl(Func));
     return;
   }
 
@@ -54,13 +54,10 @@ void Parser::parseGlobalDecl(TranslationUnitDecl *TU) {
   Diag.fatalAt(BegLoc, "Unknown global declaration");
 }
 
-FunctionDecl *Parser::parseFunctionBody(SourceLocation BegLoc,
-                                        FunctionDecl *FD) {
-  if (CurTok->is(Token::TK_LBrace)) {
-    Stmt *Body = parseCompoundStmt();
-    FD->setBody(Body);
-    FD->setEndLoc(Body->getEndLoc());
-  }
+FunctionDecl *Parser::parseFunctionBody(FunctionDecl *FD) {
+  Stmt *Body = parseCompoundStmt();
+  FD->setBody(Body);
+  FD->setEndLoc(Body->getEndLoc());
 
   S.complete(FD);
   if (getCurrScope()->getFlags() & Scope::FnScope)
@@ -89,18 +86,16 @@ std::vector<VarDecl *> Parser::parseGlobalVarDecl(SourceLocation BegLoc,
   return Vars;
 }
 
-FunctionDecl *Parser::parseFunctionDecl() {
-  auto BegLoc = SM.createBeginLocation(CurTok);
-  DeclSpec DS;
-  parseDeclSpec(DS);
-  Declarator D(DS);
-  D.setLocation(SM.createBeginLocation(CurTok));
-  parseDeclarator(D);
-  auto *FD = dynCast<FunctionDecl>(S.actOnDeclarator(D));
-  if (!FD)
-    Diag.fatalAt(BegLoc, "expected function declaration");
+// function-decl: function-definition
+//              | function-declaration
+FunctionDecl *Parser::parseFunctionDecl(FunctionDecl *Func) {
+  if (tryConsume(Token::TK_Semicolon))
+    return Func;
 
-  return parseFunctionBody(BegLoc, FD);
+  if (CurTok->is(Token::TK_LBrace))
+    return parseFunctionBody(Func);
+
+  Diag.fatalAt(CurTok->getLoc(), "expect ';' or '{{'");
 }
 
 // struct-union-decl: struct-or-union '{' struct-decl-list '}'
@@ -440,7 +435,7 @@ void Parser::parseDirectDeclarator(Declarator &D) {
     parseDeclarator(D);
     skip(Token::TK_RParen);
   } else {
-    Diag.fatalAt(CurTok->getLoc(), "expect identifier or left parenthes");
+    Diag.fatalAt(CurTok->getLoc(), "expect identifier or '('");
   }
 
   parseTypeSuffix(D);
