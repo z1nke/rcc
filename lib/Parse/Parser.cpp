@@ -217,6 +217,7 @@ Stmt *Parser::parseStmt() {
     return parseForStmt();
   case Token::TK_While:
     return parseWhileStmt();
+  case Token::TK_Void:
   case Token::TK_Char:
   case Token::TK_Short:
   case Token::TK_Int:
@@ -335,6 +336,8 @@ Stmt *Parser::parseDeclStmt() {
 static std::optional<DeclSpec::TypeSpecType>
 getBuiltinTypeSpecType(Token::TokenKind TK) {
   switch (TK) {
+  case Token::TK_Void:
+    return DeclSpec::TST_Void;
   case Token::TK_Char:
     return DeclSpec::TST_Char;
   case Token::TK_Short:
@@ -348,7 +351,7 @@ getBuiltinTypeSpecType(Token::TokenKind TK) {
   }
 }
 
-// declspec: char | short | int | long | structDecl | unionDecl
+// declspec: void | char | short | int | long | structDecl | unionDecl
 void Parser::parseDeclSpec(DeclSpec &DS) {
   auto TyLoc = SM.createBeginLocation(CurTok);
   auto TST = getBuiltinTypeSpecType(CurTok->getKind());

@@ -429,14 +429,19 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
 
     return Ctx.getPointerType(SubExpr->getType());
   case UnaryOperator::UO_Deref: {
+    QualType Result;
     if (const auto *PtrType = SubExpr->getType()->getAs<PointerType>())
-      return PtrType->getPointeeType();
+      Result = PtrType->getPointeeType();
+    else if (const auto *ArrType = SubExpr->getType()->getAs<ArrayType>())
+      Result = ArrType->getElementType();
+    else {
+      Diag.fatalAt(SubExpr->getBeginLoc(),
+                   "dereference requires pointer operand");
+    }
 
-    if (const auto *ArrType = SubExpr->getType()->getAs<ArrayType>())
-      return ArrType->getElementType();
-
-    Diag.fatalAt(SubExpr->getBeginLoc(),
-                 "dereference requires pointer operand");
+    if (Result.isVoidType())
+      Diag.fatalAt(SubExpr->getBeginLoc(), "dereferencing a void pointer");
+    return Result;
   }
   default:
     Diag.fatalAt(OpLoc, "unknown unary opcode");
@@ -482,6 +487,9 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   QualType T;
   const DeclSpec &DS = D.getDeclSpec();
   switch (DS.getTypeSpecType()) {
+  case DeclSpec::TST_Void:
+    T = Ctx.VoidTy;
+    break;
   case DeclSpec::TST_Char:
     T = Ctx.CharTy;
     break;

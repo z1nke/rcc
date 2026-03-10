@@ -15,6 +15,7 @@ class DeclSpec {
 public:
   enum TypeSpecType {
     TST_Unspecified,
+    TST_Void,
     TST_Char,
     TST_Short,
     TST_Int,

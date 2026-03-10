@@ -24,6 +24,7 @@ public:
 
 public:
   using CanQualType = QualType;
+  CanQualType VoidTy;
   CanQualType CharTy;
   CanQualType ShortTy;
   CanQualType IntTy;

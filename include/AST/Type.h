@@ -64,6 +64,7 @@ public:
 
   QualType getCanonicalType() const;
   bool isIntegerType() const;
+  bool isVoidType() const;
 
   friend bool operator==(const QualType &LHS, const QualType &RHS) {
     return LHS.Value == RHS.Value;
@@ -141,6 +142,7 @@ private:
 class BuiltinType final : public Type {
 public:
   enum Kind {
+    BK_Void,
     BK_Char,
     BK_Short,
     BK_Int,
@@ -152,6 +154,7 @@ public:
   }
 
   bool isIntegerType() const;
+  bool isVoidType() const;
 
   Kind getKind() const { return BK; }
   const char *getKindStr() const;

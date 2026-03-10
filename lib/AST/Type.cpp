@@ -119,6 +119,13 @@ bool QualType::isIntegerType() const {
   return false;
 }
 
+bool QualType::isVoidType() const {
+  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
+    return BT->isVoidType();
+
+  return false;
+}
+
 void Type::dump() const {
   QualType T(this);
   std::println(stderr, "{}", T.getAsString());
@@ -187,12 +194,22 @@ bool BuiltinType::isIntegerType() const {
   return BK >= BK_Char && BK <= BK_Long;
 }
 
+bool BuiltinType::isVoidType() const {
+  return BK == BK_Void;
+}
+
 const char *BuiltinType::getKindStr() const {
   switch (BK) {
-  case BK_Int:
-    return "int";
+  case BK_Void:
+    return "void";
   case BK_Char:
     return "char";
+  case BK_Short:
+    return "short";
+  case BK_Int:
+    return "int";
+  case BK_Long:
+    return "long";
   default:
     RCC_UNREACHABLE("Unknown builtin type");
   }
