@@ -30,15 +30,21 @@ void DeclSpec::setTypeSpecType(TypeSpecType T, SourceLocation Loc) {
 }
 
 void DeclSpec::setTypeSpecWidth(TypeSpecWidth W, SourceLocation Loc) {
+  if (TSTLoc.isInvalid())
+    TSTLoc = Loc;
+
   if (TSW == TSW_Unspecified) {
-    if (TSTLoc.isInvalid())
-      TSTLoc = Loc;
-  } else {
-    Diag.fatalAt(Loc, "cannot combine with previous '{}' declaration specifier",
-                 getSpecifierName(TSW));
+    TSW = W;
+    return;
   }
 
-  TSW = W;
+  if (W == TSW_Long && TSW == TSW_Long) {
+    TSW = TSW_LongLong;
+    return;
+  }
+
+  Diag.fatalAt(Loc, "cannot combine with previous '{}' declaration specifier",
+               getSpecifierName(TSW));
 }
 
 const char *DeclSpec::getSpecifierName(TypeSpecType T) {

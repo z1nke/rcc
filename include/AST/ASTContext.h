@@ -29,6 +29,7 @@ public:
   CanQualType ShortTy;
   CanQualType IntTy;
   CanQualType LongTy;
+  CanQualType LongLongTy;
 
   void initBuiltinTypes();
   void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,

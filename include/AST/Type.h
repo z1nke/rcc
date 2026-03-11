@@ -147,6 +147,7 @@ public:
     BK_Short,
     BK_Int,
     BK_Long,
+    BK_LongLong,
   };
 
   static bool classof(const Type *T) {

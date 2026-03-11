@@ -508,6 +508,9 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) {
     case DeclSpec::TSW_Long:
       T = Ctx.LongTy;
       break;
+    case DeclSpec::TSW_LongLong:
+      T = Ctx.LongLongTy;
+      break;
     default:
       RCC_UNREACHABLE("Unknown type specifier width");
     }

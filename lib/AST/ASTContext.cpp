@@ -9,6 +9,7 @@ void ASTContext::initBuiltinTypes() {
   initBuiltinType(ShortTy, BuiltinType::BK_Short, 2, 2);
   initBuiltinType(IntTy, BuiltinType::BK_Int, 4, 4);
   initBuiltinType(LongTy, BuiltinType::BK_Long, 8, 8);
+  initBuiltinType(LongLongTy, BuiltinType::BK_LongLong, 8, 8);
 }
 
 void ASTContext::initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,

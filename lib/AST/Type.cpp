@@ -191,7 +191,7 @@ TagDecl *Type::getAsTagDecl() const {
 }
 
 bool BuiltinType::isIntegerType() const {
-  return BK >= BK_Char && BK <= BK_Long;
+  return BK >= BK_Char && BK <= BK_LongLong;
 }
 
 bool BuiltinType::isVoidType() const {

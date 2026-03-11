@@ -27,6 +27,7 @@ public:
     TSW_Unspecified,
     TSW_Short,
     TSW_Long,
+    TSW_LongLong,
   };
 
   DeclSpec(Diagnostic &Diag) : Diag(Diag) {}
