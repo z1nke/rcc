@@ -32,8 +32,8 @@ TranslationUnitDecl *Parser::parse() {
 
 void Parser::parseGlobalDecl(TranslationUnitDecl *TU) {
   auto BegLoc = SM.createBeginLocation(CurTok);
-  DeclSpec DS;
-  parseDeclSpec(DS);
+  DeclSpec DS(Diag);
+  parseDeclSpecs(DS);
   Declarator D(DS);
   parseDeclarator(D);
   Decl *FirstDecl = S.actOnDeclarator(D);
@@ -65,7 +65,7 @@ FunctionDecl *Parser::parseFunctionBody(FunctionDecl *FD) {
   return FD;
 }
 
-// var-decl: declspec { init-declarator-list } ';'
+// var-decl: declspecs { init-declarator-list } ';'
 std::vector<VarDecl *> Parser::parseGlobalVarDecl(SourceLocation BegLoc,
                                                   DeclSpec &DS,
                                                   VarDecl *FirstVar) {
@@ -185,8 +185,8 @@ RecordDecl *Parser::parseStructUnionDecl(SourceLocation BegLoc,
 std::vector<FieldDecl *> Parser::parseFields() {
   std::vector<FieldDecl *> Fields;
   while (CurTok->isNot(Token::TK_RBrace)) {
-    DeclSpec DS;
-    parseDeclSpec(DS);
+    DeclSpec DS(Diag);
+    parseDeclSpecs(DS);
     Fields.push_back(parseField(DS));
     while (tryConsume(Token::TK_Comma))
       Fields.push_back(parseField(DS));
@@ -322,58 +322,53 @@ Stmt *Parser::parseWhileStmt() {
   return S.actOnWhileStmt(Ctx, BegLoc, Cond, Body);
 }
 
-// decl-stmt: declspec init-declarator-list? ';'
+// decl-stmt: declspecs init-declarator-list? ';'
 Stmt *Parser::parseDeclStmt() {
-  DeclSpec DS;
+  DeclSpec DS(Diag);
   auto BegLoc = SM.createBeginLocation(CurTok);
-  parseDeclSpec(DS);
+  parseDeclSpecs(DS);
   std::vector<Decl *> Decls = parseInitDeclaratorList(DS);
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Semicolon);
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
-static std::optional<DeclSpec::TypeSpecType>
-getBuiltinTypeSpecType(Token::TokenKind TK) {
-  switch (TK) {
-  case Token::TK_Void:
-    return DeclSpec::TST_Void;
-  case Token::TK_Char:
-    return DeclSpec::TST_Char;
-  case Token::TK_Short:
-    return DeclSpec::TST_Short;
-  case Token::TK_Int:
-    return DeclSpec::TST_Int;
-  case Token::TK_Long:
-    return DeclSpec::TST_Long;
-  default:
-    return std::nullopt;
-  }
-}
+// declspecs: typespec declspecs?
+// typespce: void | char | short | int | long | structDecl | unionDecl
+void Parser::parseDeclSpecs(DeclSpec &DS) {
+#define TYPE_SPEC_TYPE_CASE(T)                                                 \
+  case Token::TK_##T:                                                          \
+    DS.setTypeSpecType(DeclSpec::TST_##T, TyLoc);                              \
+    skip();                                                                    \
+    break
+#define TYPE_SPEC_WIDTH_CASE(T)                                                \
+  case Token::TK_##T:                                                          \
+    DS.setTypeSpecWidth(DeclSpec::TSW_##T, TyLoc);                             \
+    skip();                                                                    \
+    break
 
-// declspec: void | char | short | int | long | structDecl | unionDecl
-void Parser::parseDeclSpec(DeclSpec &DS) {
-  auto TyLoc = SM.createBeginLocation(CurTok);
-  auto TST = getBuiltinTypeSpecType(CurTok->getKind());
-  if (TST) {
-    skip();
-    DS.setTypeSpecType(*TST, TyLoc);
-    return;
+  while (true) {
+    auto TyLoc = SM.createBeginLocation(CurTok);
+    switch (CurTok->getKind()) {
+      TYPE_SPEC_TYPE_CASE(Void);
+      TYPE_SPEC_TYPE_CASE(Char);
+      TYPE_SPEC_TYPE_CASE(Int);
+      TYPE_SPEC_WIDTH_CASE(Short);
+      TYPE_SPEC_WIDTH_CASE(Long);
+    case Token::TK_Struct:
+      DS.setTypeSpecType(DeclSpec::TST_Struct, TyLoc);
+      DS.setRepDecl(parseStructDecl());
+      break;
+    case Token::TK_Union:
+      DS.setTypeSpecType(DeclSpec::TST_Union, TyLoc);
+      DS.setRepDecl(parseUnionDecl());
+      break;
+    default:
+      return;
+    }
   }
-
-  if (CurTok->is(Token::TK_Struct)) {
-    DS.setTypeSpecType(DeclSpec::TST_Struct, TyLoc);
-    RecordDecl *Record = parseStructDecl();
-    DS.setRepDecl(Record);
-    return;
-  }
-
-  if (CurTok->is(Token::TK_Union)) {
-    DS.setTypeSpecType(DeclSpec::TST_Union, TyLoc);
-    RecordDecl *Record = parseUnionDecl();
-    DS.setRepDecl(Record);
-    return;
-  }
+#undef TYPE_SPEC_TYPE_CASE
+#undef TYPE_SPEC_WIDTH_CASE
 }
 
 // init-declarator-list: init-declarator { ',' init-declarator }*
@@ -459,8 +454,8 @@ void Parser::parseTypeSuffix(Declarator &D) {
         if (Idx > 0)
           skip(Token::TK_Comma);
 
-        DeclSpec ParamDS;
-        parseDeclSpec(ParamDS);
+        DeclSpec ParamDS(Diag);
+        parseDeclSpecs(ParamDS);
         Declarator ParamD(ParamDS);
         parseDeclarator(ParamD);
         (void)S.actOnParamVarDecl(ParamD, Idx);

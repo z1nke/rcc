@@ -6,6 +6,7 @@
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceLocation.h"
 #include "Sema/DeclSpec.h"
+#include "Support/Unreachable.h"
 
 #include <algorithm>
 #include <ranges>
@@ -336,8 +337,11 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
       LType = RType;
       LHS->setType(LType);
     } else {
-      if (!canCast(LType, RType))
+      if (!canCast(LType, RType)) {
+        LType->dump();
+        RType->dump();
         Diag.fatalAt(OpLoc, "invalid assignment operand");
+      }
     }
 
     return LType;
@@ -483,9 +487,8 @@ FunctionDecl *Sema::findFunction(std::string_view Name) const {
   return nullptr;
 }
 
-QualType Sema::getTypeForDeclarator(Declarator &D) {
+QualType Sema::convertDeclSpecToType(const DeclSpec &DS) {
   QualType T;
-  const DeclSpec &DS = D.getDeclSpec();
   switch (DS.getTypeSpecType()) {
   case DeclSpec::TST_Void:
     T = Ctx.VoidTy;
@@ -493,15 +496,23 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   case DeclSpec::TST_Char:
     T = Ctx.CharTy;
     break;
-  case DeclSpec::TST_Int:
-    T = Ctx.IntTy;
+  case DeclSpec::TST_Unspecified:
+  case DeclSpec::TST_Int: {
+    switch (DS.getTypeSpecWidth()) {
+    case DeclSpec::TSW_Unspecified:
+      T = Ctx.IntTy;
+      break;
+    case DeclSpec::TSW_Short:
+      T = Ctx.ShortTy;
+      break;
+    case DeclSpec::TSW_Long:
+      T = Ctx.LongTy;
+      break;
+    default:
+      RCC_UNREACHABLE("Unknown type specifier width");
+    }
     break;
-  case DeclSpec::TST_Short:
-    T = Ctx.ShortTy;
-    break;
-  case DeclSpec::TST_Long:
-    T = Ctx.LongTy;
-    break;
+  }
   case DeclSpec::TST_Struct:
   case DeclSpec::TST_Union: {
     const auto *RD = dynCastOrNull<RecordDecl>(DS.getRepDecl());
@@ -511,9 +522,15 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
     break;
   }
   default:
-    Diag.fatalAt(DS.getTypeSpecLoc(), "unknown type specifier");
+    RCC_UNREACHABLE("Unknown type specifier type");
   }
 
+  return T;
+}
+
+QualType Sema::getTypeForDeclarator(Declarator &D) {
+  const DeclSpec &DS = D.getDeclSpec();
+  QualType T = convertDeclSpecToType(DS);
   // Get full type.
   for (const auto &Chunk : (D.getDeclChunks() | std::views::reverse)) {
     switch (Chunk.Kind) {

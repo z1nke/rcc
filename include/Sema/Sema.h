@@ -21,6 +21,7 @@ class ParamVarDecl;
 class Declarator;
 class FunctionDecl;
 class FieldDecl;
+class DeclSpec;
 
 class Sema {
 public:
@@ -104,6 +105,7 @@ private:
 
 private:
   QualType getTypeForDeclarator(Declarator &D);
+  QualType convertDeclSpecToType(const DeclSpec &DS);
   QualType tryDecayArrayType(QualType T);
   std::size_t getArrayLength(const Expr *E) const;
 

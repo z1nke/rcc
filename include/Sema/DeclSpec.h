@@ -10,6 +10,7 @@ namespace rcc {
 
 class Expr;
 class Decl;
+class Diagnostic;
 
 class DeclSpec {
 public:
@@ -17,28 +18,40 @@ public:
     TST_Unspecified,
     TST_Void,
     TST_Char,
-    TST_Short,
     TST_Int,
-    TST_Long,
     TST_Struct,
     TST_Union,
   };
 
-  DeclSpec() = default;
+  enum TypeSpecWidth {
+    TSW_Unspecified,
+    TSW_Short,
+    TSW_Long,
+  };
+
+  DeclSpec(Diagnostic &Diag) : Diag(Diag) {}
   DeclSpec(const DeclSpec &) = delete;
   void operator=(const DeclSpec &) = delete;
 
-  void setTypeSpecType(TypeSpecType TST, SourceLocation TSTLoc);
   TypeSpecType getTypeSpecType() const { return TST; }
   SourceLocation getTypeSpecLoc() const { return TSTLoc; }
+  TypeSpecWidth getTypeSpecWidth() const { return TSW; }
+
+  void setTypeSpecType(TypeSpecType T, SourceLocation Loc);
+  void setTypeSpecWidth(TypeSpecWidth W, SourceLocation Loc);
 
   Decl *getRepDecl() const { return RepDecl; }
   void setRepDecl(Decl *D) { RepDecl = D; }
 
+  static const char *getSpecifierName(TypeSpecType T);
+  static const char *getSpecifierName(TypeSpecWidth T);
+
 private:
   TypeSpecType TST = TST_Unspecified;
+  TypeSpecWidth TSW = TSW_Unspecified;
   SourceLocation TSTLoc;
   Decl *RepDecl = nullptr;
+  Diagnostic &Diag;
 };
 
 struct DeclaratorChunk {

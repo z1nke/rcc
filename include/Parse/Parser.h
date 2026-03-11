@@ -74,7 +74,8 @@ public:
   void exitScope();
 
 private:
-  void parseDeclSpec(DeclSpec &DS);
+  void parseDeclSpecs(DeclSpec &DS);
+
   std::vector<Decl *> parseInitDeclaratorList(DeclSpec &DS);
   Decl *parseInitDeclarator(DeclSpec &DS);
   void parseVarInit(VarDecl *Var);
