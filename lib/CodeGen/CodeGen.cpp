@@ -201,7 +201,7 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       // a1 = &var
       pop("a1");
       emit("  # initialize variable '{}'", Var->getName());
-      //emit("  sd a0, 0(a1)"); // *a1 = a0
+      // emit("  sd a0, 0(a1)"); // *a1 = a0
       emit("  s{} a0, 0(a1)", getWidthSuffix(Var->getType()->getSize()));
 
     } else if (isa<TypedefDecl>(D)) {
@@ -368,6 +368,8 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   pop("a1");
 
   auto Op = BO->getOpcode();
+  QualType LType = LHS->getType();
+  const char *Suffix = LType->getSize() <= 4 ? "w" : "";
   switch (Op) {
   case BinaryOperator::BO_Add: {
     QualType LType = LHS->getType();
@@ -383,7 +385,7 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
       emit("  mul a0, a0, t0");
     }
 
-    emit("  add a0, a0, a1");
+    emit("  add{} a0, a0, a1", Suffix);
     return;
   }
   case BinaryOperator::BO_Sub: {
@@ -403,14 +405,14 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
       emit("  mul a1, a1, t0");
     }
 
-    emit("  sub a0, a0, a1");
+    emit("  sub{} a0, a0, a1", Suffix);
     return;
   }
   case BinaryOperator::BO_Mul:
-    emit("  mul a0, a0, a1");
+    emit("  mul{} a0, a0, a1", Suffix);
     return;
   case BinaryOperator::BO_Div:
-    emit("  div a0, a0, a1");
+    emit("  div{} a0, a0, a1", Suffix);
     return;
   case BinaryOperator::BO_EQ:
     // a0 = a0 ^ a1
@@ -462,7 +464,7 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     break;
   case UnaryOperator::UO_Minus:
     genExpr(UO->getSubExpr());
-    emit("  neg a0, a0");
+    emit("  neg{} a0, a0", UO->getType()->getSize() <= 4 ? "w" : "");
     break;
   case UnaryOperator::UO_Addrof:
     emit("  # addrof");
