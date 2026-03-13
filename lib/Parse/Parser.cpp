@@ -597,10 +597,24 @@ Expr *Parser::parseAddExpr() {
                          Token::TK_Minus>();
 }
 
-// mul-expr: unary-expr { ('*' | '/') unary-expr }
+// mul-expr: cast-expr { ('*' | '/') cast-expr }
 Expr *Parser::parseMulExpr() {
-  return parseBinaryExpr<&Parser::parseUnaryExpr, Token::TK_Star,
+  return parseBinaryExpr<&Parser::parseCastExpr, Token::TK_Star,
                          Token::TK_Slash>();
+}
+
+// cast-expr: unary-expr | '(' type-name ')' cast-expr
+Expr *Parser::parseCastExpr() {
+  if (CurTok->is(Token::TK_LParen) && isTypeName(CurTok->getNext())) {
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    skip();
+    QualType T = parseTypeName();
+    skip(Token::TK_RParen);
+    auto *SubExpr = parseCastExpr();
+    return S.actOnCastExpr(BegLoc, SubExpr->getEndLoc(), T, SubExpr, false);
+  }
+
+  return parseUnaryExpr();
 }
 
 static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
@@ -619,7 +633,7 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
 }
 
 // unary-expr: postfix-expr
-//           | unary-operator unary-expr
+//           | unary-operator cast-expr
 //           | sizeof unary-expr
 //           | sizeof '(' type-name ')'
 Expr *Parser::parseUnaryExpr() {
@@ -629,7 +643,7 @@ Expr *Parser::parseUnaryExpr() {
     auto Op = getUnaryOpcode(CurTok->getKind());
     auto OpLoc = SM.createBeginLocation(CurTok);
     skip();
-    Expr *SubExpr = parseUnaryExpr();
+    Expr *SubExpr = parseCastExpr();
     return S.actOnUnaryOperator(OpLoc, SubExpr, Op);
   }
 

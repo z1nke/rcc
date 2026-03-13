@@ -244,6 +244,52 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
                           std::move(Args));
 }
 
+Expr *Sema::actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                          QualType T, Expr *SubExpr, bool IsImplicit) {
+  QualType SubT = SubExpr->getType();
+  auto CK = CastExpr::CastKind::CK_NoOp;
+  do {
+    if (T == SubT || T.getTypePtr() == SubT.getTypePtr())
+      break;
+
+    if (T.isVoidType()) {
+      CK = CastExpr::CK_ToVoid;
+      break;
+    }
+
+    if (T.isIntegerType()) {
+      if (SubT.isIntegerType()) {
+        CK = CastExpr::CK_IntegralCast;
+        break;
+      }
+
+      if (SubT->isPointerType()) {
+        CK = CastExpr::CK_PointerToIntegral;
+        break;
+      }
+      break;
+    }
+
+    if (T->isPointerType()) {
+      if (SubT.isIntegerType()) {
+        CK = CastExpr::CK_IntegralToPointer;
+        break;
+      }
+
+      if (SubT->isPointerType()) {
+        if (T->getPointeeType().getTypePtr() ==
+            SubT->getPointeeType().getTypePtr())
+          break;
+
+        CK = CastExpr::CK_BitCast;
+      }
+      break;
+    }
+  } while (false);
+
+  return CastExpr::create(Ctx, BegLoc, EndLoc, T, SubExpr, CK, IsImplicit);
+}
+
 Expr *Sema::actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                           Stmt *SubStmt) {
   auto *CS = dynCast<CompoundStmt>(SubStmt);

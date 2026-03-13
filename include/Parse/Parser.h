@@ -66,6 +66,7 @@ private:
   Expr *parseRelationalExpr();
   Expr *parseAddExpr();
   Expr *parseMulExpr();
+  Expr *parseCastExpr();
   Expr *parseUnaryExpr();
   Expr *parsePrimaryExpr();
   Expr *parseParenOrStmtExpr();

@@ -76,11 +76,13 @@ public:
   Expr *actOnCallExpr(SourceLocation IdentBegLoc, SourceLocation IdentEndLoc,
                       SourceLocation EndLoc, std::string_view Name,
                       std::vector<Expr *> Args);
-  Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
-                      Stmt *SubStmt);
   Expr *actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS, Expr *RHS);
   Expr *actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
                               Expr *Base, std::string_view Ident, bool IsArrow);
+  Expr *actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                      Expr *SubExpr, bool IsImplicit);
+  Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                      Stmt *SubStmt);
 
 public:
   Scope *getCurrScope() const { return CurrScope; }

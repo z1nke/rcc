@@ -465,6 +465,38 @@ private:
   bool IsArrow;
 };
 
+class CastExpr final : public Expr {
+public:
+  enum CastKind {
+    CK_NoOp,
+    CK_ToVoid,
+    CK_BitCast,
+    CK_IntegralCast,
+    CK_PointerToIntegral,
+    CK_IntegralToPointer,
+  };
+
+  static CastExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                          SourceLocation EndLoc, QualType T, Expr *SubExpr,
+                          CastKind CK, bool IsImplicit);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_CastExpr; }
+
+  Expr *getSubExpr() { return SubExpr; }
+  const Expr *getSubExpr() const { return SubExpr; }
+  CastKind getCastKind() const { return CK; }
+  bool isImplicit() const { return IsImplicit; }
+  bool isExplicit() const { return !IsImplicit; }
+
+  CastExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+           Expr *SubExpr, CastKind CK, bool IsImplicit);
+
+private:
+  Expr *SubExpr;
+  CastKind CK;
+  bool IsImplicit;
+};
+
 class StmtExpr final : public Expr {
 public:
   static StmtExpr *create(ASTContext &Ctx, SourceLocation BegLoc,

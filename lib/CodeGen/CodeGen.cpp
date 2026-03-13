@@ -7,6 +7,7 @@
 #include "Support/Casting.h"
 #include "Support/Unreachable.h"
 
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <format>
@@ -315,6 +316,9 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_UnaryExprOrTypeTraitExpr:
     genUnaryExprOrTypeTraitExpr(cast<UnaryExprOrTypeTraitExpr>(E));
     break;
+  case Stmt::SK_CastExpr:
+    genCastExpr(cast<CastExpr>(E));
+    break;
   case Stmt::SK_StmtExpr:
     for (const Stmt *Child : cast<StmtExpr>(E)->getSubStmt()->getBody())
       genStmt(Child);
@@ -337,6 +341,55 @@ const std::string &CodeGen::getStringLabel(const StringLiteral *SL) {
   StringLiterals.push_back(SL);
   SLCache[SL] = Label;
   return Label;
+}
+
+void CodeGen::genIntCast(const Type *From, const Type *To) {
+  enum CastTypeID : unsigned {
+    I8,
+    I16,
+    I32,
+    I64,
+  };
+
+  auto GetTypeID = [](const Type *T) {
+    if (const auto *BT = dynCast<BuiltinType>(T)) {
+      switch (BT->getKind()) {
+      case BuiltinType::BK_Char:
+        return I8;
+      case BuiltinType::BK_Short:
+        return I16;
+      case BuiltinType::BK_Int:
+        return I32;
+      default:
+        return I64;
+      }
+    }
+
+    return I64;
+  };
+
+#define INT_CAST(FROM, TO, SHIFT)                                              \
+  static constexpr std::string_view I##FROM##To##I##TO =                       \
+      "slli a0, a0, " #SHIFT "\nsrai a0, a0, " #SHIFT;
+
+  INT_CAST(64, 8, 56);
+  INT_CAST(64, 16, 48);
+  INT_CAST(64, 32, 32);
+
+  constexpr std::array<std::array<std::string_view, 10>, 10> IntCastTable = {{
+      // To: i8   i16   i32  i64    | From:
+      {},                            // | i8
+      {I64ToI8},                     // | i16
+      {I64ToI8, I64ToI16},           // | i32
+      {I64ToI8, I64ToI16, I64ToI32}, // | i64
+  }};
+
+  unsigned ID1 = GetTypeID(From);
+  unsigned ID2 = GetTypeID(To);
+  std::string_view CastInsts = IntCastTable[ID1][ID2];
+  if (!CastInsts.empty()) {
+    emit("{}", CastInsts);
+  }
 }
 
 void CodeGen::genStringLiteral(const StringLiteral *SL) {
@@ -516,6 +569,25 @@ void CodeGen::genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
   std::size_t Size = UE->getSize();
   emit("  # sizeof-expr");
   emit("  li a0, {}", Size);
+}
+
+void CodeGen::genCastExpr(const CastExpr *Cast) {
+  const Expr *SubExpr = Cast->getSubExpr();
+  genExpr(SubExpr);
+
+  switch (Cast->getCastKind()) {
+  case CastExpr::CK_NoOp:
+  case CastExpr::CK_ToVoid:
+    return;
+  case CastExpr::CK_IntegralCast:
+  case CastExpr::CK_IntegralToPointer:
+  case CastExpr::CK_PointerToIntegral:
+  case CastExpr::CK_BitCast:
+    genIntCast(SubExpr->getTypePtr(), Cast->getTypePtr());
+    break;
+  default:
+    RCC_UNREACHABLE("Unknown cast kind");
+  }
 }
 
 void CodeGen::genAddr(const Expr *E) {

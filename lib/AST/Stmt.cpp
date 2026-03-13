@@ -302,6 +302,18 @@ MemberExpr::MemberExpr(SourceLocation BegLoc, SourceLocation OpLoc,
     : Expr(SK_MemberExpr, BegLoc, EndLoc, T), OpLoc(OpLoc), Base(Base),
       Member(Member), IsArrow(IsArrow) {}
 
+CastExpr *CastExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc, QualType T, Expr *SubExpr,
+                           CastKind CK, bool IsImplicit) {
+  void *Mem = Ctx.allocate(sizeof(CastExpr), alignof(CastExpr));
+  return new (Mem) CastExpr(BegLoc, EndLoc, T, SubExpr, CK, IsImplicit);
+}
+
+CastExpr::CastExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                   Expr *SubExpr, CastKind CK, bool IsImplicit)
+    : Expr(SK_CastExpr, BegLoc, EndLoc, T), SubExpr(SubExpr), CK(CK),
+      IsImplicit(IsImplicit) {}
+
 StmtExpr *StmtExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, QualType T,
                            CompoundStmt *SubStmt) {

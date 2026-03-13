@@ -40,6 +40,7 @@ private:
   void genCallExpr(const CallExpr *CE);
   void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);
   void genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE);
+  void genCastExpr(const CastExpr *Cast);
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
   void genAddr(const ArraySubscriptExpr *ASE);
@@ -58,6 +59,8 @@ private:
 
   int getCount() const;
   const std::string &getStringLabel(const StringLiteral *SL);
+
+  void genIntCast(const Type *From, const Type *To);
 
 private:
   template <typename... ARGS>
