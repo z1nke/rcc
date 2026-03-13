@@ -33,6 +33,7 @@ public:
 
   Decl *actOnDeclarator(Declarator &D);
   VarDecl *actOnVarDecl(Declarator &D, QualType T);
+  TypedefDecl *actOnTypedefDecl(Declarator &D, QualType T);
   FieldDecl *actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent);
   ParamVarDecl *actOnParamVarDecl(Declarator &D, unsigned Index);
   FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
@@ -87,7 +88,8 @@ public:
 private:
   VarDecl *findVar(std::string_view Ident) const;
   TagDecl *findTagDecl(std::string_view Ident) const;
-  FunctionDecl *findFunction(std::string_view Name) const;
+  FunctionDecl *findFunction(std::string_view Ident) const;
+  TypedefDecl *findTypedef(std::string_view Ident) const;
 
 private:
   void checkScalarType(QualType T);
@@ -108,6 +110,7 @@ private:
   QualType convertDeclSpecToType(const DeclSpec &DS);
   QualType tryDecayArrayType(QualType T);
   std::size_t getArrayLength(const Expr *E) const;
+  void addDecl(Decl *D);
 
 private:
   ASTContext &Ctx;

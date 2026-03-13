@@ -39,10 +39,12 @@ public:
   QualType getConstantArrayType(QualType ElementType, std::size_t Len);
   QualType getRecordType(RecordDecl *RD, std::size_t Size,
                          std::size_t Align = 0);
+  QualType getTypedefType(TypedefDecl *TD, QualType Underlying);
 
   std::vector<Type *> Types;
   std::unordered_map<void *, PointerType *> PointerTypes;
   std::unordered_map<const RecordDecl *, RecordType *> RecordTypes;
+  std::unordered_map<const TypedefDecl *, TypedefType *> TypedefTypes;
 
 private:
   Diagnostic &Diag;

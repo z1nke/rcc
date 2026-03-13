@@ -14,6 +14,17 @@ class Diagnostic;
 
 class DeclSpec {
 public:
+  // storage-class-specifier
+  enum StorageClassSpec {
+    SCS_Unspecified,
+    SCS_Typedef,
+    // SCS_Extern,
+    // SCS_Static,
+    // SCS_Auto,
+    // SCS_Register,
+  };
+
+  // type-specifier
   enum TypeSpecType {
     TST_Unspecified,
     TST_Void,
@@ -21,6 +32,7 @@ public:
     TST_Int,
     TST_Struct,
     TST_Union,
+    TST_Typename, // Typedef, struct/union name or enum name.
   };
 
   enum TypeSpecWidth {
@@ -34,23 +46,33 @@ public:
   DeclSpec(const DeclSpec &) = delete;
   void operator=(const DeclSpec &) = delete;
 
+  SourceLocation getTypeSpecLoc() const { return TSLoc; }
+  StorageClassSpec getStorageClassSpec() const { return SCS; }
   TypeSpecType getTypeSpecType() const { return TST; }
-  SourceLocation getTypeSpecLoc() const { return TSTLoc; }
   TypeSpecWidth getTypeSpecWidth() const { return TSW; }
+  bool hasTypeSpecifier() const;
 
+  void setStorageClassSpec(StorageClassSpec S, SourceLocation Loc);
   void setTypeSpecType(TypeSpecType T, SourceLocation Loc);
   void setTypeSpecWidth(TypeSpecWidth W, SourceLocation Loc);
 
   Decl *getRepDecl() const { return RepDecl; }
   void setRepDecl(Decl *D) { RepDecl = D; }
 
+  static const char *getSpecifierName(StorageClassSpec S);
   static const char *getSpecifierName(TypeSpecType T);
   static const char *getSpecifierName(TypeSpecWidth T);
 
 private:
+  template <typename T>
+  [[noreturn]] void reportBadSpec(SourceLocation Loc, T TNew, T TPrev);
+
+private:
+  StorageClassSpec SCS = SCS_Unspecified;
   TypeSpecType TST = TST_Unspecified;
   TypeSpecWidth TSW = TSW_Unspecified;
-  SourceLocation TSTLoc;
+  SourceLocation SCSLoc;
+  SourceLocation TSLoc;
   Decl *RepDecl = nullptr;
   Diagnostic &Diag;
 };

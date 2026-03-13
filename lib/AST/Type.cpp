@@ -53,9 +53,10 @@ static TypeDumper dumpToString(QualType T) {
     }
     return Dumper;
   }
-  case Type::TK_Typedef:
-    // TODO: Impl
-    return TypeDumper();
+  case Type::TK_Typedef: {
+    const auto *TT = cast<TypedefType>(Ty);
+    return {TT->getDecl()->getName(), ""};
+  }
   case Type::TK_Function: {
     const auto *FT = cast<FunctionType>(Ty);
     TypeDumper Dumper = dumpToString(FT->getReturnType());
@@ -132,7 +133,13 @@ void Type::dump() const {
 }
 
 QualType Type::getCanonicalType() const {
-  // TODO: Handle typedef type.
+  switch (Kind) {
+  case TK_Typedef: {
+    return cast<TypedefType>(this)->getCanonicalType();
+  default:
+    break;
+  }
+  }
   return QualType(this);
 }
 
@@ -194,9 +201,7 @@ bool BuiltinType::isIntegerType() const {
   return BK >= BK_Char && BK <= BK_LongLong;
 }
 
-bool BuiltinType::isVoidType() const {
-  return BK == BK_Void;
-}
+bool BuiltinType::isVoidType() const { return BK == BK_Void; }
 
 const char *BuiltinType::getKindStr() const {
   switch (BK) {
@@ -213,6 +218,12 @@ const char *BuiltinType::getKindStr() const {
   default:
     RCC_UNREACHABLE("Unknown builtin type");
   }
+}
+
+QualType TypedefType::getUnderlying() const { return D->getUnderlying(); }
+
+QualType TypedefType::getCanonicalType() const {
+  return D->getUnderlying().getCanonicalType();
 }
 
 } // namespace rcc

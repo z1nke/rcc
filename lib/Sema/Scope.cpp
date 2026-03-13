@@ -6,10 +6,7 @@ Scope::Scope(Scope *Parent, unsigned Flags, Decl *DeclCtx)
     : Parent(Parent), Depth(Parent ? Parent->Depth + 1 : 0), Flags(Flags),
       DeclCtx(DeclCtx) {}
 
-void Scope::addDecl(Decl *D) { Decls.insert(D); }
-void Scope::removeDecl(Decl *D) { Decls.erase(D); }
-
-void Scope::addTag(TagDecl *D) { TagDecls.insert(D); }
-void Scope::removeTag(TagDecl *D) { TagDecls.erase(D); }
+void Scope::addDecl(Decl *D) { Decls.push_back(D); }
+void Scope::addTag(TagDecl *D) { TagDecls.push_back(D); }
 
 } // namespace rcc

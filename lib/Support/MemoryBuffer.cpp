@@ -18,9 +18,10 @@ MemoryBuffer::fromFile(const std::string &Filename) {
 
   auto Size = std::filesystem::file_size(Filename);
   std::vector<char> Data;
-  Data.reserve(Size);
-  Data.resize(Size);
+  Data.reserve(Size + 1);
+  Data.resize(Size + 1);
   File.read(Data.data(), Size);
+  Data[Size] = '\0';
   if (!File)
     fatalError(std::format("failed to read file '{}'", Filename));
   return std::make_unique<MemoryBuffer>(std::move(Data));

@@ -18,6 +18,12 @@ const char *Decl::getKindStr() const {
     return "VarDecl";
   case DK_Function:
     return "FunctionDecl";
+  case DK_Field:
+    return "FieldDecl";
+  case DK_Record:
+    return "RecordDecl";
+  case DK_Typedef:
+    return "TypedefDecl";
   default:
     RCC_UNREACHABLE("Unknown decl kind");
   }
@@ -97,5 +103,19 @@ RecordDecl::RecordDecl(ASTContext &Ctx, SourceLocation Loc,
                        SourceLocation BegLoc, SourceLocation EndLoc,
                        std::string Name, TagDecl::TagKind TK)
     : TagDecl(Ctx, DK_Record, TK, Loc, BegLoc, EndLoc, std::move(Name)) {}
+
+TypedefDecl *TypedefDecl::create(ASTContext &Ctx, SourceLocation Loc,
+                                 SourceLocation BegLoc, SourceLocation EndLoc,
+                                 std::string Name, QualType Underlying) {
+  void *Mem = Ctx.allocate(sizeof(TypedefDecl), alignof(TypedefDecl));
+  return new (Mem)
+      TypedefDecl(Ctx, Loc, BegLoc, EndLoc, std::move(Name), Underlying);
+}
+
+TypedefDecl::TypedefDecl(ASTContext &Ctx, SourceLocation Loc,
+                         SourceLocation BegLoc, SourceLocation EndLoc,
+                         std::string Name, QualType Underlying)
+    : TypeDecl(Ctx, Decl::DK_Typedef, Loc, BegLoc, EndLoc, std::move(Name)),
+      Underlying(Underlying) {}
 
 } // namespace rcc

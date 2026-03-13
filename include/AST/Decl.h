@@ -23,10 +23,13 @@ public:
     DK_Function,
     DK_Field,
     DK_Record,
+    DK_Typedef,
     FirstTypeDeclKind = DK_Record,
-    LastTypeDeclKind = DK_Record,
+    LastTypeDeclKind = DK_Typedef,
     FirstTagDeclKind = DK_Record,
     LastTagDeclKind = DK_Record,
+    FirstNamedDeclKind = DK_Var,
+    LastNamedDeclKind = DK_Typedef,
   };
 
   Decl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
@@ -86,6 +89,11 @@ public:
   NamedDecl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
             SourceLocation BegLoc, SourceLocation EndLoc, std::string Name)
       : Decl(Ctx, Kind, Loc, BegLoc, EndLoc), Name(std::move(Name)) {}
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(DeclKind DK) {
+    return DK >= FirstNamedDeclKind && DK <= LastNamedDeclKind;
+  }
 
   const std::string &getName() const { return Name; }
   void setName(std::string Name) { this->Name = std::move(Name); }
@@ -284,6 +292,24 @@ private:
 
 private:
   std::vector<FieldDecl *> Fields;
+};
+
+class TypedefDecl final : public TypeDecl {
+public:
+  static TypedefDecl *create(ASTContext &Ctx, SourceLocation Loc,
+                             SourceLocation BegLoc, SourceLocation EndLoc,
+                             std::string Name, QualType Underlying);
+
+  static bool classof(const Decl *D) { return D->getKind() == DK_Typedef; }
+
+  QualType getUnderlying() const { return Underlying; }
+
+private:
+  TypedefDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+              SourceLocation EndLoc, std::string Name, QualType Underlying);
+
+private:
+  QualType Underlying;
 };
 
 } // namespace rcc

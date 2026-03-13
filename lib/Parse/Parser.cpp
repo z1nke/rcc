@@ -21,16 +21,21 @@ Parser::Parser(Token *CurTok, ASTContext &Ctx, Sema &S, SourceManager &SM)
 
 Parser::~Parser() { exitScope(); }
 
-// program: (function-decl | var-decl) EOF
+// translation-unit: external-decl EOF
+//                 | translation-unit external-decl
 TranslationUnitDecl *Parser::parse() {
   auto *TU = TranslationUnitDecl::create(Ctx);
   while (CurTok->isNot(Token::TK_EOF))
-    parseGlobalDecl(TU);
+    parseExternalDecl(TU);
 
   return TU;
 }
 
-void Parser::parseGlobalDecl(TranslationUnitDecl *TU) {
+// external-declaration: function-definition
+//                     | declaration
+// declaration: declaration-specifiers init-declarator-list?
+// NOTE: declaration => function-decl | var-decl | typedef-decl
+void Parser::parseExternalDecl(TranslationUnitDecl *TU) {
   auto BegLoc = SM.createBeginLocation(CurTok);
   DeclSpec DS(Diag);
   parseDeclSpecs(DS);
@@ -45,9 +50,16 @@ void Parser::parseGlobalDecl(TranslationUnitDecl *TU) {
   }
 
   if (auto *Var = dynCast<VarDecl>(FirstDecl)) {
-    std::vector<VarDecl *> Vars = parseGlobalVarDecl(BegLoc, DS, Var);
+    std::vector<VarDecl *> Vars = parseRestVarDecl(BegLoc, DS, Var);
     for (VarDecl *Var : Vars)
       TU->addDecl(Var);
+    return;
+  }
+
+  if (auto *Typedef = dynCast<TypedefDecl>(FirstDecl)) {
+    auto Typedefs = parseRestTypedefDecl(BegLoc, DS, Typedef);
+    for (auto *Typedef : Typedefs)
+      TU->addDecl(Typedef);
     return;
   }
 
@@ -65,12 +77,12 @@ FunctionDecl *Parser::parseFunctionBody(FunctionDecl *FD) {
   return FD;
 }
 
-// var-decl: declspecs { init-declarator-list } ';'
-std::vector<VarDecl *> Parser::parseGlobalVarDecl(SourceLocation BegLoc,
-                                                  DeclSpec &DS,
-                                                  VarDecl *FirstVar) {
+// var-decl: declspecs init-declarator-list? ';'
+std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
+                                                DeclSpec &DS,
+                                                VarDecl *FirstVar) {
   std::vector<VarDecl *> Vars;
-  parseVarInit(FirstVar);
+  tryParseVarInit(FirstVar);
   FirstVar->setGlobal(true);
   Vars.push_back(FirstVar);
   while (tryConsume(Token::TK_Comma)) {
@@ -84,6 +96,22 @@ std::vector<VarDecl *> Parser::parseGlobalVarDecl(SourceLocation BegLoc,
 
   skip(Token::TK_Semicolon);
   return Vars;
+}
+
+std::vector<TypedefDecl *>
+Parser::parseRestTypedefDecl(SourceLocation BegLoc, DeclSpec &DS,
+                             TypedefDecl *FirstTypedef) {
+  std::vector<TypedefDecl *> Typedefs;
+  Typedefs.push_back(FirstTypedef);
+  while (tryConsume(Token::TK_Comma)) {
+    auto *Typedef = dynCast<TypedefDecl>(parseInitDeclarator(DS));
+    if (!Typedef)
+      Diag.fatalAt(BegLoc, "expect typedef declaration");
+
+    Typedefs.push_back(Typedef);
+  }
+  skip(Token::TK_Semicolon);
+  return Typedefs;
 }
 
 // function-decl: function-definition
@@ -224,7 +252,16 @@ Stmt *Parser::parseStmt() {
   case Token::TK_Long:
   case Token::TK_Struct:
   case Token::TK_Union:
+  case Token::TK_Typedef:
     return parseDeclStmt();
+  case Token::TK_Ident: {
+    std::string_view Ident = CurTok->getIdentifer();
+    auto *Typedef = S.findTypedef(Ident);
+    if (!Typedef)
+      break;
+
+    return parseDeclStmt();
+  }
   default:
     break;
   }
@@ -336,6 +373,12 @@ Stmt *Parser::parseDeclStmt() {
 // declspecs: typespec declspecs?
 // typespce: void | char | short | int | long | structDecl | unionDecl
 void Parser::parseDeclSpecs(DeclSpec &DS) {
+#define STORAGE_CLASS_SPEC_CASE(T)                                             \
+  case Token::TK_##T:                                                          \
+    DS.setStorageClassSpec(DeclSpec::SCS_##T, TyLoc);                          \
+    skip();                                                                    \
+    break
+
 #define TYPE_SPEC_TYPE_CASE(T)                                                 \
   case Token::TK_##T:                                                          \
     DS.setTypeSpecType(DeclSpec::TST_##T, TyLoc);                              \
@@ -350,6 +393,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
   while (true) {
     auto TyLoc = SM.createBeginLocation(CurTok);
     switch (CurTok->getKind()) {
+      STORAGE_CLASS_SPEC_CASE(Typedef);
       TYPE_SPEC_TYPE_CASE(Void);
       TYPE_SPEC_TYPE_CASE(Char);
       TYPE_SPEC_TYPE_CASE(Int);
@@ -363,6 +407,26 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       DS.setTypeSpecType(DeclSpec::TST_Union, TyLoc);
       DS.setRepDecl(parseUnionDecl());
       break;
+    case Token::TK_Ident: {
+      if (DS.hasTypeSpecifier())
+        return;
+
+      std::string_view Ident = CurTok->getIdentifer();
+      auto *Typedef = S.findTypedef(Ident);
+      if (!Typedef) {
+        // Support C89-style implicit-int typedef declarations like:
+        //   typedef t;
+        if (DS.getStorageClassSpec() == DeclSpec::SCS_Typedef &&
+            !DS.hasTypeSpecifier())
+          return;
+        Diag.fatalAt(TyLoc, "use of undeclared identifier '{}'", Ident);
+      }
+
+      DS.setTypeSpecType(DeclSpec::TST_Typename, TyLoc);
+      DS.setRepDecl(Typedef);
+      skip();
+      break;
+    }
     default:
       return;
     }
@@ -386,15 +450,20 @@ Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
   Declarator D(DS);
   parseDeclarator(D);
   Decl *DR = S.actOnDeclarator(D);
-  auto *Var = dynCast<VarDecl>(DR);
-  if (!Var)
-    Diag.fatalAt(D.getLocation(), "expect variable declarator");
 
-  parseVarInit(Var);
-  return Var;
+  if (auto *Var = dynCast<VarDecl>(DR)) {
+    tryParseVarInit(Var);
+    return Var;
+  }
+
+  if (auto *Typedef = dynCast<TypedefDecl>(DR)) {
+    return Typedef;
+  }
+
+  Diag.fatalAt(D.getLocation(), "expect variable or typedef declarator");
 }
 
-void Parser::parseVarInit(VarDecl *Var) {
+void Parser::tryParseVarInit(VarDecl *Var) {
   if (tryConsume(Token::TK_Equal)) {
     Expr *E = parseInitExpr();
     Var->setInit(E);

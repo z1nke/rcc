@@ -204,6 +204,8 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       //emit("  sd a0, 0(a1)"); // *a1 = a0
       emit("  s{} a0, 0(a1)", getWidthSuffix(Var->getType()->getSize()));
 
+    } else if (isa<TypedefDecl>(D)) {
+      continue;
     } else {
       Diag.fatalAt(D->getBeginLoc(), "invalid declaration in decl-stmt");
     }

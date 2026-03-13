@@ -24,6 +24,15 @@ void ASTDumper::visit(const Decl *D) {
   case Decl::DK_Var:
     visit(cast<VarDecl>(D));
     break;
+  case Decl::DK_Record:
+    visit(cast<RecordDecl>(D));
+    break;
+  case Decl::DK_Field:
+    visit(cast<FieldDecl>(D));
+    break;
+  case Decl::DK_Typedef:
+    visit(cast<TypedefDecl>(D));
+    break;
   default:
     RCC_UNREACHABLE("unknown decl kind");
   }
@@ -75,6 +84,21 @@ void ASTDumper::visit(const VarDecl *Var) {
     ScopedIndent SI(*this, true);
     visit(Init);
   }
+}
+
+void ASTDumper::visit(const RecordDecl *Record) {
+  printName(Record);
+  for (const auto *Field : Record->fields()) {
+    ScopedIndent SI(*this, false);
+    visit(Field);
+  }
+}
+
+void ASTDumper::visit(const FieldDecl *Field) { printName(Field); }
+
+void ASTDumper::visit(const TypedefDecl *Typedef) {
+  std::println(stderr, "{} {} '{}'", "typedef", Typedef->getName(),
+               Typedef->getUnderlying().getAsString());
 }
 
 void ASTDumper::visit(const Stmt *S) {
@@ -297,6 +321,11 @@ void ASTDumper::printName(const char *Name) const {
 }
 
 void ASTDumper::printName(const ValueDecl *D) const {
+  std::println(stderr, "{} {} '{}'", D->getKindStr(), D->getName(),
+               D->getType().getAsString());
+}
+
+void ASTDumper::printName(const TagDecl *D) const {
   std::println(stderr, "{} {} '{}'", D->getKindStr(), D->getName(),
                D->getType().getAsString());
 }

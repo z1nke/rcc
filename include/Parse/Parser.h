@@ -17,6 +17,7 @@ class FunctionDecl;
 class RecordDecl;
 class FieldDecl;
 class VarDecl;
+class TypedefDecl;
 
 class ASTContext;
 class Lexer;
@@ -35,15 +36,18 @@ public:
   TranslationUnitDecl *parse();
 
 private:
-  void parseGlobalDecl(TranslationUnitDecl *TU);
+  void parseExternalDecl(TranslationUnitDecl *TU);
   RecordDecl *parseStructDecl();
   RecordDecl *parseUnionDecl();
   RecordDecl *parseStructUnionDecl(SourceLocation BegLoc, unsigned TagKind);
   std::vector<FieldDecl *> parseFields();
   FunctionDecl *parseFunctionBody(FunctionDecl *Func);
   FunctionDecl *parseFunctionDecl(FunctionDecl *Func);
-  std::vector<VarDecl *> parseGlobalVarDecl(SourceLocation BegLoc, DeclSpec &DS,
-                                            VarDecl *FirstVar);
+  std::vector<VarDecl *> parseRestVarDecl(SourceLocation BegLoc, DeclSpec &DS,
+                                          VarDecl *FirstVar);
+  std::vector<TypedefDecl *> parseRestTypedefDecl(SourceLocation BegLoc,
+                                                  DeclSpec &DS,
+                                                  TypedefDecl *FirstTypedef);
 
 private:
   Stmt *parseStmt();
@@ -78,7 +82,7 @@ private:
 
   std::vector<Decl *> parseInitDeclaratorList(DeclSpec &DS);
   Decl *parseInitDeclarator(DeclSpec &DS);
-  void parseVarInit(VarDecl *Var);
+  void tryParseVarInit(VarDecl *Var);
   void parseDeclarator(Declarator &D);
   void parseDirectDeclarator(Declarator &D);
   void parseTypeSuffix(Declarator &D);

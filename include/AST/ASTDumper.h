@@ -9,6 +9,7 @@ namespace rcc {
 class Decl;
 class TranslationUnitDecl;
 class ValueDecl;
+class TypeDecl;
 class VarDecl;
 class FunctionDecl;
 
@@ -35,6 +36,9 @@ public:
   void visit(const TranslationUnitDecl *TU);
   void visit(const FunctionDecl *Func);
   void visit(const VarDecl *Var);
+  void visit(const RecordDecl *Record);
+  void visit(const FieldDecl *Field);
+  void visit(const TypedefDecl *Typedef);
 
 public:
   void visit(const Stmt *S);
@@ -61,6 +65,7 @@ private:
 
   void printName(const char *Name) const;
   void printName(const ValueDecl *D) const;
+  void printName(const TagDecl *D) const;
   void printNull() const;
 
   void indent(bool IsSingle);

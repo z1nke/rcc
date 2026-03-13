@@ -1,5 +1,6 @@
 #include "Frontend/CompilerInstance.h"
 #include "AST/ASTContext.h"
+#include "AST/Decl.h"
 #include "Basic/FileManager.h"
 #include "CodeGen/CodeGen.h"
 #include "Frontend/CompilerInvocation.h"

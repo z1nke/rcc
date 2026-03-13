@@ -1,7 +1,7 @@
 #ifndef RCC_SEMA_SCOPE_H
 #define RCC_SEMA_SCOPE_H
 
-#include <unordered_set>
+#include <vector>
 
 namespace rcc {
 
@@ -61,8 +61,8 @@ public:
   Decl *getDeclContext() { return DeclCtx; }
 
 private:
-  std::unordered_set<Decl *> Decls;
-  std::unordered_set<TagDecl *> TagDecls;
+  std::vector<Decl *> Decls;
+  std::vector<TagDecl *> TagDecls;
   Scope *Parent;
   // The depth of translation unit is 0.
   unsigned Depth;

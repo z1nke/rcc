@@ -16,6 +16,9 @@ namespace rcc {
 Decl *Sema::actOnDeclarator(Declarator &D) {
   QualType T = getTypeForDeclarator(D);
 
+  if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_Typedef)
+    return actOnTypedefDecl(D, T);
+
   if (const auto *FT = dynCast<FunctionType>(T))
     return actOnFunctionDecl(D, FT, nullptr);
 
@@ -29,20 +32,26 @@ Decl *Sema::actOnDeclarator(Declarator &D) {
 }
 
 VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
-  const DeclSpec &DS = D.getDeclSpec();
-  VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
+  VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
                                  D.getEndLoc(), T, D.getIdent());
   LocalVars.push_back(Var);
-  CurrScope->addDecl(Var);
+  addDecl(Var);
   return Var;
 }
 
+TypedefDecl *Sema::actOnTypedefDecl(Declarator &D, QualType T) {
+  auto *Typedef = TypedefDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
+                                      D.getEndLoc(), D.getIdent(), T);
+  addDecl(Typedef);
+  QualType TT = Ctx.getTypedefType(Typedef, T);
+  Typedef->setTypeForDecl(TT.getTypePtr());
+  return Typedef;
+}
+
 FieldDecl *Sema::actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent) {
-  const DeclSpec &DS = D.getDeclSpec();
-  FieldDecl *Field =
-      FieldDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
-                        D.getEndLoc(), T, D.getIdent(), Parent);
-  CurrScope->addDecl(Field);
+  FieldDecl *Field = FieldDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
+                                       D.getEndLoc(), T, D.getIdent(), Parent);
+  addDecl(Field);
   return Field;
 }
 
@@ -54,8 +63,29 @@ ParamVarDecl *Sema::actOnParamVarDecl(Declarator &D, unsigned Index) {
       ParamVarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
                            D.getEndLoc(), T, D.getIdent(), Index);
   Params.push_back(Param);
-  CurrScope->addDecl(Param);
+  addDecl(Param);
   return Param;
+}
+
+void Sema::addDecl(Decl *D) {
+  if (auto *ND = dynCast<NamedDecl>(D)) {
+    const std::string &Name = ND->getName();
+    for (auto *Prev : CurrScope->decls()) {
+      if (const auto *PrevND = dynCast<NamedDecl>(Prev)) {
+        if (PrevND->getName() == Name) {
+          if (PrevND->getKind() != ND->getKind()) {
+            Diag.fatalAt(ND->getLocation(),
+                         "redefinition of '{}' as different kind of symbol",
+                         Name);
+          } else {
+            Diag.fatalAt(ND->getLocation(), "redefinition of '{}", Name);
+          }
+        }
+      }
+    }
+  }
+
+  CurrScope->addDecl(D);
 }
 
 FunctionDecl *Sema::actOnFunctionDecl(Declarator &D, const FunctionType *FT,
@@ -258,7 +288,7 @@ Expr *Sema::actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS,
 Expr *Sema::actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
                                   Expr *Base, std::string_view Ident,
                                   bool IsArrow) {
-  QualType BaseType = Base->getType();
+  QualType BaseType = Base->getType().getCanonicalType();
   if (IsArrow) {
     QualType PointeeType = BaseType->getPointeeType();
     if (BaseType.isNull()) {
@@ -478,10 +508,25 @@ TagDecl *Sema::findTagDecl(std::string_view Ident) const {
   return nullptr;
 }
 
-FunctionDecl *Sema::findFunction(std::string_view Name) const {
+FunctionDecl *Sema::findFunction(std::string_view Ident) const {
   for (FunctionDecl *FD : Funcs) {
-    if (FD->getName() == Name)
+    if (FD->getName() == Ident)
       return FD;
+  }
+
+  return nullptr;
+}
+
+TypedefDecl *Sema::findTypedef(std::string_view Ident) const {
+  for (Scope *S = CurrScope; S; S = S->getParent()) {
+    for (auto *D : S->decls()) {
+      auto *TD = dynCast<TypedefDecl>(D);
+      if (!TD)
+        continue;
+
+      if (TD->getName() == Ident)
+        return TD;
+    }
   }
 
   return nullptr;
@@ -518,11 +563,19 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) {
   }
   case DeclSpec::TST_Struct:
   case DeclSpec::TST_Union: {
-    const auto *RD = dynCastOrNull<RecordDecl>(DS.getRepDecl());
+    const auto *RD = dynCast<RecordDecl>(DS.getRepDecl());
     if (!RD)
       Diag.fatalAt(DS.getTypeSpecLoc(), "struct/union has no declaration");
     T = RD->getType();
     break;
+  }
+  case DeclSpec::TST_Typename: {
+    const auto *D = DS.getRepDecl();
+    assert(D);
+    if (const auto *Typedef = dynCast<TypedefDecl>(D)) {
+      T = Typedef->getType();
+      break;
+    }
   }
   default:
     RCC_UNREACHABLE("Unknown type specifier type");

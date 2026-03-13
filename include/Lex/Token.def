@@ -45,6 +45,7 @@ KEYWORD(Long, "long")
 KEYWORD(Sizeof, "sizeof")
 KEYWORD(Struct, "struct")
 KEYWORD(Union, "union")
+KEYWORD(Typedef, "typedef")
 
 #undef KEYWORD
 #undef TOKEN

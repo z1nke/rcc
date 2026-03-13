@@ -56,4 +56,13 @@ QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size,
   return QualType(Ty);
 }
 
+QualType ASTContext::getTypedefType(TypedefDecl *TD, QualType Underlying) {
+  TypedefType *&Ty = TypedefTypes[TD];
+  if (Ty)
+    return QualType(Ty);
+
+  Ty = new (*this, alignof(TypedefType)) TypedefType(TD, Underlying);
+  return QualType(Ty);
+}
+
 } // namespace rcc

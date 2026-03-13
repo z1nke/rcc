@@ -13,7 +13,7 @@ class QualType;
 class Type;
 class TagDecl;
 class RecordDecl;
-
+class TypedefDecl;
 class Qualifiers {
 public:
   enum : std::uint32_t {
@@ -285,6 +285,26 @@ private:
 
   RecordType(RecordDecl *RD, std::size_t Size, std::size_t Align = 0)
       : TagType(TK_Record, Size, Align, reinterpret_cast<TagDecl *>(RD)) {}
+};
+
+class TypedefType final : public Type {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_Typedef;
+  }
+
+  TypedefDecl *getDecl() const { return D; }
+  QualType getUnderlying() const;
+  QualType getCanonicalType() const;
+
+private:
+  friend class ASTContext;
+
+  TypedefType(TypedefDecl *D, QualType Underlying)
+      : Type(TK_Typedef, Underlying->getSize(), Underlying->getAlign()), D(D) {}
+
+private:
+  TypedefDecl *D;
 };
 
 template <typename To> inline bool isa(QualType T) {

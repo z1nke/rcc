@@ -18,20 +18,29 @@ DeclaratorChunk DeclaratorChunk::createArray(Expr *LenExpr) {
   return Chunk;
 }
 
+bool DeclSpec::hasTypeSpecifier() const {
+  return TST != TST_Unspecified || TSW != TSW_Unspecified;
+}
+
+void DeclSpec::setStorageClassSpec(StorageClassSpec S, SourceLocation Loc) {
+  if (SCS != SCS_Unspecified)
+    reportBadSpec(Loc, S, SCS);
+
+  SCS = S;
+  SCSLoc = Loc;
+}
+
 void DeclSpec::setTypeSpecType(TypeSpecType T, SourceLocation Loc) {
-  if (TST != TST_Unspecified) {
-    Diag.fatalAt(TSTLoc,
-                 "cannot combine with previous '{}' declaration specifier",
-                 getSpecifierName(TST));
-  }
+  if (TST != TST_Unspecified)
+    reportBadSpec(TSLoc, T, TST);
 
   TST = T;
-  TSTLoc = Loc;
+  TSLoc = Loc;
 }
 
 void DeclSpec::setTypeSpecWidth(TypeSpecWidth W, SourceLocation Loc) {
-  if (TSTLoc.isInvalid())
-    TSTLoc = Loc;
+  if (TSLoc.isInvalid())
+    TSLoc = Loc;
 
   if (TSW == TSW_Unspecified) {
     TSW = W;
@@ -43,8 +52,27 @@ void DeclSpec::setTypeSpecWidth(TypeSpecWidth W, SourceLocation Loc) {
     return;
   }
 
-  Diag.fatalAt(Loc, "cannot combine with previous '{}' declaration specifier",
-               getSpecifierName(TSW));
+  reportBadSpec(TSLoc, W, TSW);
+}
+
+template <typename T>
+void DeclSpec::reportBadSpec(SourceLocation Loc, T New, T Prev) {
+  if (New != Prev) {
+    Diag.fatalAt(Loc, "cannot combine with previous '{}' declaration specifier",
+                 getSpecifierName(Prev));
+  }
+
+  Diag.fatalAt(Loc, "duplicate '{}' declaration specifier",
+               getSpecifierName(Prev));
+}
+
+const char *DeclSpec::getSpecifierName(StorageClassSpec S) {
+  switch (S) {
+  case SCS_Typedef:
+    return "typedef";
+  default:
+    RCC_UNREACHABLE("Unknown storage class specifier");
+  }
 }
 
 const char *DeclSpec::getSpecifierName(TypeSpecType T) {
@@ -59,6 +87,8 @@ const char *DeclSpec::getSpecifierName(TypeSpecType T) {
     return "struct";
   case TST_Union:
     return "union";
+  case TST_Typename:
+    return "typename";
   default:
     RCC_UNREACHABLE("Unknown type specifier type");
   }
