@@ -232,6 +232,9 @@ std::vector<FieldDecl *> Parser::parseFields() {
 //     | decl-stmt
 //     | expr-stmt
 Stmt *Parser::parseStmt() {
+  if (isTypeName(CurTok))
+    return parseDeclStmt();
+
   switch (CurTok->getKind()) {
   case Token::TK_Semicolon:
     return parseNullStmt();
@@ -245,23 +248,6 @@ Stmt *Parser::parseStmt() {
     return parseForStmt();
   case Token::TK_While:
     return parseWhileStmt();
-  case Token::TK_Void:
-  case Token::TK_Char:
-  case Token::TK_Short:
-  case Token::TK_Int:
-  case Token::TK_Long:
-  case Token::TK_Struct:
-  case Token::TK_Union:
-  case Token::TK_Typedef:
-    return parseDeclStmt();
-  case Token::TK_Ident: {
-    std::string_view Ident = CurTok->getIdentifer();
-    auto *Typedef = S.findTypedef(Ident);
-    if (!Typedef)
-      break;
-
-    return parseDeclStmt();
-  }
   default:
     break;
   }
@@ -416,8 +402,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       if (!Typedef) {
         // Support C89-style implicit-int typedef declarations like:
         //   typedef t;
-        if (DS.getStorageClassSpec() == DeclSpec::SCS_Typedef &&
-            !DS.hasTypeSpecifier())
+        if (DS.getStorageClassSpec() == DeclSpec::SCS_Typedef)
           return;
         Diag.fatalAt(TyLoc, "use of undeclared identifier '{}'", Ident);
       }
@@ -651,12 +636,71 @@ Expr *Parser::parseUnaryExpr() {
   if (CurTok->is(Token::TK_Sizeof)) {
     auto BegLoc = SM.createBeginLocation(CurTok);
     skip();
-    // FIXME: Support sizeof '(' type-name ')'
+    if (CurTok->is(Token::TK_LParen) && isTypeName(CurTok->getNext())) {
+      skip(Token::TK_LParen);
+      QualType T = parseTypeName();
+      SourceLocation EndLoc = SM.createBeginLocation(CurTok);
+      skip(Token::TK_RParen);
+      return S.actOnUnaryExprOrTypeTraitExpr(BegLoc, EndLoc, T.getTypePtr());
+    }
+
     Expr *Ex = parseUnaryExpr();
     return S.actOnUnaryExprOrTypeTraitExpr(BegLoc, Ex);
   }
 
   return parsePostfixExpr();
+}
+
+// abstract-declarator: pointer
+//                    | pointer? direct-abstract-declarator
+void Parser::parseAbstractDeclarator(Declarator &D) {
+  while (tryConsume(Token::TK_Star)) {
+    // Type suffixes have higher priority than stars.
+    parseAbstractDeclarator(D);
+    D.addDeclChunk(DeclaratorChunk::createPointer());
+    return;
+  }
+
+  parseDirectAbstractDeclarator(D);
+}
+
+// direct-abstract-declarator: '(' abstract-declarator ')'
+//                           | direct-abstract-declarator type-suffix
+void Parser::parseDirectAbstractDeclarator(Declarator &D) {
+  if (tryConsume(Token::TK_LParen)) {
+    parseAbstractDeclarator(D);
+    skip(Token::TK_RParen);
+  }
+
+  parseTypeSuffix(D);
+}
+
+// type-name: specifier-qualifier-list abstract-declarator?
+QualType Parser::parseTypeName() {
+  DeclSpec DS(Diag);
+  parseDeclSpecs(DS);
+  Declarator D(DS);
+  parseAbstractDeclarator(D);
+  QualType T = S.getTypeForDeclarator(D);
+  return T;
+}
+
+bool Parser::isTypeName(const Token *Tok) {
+  switch (Tok->getKind()) {
+  case Token::TK_Void:
+  case Token::TK_Char:
+  case Token::TK_Short:
+  case Token::TK_Int:
+  case Token::TK_Long:
+  case Token::TK_Struct:
+  case Token::TK_Union:
+  case Token::TK_Typedef:
+    return true;
+  case Token::TK_Ident:
+    return S.findTypedef(Tok->getIdentifer());
+  default:
+    return false;
+  }
 }
 
 // postfix-expr: primary-expr

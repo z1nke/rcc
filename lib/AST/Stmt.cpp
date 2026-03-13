@@ -259,7 +259,8 @@ UnaryExprOrTypeTraitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
 
 UnaryExprOrTypeTraitExpr *
 UnaryExprOrTypeTraitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
-                                 SourceLocation EndLoc, QualType T, Type *Ty) {
+                                 SourceLocation EndLoc, QualType T,
+                                 const Type *Ty) {
   static constexpr std::size_t Size = sizeof(UnaryExprOrTypeTraitExpr);
   void *Mem = Ctx.allocate(Size, alignof(UnaryExprOrTypeTraitExpr));
   return new (Mem) UnaryExprOrTypeTraitExpr(BegLoc, EndLoc, T, Ty);
@@ -274,7 +275,7 @@ UnaryExprOrTypeTraitExpr::UnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
 
 UnaryExprOrTypeTraitExpr::UnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
                                                    SourceLocation EndLoc,
-                                                   QualType T, Type *Ty)
+                                                   QualType T, const Type *Ty)
     : Expr(SK_UnaryExprOrTypeTraitExpr, BegLoc, EndLoc, T), IsType(true) {
   Argument.Ty = Ty;
 }

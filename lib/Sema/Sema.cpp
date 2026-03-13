@@ -206,7 +206,8 @@ Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc, Expr *Ex) {
 }
 
 Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
-                                          SourceLocation EndLoc, Type *Ty) {
+                                          SourceLocation EndLoc,
+                                          const Type *Ty) {
   // FIXME: Fix sizeof type, int -> size_t.
   return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Ty);
 }

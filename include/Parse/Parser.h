@@ -1,6 +1,7 @@
 #ifndef RCC_PARSE_PARSER_H
 #define RCC_PARSE_PARSER_H
 
+#include "AST/Type.h"
 #include "Basic/SourceLocation.h"
 #include "Lex/Token.h"
 #include "Sema/Scope.h"
@@ -85,6 +86,10 @@ private:
   void tryParseVarInit(VarDecl *Var);
   void parseDeclarator(Declarator &D);
   void parseDirectDeclarator(Declarator &D);
+  void parseAbstractDeclarator(Declarator &D);
+  void parseDirectAbstractDeclarator(Declarator &D);
+  QualType parseTypeName();
+  bool isTypeName(const Token *Tok);
   void parseTypeSuffix(Declarator &D);
   Expr *parseInitExpr();
   FieldDecl *parseField(DeclSpec &DS);

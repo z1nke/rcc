@@ -403,7 +403,7 @@ public:
   static UnaryExprOrTypeTraitExpr *create(ASTContext &Ctx,
                                           SourceLocation BegLoc,
                                           SourceLocation EndLoc, QualType T,
-                                          Type *Ty);
+                                          const Type *Ty);
 
   static bool classof(const Stmt *S) {
     return S->getKind() == SK_UnaryExprOrTypeTraitExpr;
@@ -429,12 +429,12 @@ private:
                            QualType T, Expr *Ex);
 
   UnaryExprOrTypeTraitExpr(SourceLocation BegLoc, SourceLocation EndLoc,
-                           QualType T, Type *Ty);
+                           QualType T, const Type *Ty);
 
 private:
   bool IsType;
   union {
-    Type *Ty;
+    const Type *Ty;
     Expr *Ex;
   } Argument;
 };

@@ -68,7 +68,7 @@ public:
   Expr *actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr, unsigned Op);
   Expr *actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc, Expr *Ex);
   Expr *actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
-                                      SourceLocation EndLoc, Type *Ty);
+                                      SourceLocation EndLoc, const Type *Ty);
   Expr *actOnParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                        Expr *SubExpr);
   Expr *actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
