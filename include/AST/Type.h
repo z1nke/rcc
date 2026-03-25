@@ -56,6 +56,7 @@ public:
 
   const Type *getTypePtr() const;
   unsigned getQualifiers() const;
+  QualType getUnqualifiedType() const;
 
   std::string getAsString() const;
 
@@ -113,6 +114,9 @@ public:
   QualType getBaseElementType() const;
   const Type *getPointeeOrArrayElementTypePtr() const;
   QualType getPointeeOrArrayElementType() const;
+  bool isUnsignedIntegerType() const;
+  bool isSignedIntegerType() const;
+  bool isSignedIntegerOrEnumerationType() const;
 
   template <typename To> const To *getAs() const {
     if (const auto *Ty = dynCast<To>(this))

@@ -94,18 +94,37 @@ private:
   TypedefDecl *findTypedef(std::string_view Ident) const;
 
 private:
+  enum ArithConvKind {
+    ACK_Arithmetic,
+    ACK_BitwiseOp,
+    ACK_Comparison,
+    ACK_Conditional,
+    ACK_CompAssign,
+  };
+
   void checkScalarType(QualType T);
   void checkIntType(Expr *E);
   void checkArithmeticType(Expr *E);
 
-  QualType getCommonArithmeticType(QualType LType, QualType RType);
-  bool canCast(QualType LType, QualType RType);
+  QualType usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK);
+  Expr *usualUnaryConv(Expr *E);
+  Expr *defaultFunctionArrayLvalueConv(Expr *E);
+  Expr *defaultFunctionArrayConv(Expr *E);
+  Expr *defaultLvalueConv(Expr *E);
+  std::optional<unsigned> getCastKind(QualType ToType, QualType FromType);
 
-  QualType getBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
+  QualType getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
                                  unsigned Op);
+  QualType getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS);
+  QualType getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS);
+  QualType getMulDivOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                           bool IsCompAssign);
 
   QualType getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
                                 unsigned Op);
+
+public:
+  Expr *impCastExprToType(Expr *E, QualType Ty, unsigned CK);
 
 private:
   QualType getTypeForDeclarator(Declarator &D);

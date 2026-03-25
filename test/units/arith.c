@@ -46,6 +46,9 @@ int main() {
   ASSERT(8, ({int x, y; x=3; y=5; x+y;}));
   ASSERT(8, ({int x=3, y=5; x+y;}));
 
+  // [68] Implement usual arithmetic conversion
+  ASSERT(0, 1073741824 * 100 / 100);
+
   printf("OK\n");
   return 0;
 }

@@ -59,15 +59,16 @@ public:
 
   const Decl *getDeclContext() const { return DeclCtx; }
   Decl *getDeclContext() { return DeclCtx; }
+  void setDeclContext(Decl *DeclCtx);
 
 private:
   std::vector<Decl *> Decls;
   std::vector<TagDecl *> TagDecls;
-  Scope *Parent;
+  Scope *Parent = nullptr;
   // The depth of translation unit is 0.
   unsigned Depth;
   unsigned Flags;
-  Decl *DeclCtx;
+  Decl *DeclCtx = nullptr;
 };
 
 } // namespace rcc

@@ -585,6 +585,10 @@ void CodeGen::genCastExpr(const CastExpr *Cast) {
   case CastExpr::CK_BitCast:
     genIntCast(SubExpr->getTypePtr(), Cast->getTypePtr());
     break;
+  case CastExpr::CK_FuncToPointerDecay:
+  case CastExpr::CK_ArrayToPointerDecay:
+    genAddr(SubExpr);
+    break;
   default:
     RCC_UNREACHABLE("Unknown cast kind");
   }

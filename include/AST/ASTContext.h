@@ -32,14 +32,26 @@ public:
   CanQualType LongLongTy;
 
   void initBuiltinTypes();
-  void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,
-                       std::size_t Size, std::size_t Align);
+  void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind, std::size_t Size,
+                       std::size_t Align);
   QualType getPointerType(QualType PointeeType);
   QualType getFunctionType(QualType RetType, std::vector<QualType> ParamTypes);
   QualType getConstantArrayType(QualType ElementType, std::size_t Len);
   QualType getRecordType(RecordDecl *RD, std::size_t Size,
                          std::size_t Align = 0);
   QualType getTypedefType(TypedefDecl *TD, QualType Underlying);
+  QualType getArrayDecayedType(QualType Ty);
+
+  bool hasSameType(QualType T1, QualType T2) const {
+    return T1.getCanonicalType() == T2.getCanonicalType();
+  }
+  bool hasSameType(const Type *T1, const Type *T2) const {
+    return T1->getCanonicalType() == T2->getCanonicalType();
+  }
+
+  int getIntTypeOrder(QualType LHS, QualType RHS) const;
+  unsigned getIntRank(const Type *T) const;
+  std::size_t getIntWidth(QualType T) const;
 
   std::vector<Type *> Types;
   std::unordered_map<void *, PointerType *> PointerTypes;

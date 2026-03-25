@@ -129,6 +129,70 @@ void Expr::setType(QualType T) {
     Ref->getDecl()->setType(T);
 }
 
+static Expr *ignoreExprNodesImpl(Expr *E) { return E; }
+template <typename FnTy, typename... FnTys>
+static Expr *ignoreExprNodesImpl(Expr *E, FnTy &&Fn, FnTys &&...Fns) {
+  return ignoreExprNodesImpl(std::forward<FnTy>(Fn)(E),
+                             std::forward<FnTys>(Fns)...);
+}
+
+template <typename... FnTys>
+static Expr *ignoreExprNodes(Expr *E, FnTys &&...Fns) {
+  Expr *LastE = nullptr;
+  while (E != LastE) {
+    LastE = E;
+    E = ignoreExprNodesImpl(E, std::forward<FnTys>(Fns)...);
+  }
+  return E;
+}
+
+template <typename... FnTys>
+static const Expr *ignoreExprNodes(const Expr *E, FnTys &&...Fns) {
+  return ignoreExprNodes(const_cast<Expr *>(E), std::forward<FnTys>(Fns)...);
+}
+
+static Expr *ignoreImpCastSingleStep(Expr *E) {
+  if (auto *Cast = dynCast<CastExpr>(E)) {
+    if (Cast->isImplicit())
+      return Cast->getSubExpr();
+  }
+
+  return E;
+}
+
+static Expr *ignoreCastSingleStep(Expr *E) {
+  if (auto *Cast = dynCast<CastExpr>(E))
+    return Cast->getSubExpr();
+
+  return E;
+}
+
+static Expr *ignoreParenSingleStep(Expr *E) {
+  if (auto *PE = dynCast<ParenExpr>(E))
+    return PE->getSubExpr();
+  return E;
+}
+
+Expr *Expr::ignoreImpCasts() {
+  return ignoreExprNodes(this, ignoreImpCastSingleStep);
+}
+
+Expr *Expr::ignoreCasts() {
+  return ignoreExprNodes(this, ignoreCastSingleStep);
+}
+
+Expr *Expr::ignoreParens() {
+  return ignoreExprNodes(this, ignoreParenSingleStep);
+}
+
+Expr *Expr::ignoreParenImpCasts() {
+  return ignoreExprNodes(this, ignoreParenSingleStep, ignoreImpCastSingleStep);
+}
+
+Expr *Expr::ignoreParenCasts() {
+  return ignoreExprNodes(this, ignoreParenSingleStep, ignoreCastSingleStep);
+}
+
 BinaryOperator::BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
                                QualType T, SourceLocation OpLoc, Expr *LHS,
                                Expr *RHS, Opcode Op)
@@ -313,6 +377,26 @@ CastExpr::CastExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                    Expr *SubExpr, CastKind CK, bool IsImplicit)
     : Expr(SK_CastExpr, BegLoc, EndLoc, T), SubExpr(SubExpr), CK(CK),
       IsImplicit(IsImplicit) {}
+
+const char *CastExpr::getCastKindStr() const {
+#define CASE_CASTKIND(K)                                                       \
+  case CK_##K:                                                                 \
+    return #K;
+
+  switch (CK) {
+    CASE_CASTKIND(NoOp);
+    CASE_CASTKIND(ToVoid);
+    CASE_CASTKIND(BitCast);
+    CASE_CASTKIND(IntegralCast);
+    CASE_CASTKIND(PointerToIntegral);
+    CASE_CASTKIND(IntegralToPointer);
+    CASE_CASTKIND(FuncToPointerDecay);
+    CASE_CASTKIND(ArrayToPointerDecay);
+  default:
+    RCC_UNREACHABLE("Unknown cast kind");
+  }
+#undef CASE_CASTKIND
+}
 
 StmtExpr *StmtExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, QualType T,

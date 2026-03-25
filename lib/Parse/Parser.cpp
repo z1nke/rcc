@@ -67,11 +67,15 @@ void Parser::parseExternalDecl(TranslationUnitDecl *TU) {
 }
 
 FunctionDecl *Parser::parseFunctionBody(FunctionDecl *FD) {
+  Decl *OldScopeDecl = S.CurrScopeDecl;
+  S.CurrScopeDecl = FD;
+  S.CurrScope->setDeclContext(FD);
   Stmt *Body = parseCompoundStmt();
   FD->setBody(Body);
   FD->setEndLoc(Body->getEndLoc());
 
   S.complete(FD);
+  S.CurrScopeDecl = OldScopeDecl;
   if (getCurrScope()->getFlags() & Scope::FnScope)
     exitScope();
   return FD;

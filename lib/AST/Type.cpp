@@ -26,6 +26,8 @@ unsigned QualType::getQualifiers() const {
   return static_cast<unsigned>(PtrVal);
 }
 
+QualType QualType::getUnqualifiedType() const { return QualType(getTypePtr()); }
+
 struct TypeDumper {
   std::string asString() const { return Base + Postfix; }
   std::string Base;
@@ -185,6 +187,27 @@ QualType Type::getPointeeOrArrayElementType() const {
   if (const auto *AT = dynCast<ArrayType>(this))
     return AT->getElementType();
   return QualType();
+}
+
+bool Type::isUnsignedIntegerType() const {
+  // TODO: Impl
+  // if (const auto *BT = dynCast<BuiltinType>(getCanonicalType())) {
+  // }
+
+  return false;
+}
+
+bool Type::isSignedIntegerType() const {
+  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType())) {
+    auto Kind = BT->getKind();
+    return Kind >= BuiltinType::BK_Char && Kind <= BuiltinType::BK_LongLong;
+  }
+  return false;
+}
+
+bool Type::isSignedIntegerOrEnumerationType() const {
+  // TODO: Enum
+  return isSignedIntegerType();
 }
 
 RecordDecl *Type::getAsRecordDecl() const {

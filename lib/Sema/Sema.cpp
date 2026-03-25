@@ -152,7 +152,56 @@ Stmt *Sema::actOnNullStmt(SourceLocation SemiLoc) {
 
 Stmt *Sema::actOnReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                             Expr *RetVal) {
-  // TODO: Check return value type and function return type.
+  QualType RetType;
+  if (CurrScopeDecl) {
+    const auto *Func = dynCastOrNull<FunctionDecl>(CurrScopeDecl);
+    if (Func) {
+      QualType FuncType = Func->getType();
+      const auto *FT = FuncType->getAs<FunctionType>();
+      if (FT)
+        RetType = FT->getReturnType();
+    }
+  }
+
+  Scope *S = CurrScope;
+  while (RetType.isNull() && S) {
+    Decl *D = S->getDeclContext();
+    const auto *Func = dynCastOrNull<FunctionDecl>(D);
+    if (!Func) {
+      S = S->getParent();
+      continue;
+    }
+
+    QualType FuncType = Func->getType();
+    const auto *FT = FuncType->getAs<FunctionType>();
+    if (!FT)
+      Diag.fatalAt(Func->getLocation(), "unknown return type");
+
+    RetType = FT->getReturnType();
+  }
+
+  if (RetType.isNull())
+    Diag.fatalAt(BegLoc, "return statement is not within a function");
+
+  if (RetType.isVoidType()) {
+    if (!RetVal->getType().isVoidType())
+      RetVal = actOnCastExpr(RetVal->getBeginLoc(), RetVal->getEndLoc(),
+                              RetType, RetVal, /*IsImplicit=*/true);
+    return ReturnStmt::create(Ctx, BegLoc, EndLoc, RetVal);
+  }
+
+  RetVal = usualUnaryConv(RetVal);
+  assert(RetVal);
+
+  if (!Ctx.hasSameType(RetType, RetVal->getType())) {
+    auto CK = getCastKind(RetType, RetVal->getType());
+    if (!CK)
+      Diag.fatalAt(RetVal->getBeginLoc(), "invalid return value type");
+
+    if (*CK != CastExpr::CK_NoOp)
+      RetVal = impCastExprToType(RetVal, RetType, *CK);
+  }
+
   return ReturnStmt::create(Ctx, BegLoc, EndLoc, RetVal);
 }
 
@@ -377,110 +426,201 @@ void Sema::checkArithmeticType(Expr *E) {
     Diag.fatalAt(E->getBeginLoc(), "expression requires arithmetic type");
 }
 
-QualType Sema::getCommonArithmeticType(QualType LType, QualType RType) {
+/// usualUnaryConv - Performs various conversions that are common to most
+/// operators (C99 6.3). The conversions of array and function types are
+/// sometimes suppressed. For example, the array->pointer conversion doesn't
+/// apply if the array is an argument to the sizeof or address (&) operators.
+/// In these instances, this routine should *not* be called.
+Expr *Sema::usualUnaryConv(Expr *E) {
+  E = defaultFunctionArrayLvalueConv(E);
+  assert(E);
+
+  // TODO: Try to perform integral promotions if the object has a theoretically
+  // promotable type.
+  // ...
+
+  return E;
+}
+
+Expr *Sema::defaultFunctionArrayLvalueConv(Expr *E) {
+  return defaultLvalueConv(defaultFunctionArrayConv(E));
+}
+
+Expr *Sema::defaultFunctionArrayConv(Expr *E) {
+  QualType T = E->getType();
+  assert(!T.isNull());
+
+  if (T->isFunctionType()) {
+    return impCastExprToType(E, Ctx.getPointerType(T),
+                             CastExpr::CK_FuncToPointerDecay);
+  }
+
+  if (T->isArraryType()) {
+    QualType PtrTy = Ctx.getArrayDecayedType(T);
+    assert(!PtrTy.isNull());
+    return impCastExprToType(E, PtrTy, CastExpr::CK_ArrayToPointerDecay);
+  }
+
+  return E;
+}
+
+Expr *Sema::defaultLvalueConv(Expr *E) {
+  // TODO: Impl
+  return E;
+}
+
+using PerformCastFn = Expr *(*)(Sema &, Expr *, QualType);
+
+template <PerformCastFn doLHSCast, PerformCastFn doRHSCast>
+static QualType handleArithConv(Sema &S, Expr *&LHS, Expr *&RHS, QualType LType,
+                                QualType RType, bool IsCompAssign) {
+  const ASTContext &Ctx = S.getASTContext();
+  int Order = Ctx.getIntTypeOrder(LType, RType);
+  bool IsLS = LType->isSignedIntegerOrEnumerationType();
+  bool IsRS = RType->isSignedIntegerOrEnumerationType();
+  if (IsLS == IsRS) {
+    // Same signedness; use the higher-ranked type
+    if (Order >= 0) {
+      RHS = (*doRHSCast)(S, RHS, LType);
+      return LType;
+    }
+
+    if (!IsCompAssign)
+      LHS = (*doLHSCast)(S, LHS, RType);
+    return RType;
+  }
+
+  if (Order != (IsLS ? 1 : -1)) {
+    // The unsigned type has greater than or equal rank to the
+    // signed type, so use the unsigned type
+    if (IsRS) {
+      RHS = (*doRHSCast)(S, RHS, LType);
+      return LType;
+    }
+    if (!IsCompAssign)
+      LHS = (*doLHSCast)(S, LHS, RType);
+    return RType;
+  }
+
+  if (Ctx.getIntWidth(LType) != Ctx.getIntWidth(RType)) {
+    // The two types are different widths; if we are here, that
+    // means the signed type is larger than the unsigned type, so
+    // use the signed type.
+    if (IsLS) {
+      RHS = (*doRHSCast)(S, RHS, LType);
+      return LType;
+    }
+    if (!IsCompAssign)
+      LHS = (*doLHSCast)(S, LHS, RType);
+    return RType;
+  }
+
+  // TODO: Impl
+  // The signed type is higher-ranked than the unsigned type,
+  // but isn't actually any bigger (like unsigned int and long
+  // on most 32-bit systems).  Use the unsigned type corresponding
+  // to the signed type.
   return LType;
 }
 
-bool Sema::canCast(QualType LType, QualType RType) {
-  if (LType == RType)
-    return true;
-
-  bool LIsPtr = LType->isPointerType();
-  bool RIsPtr = RType->isPointerType();
-  if (LIsPtr && RIsPtr) {
-    return canCast(cast<PointerType>(LType)->getPointeeType(),
-                   cast<PointerType>(RType)->getPointeeType());
-  }
-
-  bool LIsArithmetic = LType->isArithmeticType();
-  bool RIsArithmetic = LType->isArithmeticType();
-  if (LIsArithmetic && RIsArithmetic)
-    return true;
-
-  return false;
+static Expr *doIntegralCast(Sema &S, Expr *E, QualType ToType) {
+  return S.impCastExprToType(E, ToType, CastExpr::CK_IntegralCast);
 }
 
-QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
-                                     unsigned Op) {
+/// usualArithConv - Performs various conversions that are common to
+/// binary operators (C99 6.3.1.8). If both operands aren't arithmetic, this
+/// routine returns the first non-arithmetic type found. The client is
+/// responsible for emitting appropriate error diagnostics.
+QualType Sema::usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) {
+  // TODO: checkEnumArithmeticConversions
+  if (ACK != ACK_CompAssign) {
+    LHS = usualUnaryConv(LHS);
+    assert(LHS);
+  }
+
+  RHS = usualUnaryConv(RHS);
+  assert(RHS);
+
+  QualType LType = LHS->getType().getUnqualifiedType();
+  QualType RType = RHS->getType().getUnqualifiedType();
+  if (Ctx.hasSameType(LType, RType))
+    return LType;
+
+  if (!LType->isArithmeticType() || !RType->isArithmeticType())
+    return QualType();
+
+  return handleArithConv<doIntegralCast, doIntegralCast>(
+      *this, LHS, RHS, LType, RType, ACK == ACK_CompAssign);
+}
+
+Expr *Sema::impCastExprToType(Expr *E, QualType Ty, unsigned CK) {
+  QualType ExprTy = E->getType().getCanonicalType();
+  QualType TypeTy = Ty.getCanonicalType();
+  if (ExprTy == TypeTy)
+    return E;
+
+  return CastExpr::create(Ctx, E->getBeginLoc(), E->getEndLoc(), Ty, E,
+                          static_cast<CastExpr::CastKind>(CK),
+                          true /*Implicit*/);
+}
+
+std::optional<unsigned> Sema::getCastKind(QualType ToType, QualType FromType) {
+  if (ToType == FromType)
+    return CastExpr::CK_NoOp;
+
+  const auto *ToPtrTy = ToType->getAs<PointerType>();
+  const auto *FromPtrTy = FromType->getAs<PointerType>();
+  if (ToPtrTy && FromPtrTy) {
+    QualType ToPointeeTy = ToPtrTy->getPointeeType();
+    QualType FromPointeeTy = FromPtrTy->getPointeeType();
+    return ToPointeeTy == FromPointeeTy ? CastExpr::CK_NoOp
+                                        : CastExpr::CK_BitCast;
+  }
+
+  bool ToIsInt = ToType.isIntegerType();
+  bool FromIsInt = FromType.isIntegerType();
+  if (ToIsInt && FromIsInt)
+    return CastExpr::CK_IntegralCast;
+
+  if (ToPtrTy && FromIsInt)
+    return CastExpr::CK_IntegralToPointer;
+  if (FromPtrTy && ToIsInt)
+    return CastExpr::CK_PointerToIntegral;
+
+  return std::nullopt;
+}
+
+QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
+                                     Expr *&RHS, unsigned Op) {
   switch (Op) {
   case BinaryOperator::BO_Assign: {
     QualType LType = LHS->getType();
     if (LType->isArraryType())
       Diag.fatalAt(LHS->getBeginLoc(), "cannot assign to array type");
 
+    RHS = usualUnaryConv(RHS);
     QualType RType = RHS->getType();
     // FIXME: Check LHS type.
     if (LType.isNull()) {
       LType = RType;
       LHS->setType(LType);
-    } else {
-      if (!canCast(LType, RType)) {
-        LType->dump();
-        RType->dump();
-        Diag.fatalAt(OpLoc, "invalid assignment operand");
-      }
+      return LType;
     }
+    auto CK = getCastKind(LType, RType);
+    if (!CK)
+      Diag.fatalAt(OpLoc, "invalid assignment operand");
 
+    if (*CK != CastExpr::CK_NoOp)
+      RHS = impCastExprToType(RHS, LType, *CK);
     return LType;
   }
-  case BinaryOperator::BO_Add: {
-    QualType LType = tryDecayArrayType(LHS->getType());
-    QualType RType = tryDecayArrayType(RHS->getType());
-    checkScalarType(LType);
-    checkScalarType(RType);
-    bool LIsPtr = LType->isPointerType();
-    bool RIsPtr = RType->isPointerType();
-    if (LIsPtr && RIsPtr)
-      Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
-
-    bool LIsArithmetic = LType->isArithmeticType();
-    bool RIsArithmetic = LType->isArithmeticType();
-    if (LIsArithmetic && RIsArithmetic)
-      return getCommonArithmeticType(LType, RType);
-
-    if (LIsPtr) {
-      checkIntType(RHS);
-      return LType;
-    }
-
-    if (RIsPtr) {
-      checkIntType(LHS);
-      return RType;
-    }
-
-    Diag.fatalAt(OpLoc, "invalid operand");
-  }
-  case BinaryOperator::BO_Sub: {
-    QualType LType = tryDecayArrayType(LHS->getType());
-    QualType RType = tryDecayArrayType(RHS->getType());
-    checkScalarType(LType);
-    checkScalarType(RType);
-    bool LIsPtr = LType->isPointerType();
-    bool RIsPtr = RType->isPointerType();
-    if (LIsPtr && RIsPtr)
-      return Ctx.IntTy; // FIXME: ptrdiff_t
-
-    bool LIsArithmetic = LType->isArithmeticType();
-    bool RIsArithmetic = LType->isArithmeticType();
-    if (LIsArithmetic && RIsArithmetic)
-      return getCommonArithmeticType(LType, RType);
-
-    if (LIsPtr) {
-      checkIntType(RHS);
-      return LType;
-    }
-
-    Diag.fatalAt(OpLoc, "invalid operand");
-  }
+  case BinaryOperator::BO_Add:
+    return getAddOpType(OpLoc, LHS, RHS);
+  case BinaryOperator::BO_Sub:
+    return getSubOpType(OpLoc, LHS, RHS);
   case BinaryOperator::BO_Mul:
-  case BinaryOperator::BO_Div: {
-    // FIXME: Only int type.
-    if (LHS->getType()->isPointerType())
-      Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
-    if (RHS->getType()->isPointerType())
-      Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
-    return Ctx.IntTy;
-  }
+  case BinaryOperator::BO_Div:
+    return getMulDivOpType(OpLoc, LHS, RHS, false);
   case BinaryOperator::BO_EQ:
   case BinaryOperator::BO_NE:
   case BinaryOperator::BO_LT:
@@ -494,6 +634,74 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
   default:
     Diag.fatalAt(OpLoc, "unknown binary opcode");
   }
+}
+
+QualType Sema::getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
+  LHS = usualUnaryConv(LHS);
+  RHS = usualUnaryConv(RHS);
+  QualType LType = LHS->getType();
+  QualType RType = RHS->getType();
+  checkScalarType(LType);
+  checkScalarType(RType);
+  bool LIsPtr = LType->isPointerType();
+  bool RIsPtr = RType->isPointerType();
+  if (LIsPtr && RIsPtr)
+    Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
+
+  bool LIsArithmetic = LType->isArithmeticType();
+  bool RIsArithmetic = LType->isArithmeticType();
+  if (LIsArithmetic && RIsArithmetic)
+    return usualArithConv(LHS, RHS, ACK_Arithmetic);
+
+  if (LIsPtr) {
+    checkIntType(RHS);
+    return LType;
+  }
+
+  if (RIsPtr) {
+    checkIntType(LHS);
+    return RType;
+  }
+
+  Diag.fatalAt(OpLoc, "invalid operand");
+}
+
+QualType Sema::getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
+  LHS = usualUnaryConv(LHS);
+  RHS = usualUnaryConv(RHS);
+  QualType LType = LHS->getType();
+  QualType RType = RHS->getType();
+  checkScalarType(LType);
+  checkScalarType(RType);
+  bool LIsPtr = LType->isPointerType();
+  bool RIsPtr = RType->isPointerType();
+  if (LIsPtr && RIsPtr)
+    return Ctx.IntTy; // FIXME: ptrdiff_t
+
+  bool LIsArithmetic = LType->isArithmeticType();
+  bool RIsArithmetic = LType->isArithmeticType();
+  if (LIsArithmetic && RIsArithmetic)
+    return usualArithConv(LHS, RHS, ACK_Arithmetic);
+
+  if (LIsPtr) {
+    checkIntType(RHS);
+    return LType;
+  }
+
+  Diag.fatalAt(OpLoc, "invalid operand");
+}
+
+QualType Sema::getMulDivOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                               bool IsCompAssign) {
+  LHS = usualUnaryConv(LHS);
+  RHS = usualUnaryConv(RHS);
+  if (LHS->getType()->isPointerType())
+    Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
+  if (RHS->getType()->isPointerType())
+    Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
+
+  auto ACK = IsCompAssign ? ACK_CompAssign : ACK_Arithmetic;
+  return usualArithConv(LHS, RHS, ACK);
 }
 
 QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,

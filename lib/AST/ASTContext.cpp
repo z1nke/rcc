@@ -1,5 +1,6 @@
 #include "AST/ASTContext.h"
 #include "AST/Decl.h"
+#include "Support/Unreachable.h"
 
 namespace rcc {
 
@@ -63,6 +64,61 @@ QualType ASTContext::getTypedefType(TypedefDecl *TD, QualType Underlying) {
 
   Ty = new (*this, alignof(TypedefType)) TypedefType(TD, Underlying);
   return QualType(Ty);
+}
+
+QualType ASTContext::getArrayDecayedType(QualType Ty) {
+  const auto *AT = Ty->getAs<ArrayType>();
+  assert(AT);
+
+  return getPointerType(AT->getElementType());
+}
+
+int ASTContext::getIntTypeOrder(QualType LHS, QualType RHS) const {
+  const auto *LTy = LHS.getCanonicalType().getTypePtr();
+  const auto *RTy = RHS.getCanonicalType().getTypePtr();
+
+  // TODO: Enum type.
+  if (LTy == RTy)
+    return 0;
+
+  bool IsLU = LTy->isUnsignedIntegerType();
+  bool IsRU = RTy->isUnsignedIntegerType();
+  unsigned LRank = getIntRank(LTy);
+  unsigned RRank = getIntRank(RTy);
+  if (IsLU == IsRU) {
+    if (LRank == RRank)
+      return 0;
+    return LRank > RRank ? 1 : -1;
+  }
+
+  if (IsLU)
+    return LRank >= RRank ? 1 : -1;
+
+  return RRank >= LRank ? -1 : 1;
+}
+
+unsigned ASTContext::getIntRank(const Type *T) const {
+  const auto *BT = dynCast<BuiltinType>(T);
+  assert(BT);
+  switch (BT->getKind()) {
+  case BuiltinType::BK_Char:
+    return 2 + (getIntWidth(CharTy) << 3);
+  case BuiltinType::BK_Short:
+    return 3 + (getIntWidth(ShortTy) << 3);
+  case BuiltinType::BK_Int:
+    return 4 + (getIntWidth(IntTy) << 3);
+  case BuiltinType::BK_Long:
+    return 5 + (getIntWidth(LongTy) << 3);
+  case BuiltinType::BK_LongLong:
+    return 6 + (getIntWidth(LongLongTy) << 3);
+  default:
+    RCC_UNREACHABLE("Unknown int type kind");
+  }
+}
+
+std::size_t ASTContext::getIntWidth(QualType T) const {
+  // TODO: Bool -> 1
+  return 8 * T->getSize();
 }
 
 } // namespace rcc

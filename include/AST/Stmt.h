@@ -89,6 +89,31 @@ public:
   const Type *getTypePtr() const { return Ty.getTypePtr(); }
   void setType(QualType T);
 
+  Expr *ignoreImpCasts();
+  const Expr *ignoreImpCasts() const {
+    return const_cast<Expr *>(this)->ignoreImpCasts();
+  }
+
+  Expr *ignoreCasts();
+  const Expr *ignoreCasts() const {
+    return const_cast<Expr *>(this)->ignoreCasts();
+  }
+
+  Expr *ignoreParens();
+  const Expr *ignoreParens() const {
+    return const_cast<Expr *>(this)->ignoreParens();
+  }
+
+  Expr *ignoreParenImpCasts();
+  const Expr *ignoreParenImpCasts() const {
+    return const_cast<Expr *>(this)->ignoreParenImpCasts();
+  }
+
+  Expr *ignoreParenCasts();
+  const Expr *ignoreParenCasts() const {
+    return const_cast<Expr *>(this)->ignoreParenCasts();
+  }
+
 protected:
   Expr(StmtKind Kind, SourceLocation BegLoc, SourceLocation EndLoc, QualType T)
       : Stmt(Kind, BegLoc, EndLoc), Ty(T) {}
@@ -474,6 +499,8 @@ public:
     CK_IntegralCast,
     CK_PointerToIntegral,
     CK_IntegralToPointer,
+    CK_FuncToPointerDecay,
+    CK_ArrayToPointerDecay,
   };
 
   static CastExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
@@ -485,6 +512,7 @@ public:
   Expr *getSubExpr() { return SubExpr; }
   const Expr *getSubExpr() const { return SubExpr; }
   CastKind getCastKind() const { return CK; }
+  const char *getCastKindStr() const;
   bool isImplicit() const { return IsImplicit; }
   bool isExplicit() const { return !IsImplicit; }
 

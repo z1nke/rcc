@@ -1,5 +1,7 @@
 #include "Sema/Scope.h"
 
+#include <cassert>
+
 namespace rcc {
 
 Scope::Scope(Scope *Parent, unsigned Flags, Decl *DeclCtx)
@@ -8,5 +10,10 @@ Scope::Scope(Scope *Parent, unsigned Flags, Decl *DeclCtx)
 
 void Scope::addDecl(Decl *D) { Decls.push_back(D); }
 void Scope::addTag(TagDecl *D) { TagDecls.push_back(D); }
+
+void Scope::setDeclContext(Decl *DeclCtx) {
+  assert(!this->DeclCtx);
+  this->DeclCtx = DeclCtx;
+}
 
 } // namespace rcc

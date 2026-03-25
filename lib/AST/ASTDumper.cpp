@@ -150,6 +150,21 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_ArraySubscriptExpr:
     visit(cast<ArraySubscriptExpr>(S));
     break;
+  case Stmt::SK_UnaryExprOrTypeTraitExpr:
+    visit(cast<UnaryExprOrTypeTraitExpr>(S));
+    break;
+  case Stmt::SK_StringLiteral:
+    visit(cast<StringLiteral>(S));
+    break;
+  case Stmt::SK_MemberExpr:
+    visit(cast<MemberExpr>(S));
+    break;
+  case Stmt::SK_CastExpr:
+    visit(cast<CastExpr>(S));
+    break;
+  case Stmt::SK_StmtExpr:
+    visit(cast<StmtExpr>(S));
+    break;
   default:
     RCC_UNREACHABLE("unknown stmt kind");
   }
@@ -262,9 +277,10 @@ void ASTDumper::visit(const ParenExpr *Paren) {
 }
 
 void ASTDumper::visit(const DeclRefExpr *Ref) {
-  printName("DeclRefExpr");
-  ScopedIndent SI(*this, true);
-  visit(Ref->getDecl());
+  const auto *ND = dynCast<NamedDecl>(Ref->getDecl());
+  const std::string &Name = ND ? ND->getName() : "";
+  std::println(stderr, "DeclRefExpr '{}' '{}'", Ref->getType().getAsString(),
+               Name);
 }
 
 void ASTDumper::visit(const CallExpr *Call) {
@@ -291,6 +307,11 @@ void ASTDumper::visit(const ArraySubscriptExpr *ASE) {
   }
 }
 
+void ASTDumper::visit(const StringLiteral *SL) {
+  std::println(stderr, "StringLiteral '{}' {}", SL->getType().getAsString(),
+               SL->getString());
+}
+
 void ASTDumper::visit(const UnaryExprOrTypeTraitExpr *UE) {
   if (UE->isArgumentType()) {
     std::println(stderr, "UnaryExprOrTypeTraitExpr sizeof '{}'",
@@ -308,6 +329,14 @@ void ASTDumper::visit(const MemberExpr *ME) {
                ME->getBase()->getType().getAsString());
   ScopedIndent SI(*this, true);
   visit(ME->getBase());
+}
+
+void ASTDumper::visit(const CastExpr *Cast) {
+  std::println(stderr, "{}CastExpr '{}' <{}>",
+               Cast->isImplicit() ? "Implicit" : "Explicit",
+               Cast->getType().getAsString(), Cast->getCastKindStr());
+  ScopedIndent SI(*this, true);
+  visit(Cast->getSubExpr());
 }
 
 void ASTDumper::visit(const StmtExpr *SE) {
