@@ -302,6 +302,25 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
 
   QualType RetType = FT->getReturnType();
   auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, RetType, FD);
+  unsigned NumArgs = Args.size();
+  unsigned NumParams = FD->getNumParams();
+  unsigned N = std::min(NumArgs, NumParams);
+  for (unsigned I = 0; I < N; ++I) {
+    Expr *Arg = Args[I];
+    Arg = usualUnaryConv(Arg);
+    QualType ArgType = Arg->getType();
+    QualType ParamType = FT->getParamType(I);
+    if (!Ctx.hasSameType(ParamType, ArgType)) {
+      auto CK = getCastKind(ParamType, ArgType);
+      if (!CK)
+        Diag.fatalAt(Arg->getBeginLoc(), "invalid argument type");
+
+      if (*CK != CastExpr::CK_NoOp)
+        Arg = impCastExprToType(Arg, ParamType, *CK);
+    }
+    Args[I] = Arg;
+  }
+
   return CallExpr::create(Ctx, IdentBegLoc, EndLoc, RetType, Ref,
                           std::move(Args));
 }
