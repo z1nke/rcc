@@ -296,8 +296,13 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
     // FD->setImplicit(true);
   }
 
-  auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, Ctx.IntTy, FD);
-  return CallExpr::create(Ctx, IdentBegLoc, EndLoc, Ctx.IntTy, Ref,
+  QualType FuncType = FD->getType();
+  auto *FT = FuncType->getAs<FunctionType>();
+  assert(FT);
+
+  QualType RetType = FT->getReturnType();
+  auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, RetType, FD);
+  return CallExpr::create(Ctx, IdentBegLoc, EndLoc, RetType, Ref,
                           std::move(Args));
 }
 

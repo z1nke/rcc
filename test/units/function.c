@@ -68,6 +68,12 @@ int sub_short(short a, short b, short c) {
   return a - b - c;
 }
 
+// [70] Handle return type conversion
+int g1;
+
+int *g1_ptr() { return &g1; }
+char int_to_char(int x) { return x; }
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -104,6 +110,11 @@ int main() {
   // [43] Add line and block comments
   ASSERT(2, comment1());
   ASSERT(2, comment2());
+
+  // [70] Handle return type conversion
+  g1 = 3;
+  ASSERT(3, *g1_ptr());
+  ASSERT(5, int_to_char(261));
 
   printf("OK\n");
   return 0;
