@@ -121,8 +121,10 @@ Parser::parseRestTypedefDecl(SourceLocation BegLoc, DeclSpec &DS,
 // function-decl: function-definition
 //              | function-declaration
 FunctionDecl *Parser::parseFunctionDecl(FunctionDecl *Func) {
-  if (tryConsume(Token::TK_Semicolon))
+  if (tryConsume(Token::TK_Semicolon)) {
+    S.complete(Func);
     return Func;
+  }
 
   if (CurTok->is(Token::TK_LBrace))
     return parseFunctionBody(Func);
@@ -910,7 +912,8 @@ void Parser::enterScope(unsigned ScopeFlags, Decl *ScopeDecl) {
 void Parser::exitScope() {
   Scope *OldScope = getCurrScope();
   S.CurrScope = OldScope->getParent();
-  delete OldScope;
+  if (OldScope)
+    delete OldScope;
 }
 
 void Parser::expect(Token::TokenKind Kind, const char *Prompt) {

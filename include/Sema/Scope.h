@@ -56,6 +56,7 @@ public:
   const auto &tags() const { return TagDecls; }
 
   bool isStructScope() const { return Flags & StructScope; }
+  bool isFunctionScope() const { return Flags & FnScope; }
 
   const Decl *getDeclContext() const { return DeclCtx; }
   Decl *getDeclContext() { return DeclCtx; }

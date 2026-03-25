@@ -99,9 +99,13 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                                       SourceLocation BegLoc,
                                       SourceLocation EndLoc, std::string Name,
                                       QualType RetType, Stmt *Body) {
-  return FunctionDecl::create(Ctx, Loc, BegLoc, EndLoc,
-                              Ctx.getFunctionType(RetType, {}), std::move(Name),
-                              Body);
+  auto *Func = FunctionDecl::create(Ctx, Loc, BegLoc, EndLoc,
+                                    Ctx.getFunctionType(RetType, {}),
+                                    std::move(Name), Body);
+  assert(CurrScope->isFunctionScope());
+  addDecl(Func);
+  Funcs.push_back(Func);
+  return Func;
 }
 
 RecordDecl *Sema::actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
@@ -112,11 +116,6 @@ RecordDecl *Sema::actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
 }
 
 void Sema::complete(FunctionDecl *FD) {
-  std::vector<VarDecl *> Vars;
-  std::swap(Vars, LocalVars);
-  std::ranges::reverse(Vars);
-  FD->setLocalVars(std::move(Vars));
-
   std::vector<QualType> ParamTypes;
   for (const auto *Param : Params)
     ParamTypes.push_back(Param->getType());
@@ -130,10 +129,16 @@ void Sema::complete(FunctionDecl *FD) {
     Diag.fatalAt(FD->getLocation(), "expect function type");
 
   QualType RetType = FuncTy->getReturnType();
-
   QualType NewFT = Ctx.getFunctionType(RetType, std::move(ParamTypes));
   FD->setType(NewFT);
-  Funcs.push_back(FD);
+
+  if (!FD->getBody())
+    return;
+
+  std::vector<VarDecl *> Vars;
+  std::swap(Vars, LocalVars);
+  std::ranges::reverse(Vars);
+  FD->setLocalVars(std::move(Vars));
 }
 
 Expr *Sema::actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -186,7 +191,7 @@ Stmt *Sema::actOnReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
   if (RetType.isVoidType()) {
     if (!RetVal->getType().isVoidType())
       RetVal = actOnCastExpr(RetVal->getBeginLoc(), RetVal->getEndLoc(),
-                              RetType, RetVal, /*IsImplicit=*/true);
+                             RetType, RetVal, /*IsImplicit=*/true);
     return ReturnStmt::create(Ctx, BegLoc, EndLoc, RetVal);
   }
 
@@ -280,12 +285,15 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
                           std::string_view Name, std::vector<Expr *> Args) {
   FunctionDecl *FD = findFunction(Name);
   if (!FD) {
+    // [69] Report an error on undefined/undeclared functions
+    Diag.fatalAt(IdentBegLoc, "implicit declaration of a function");
+
     // Implicit function declaration.
-    FD = FunctionDecl::create(
-        Ctx, SourceLocation(), SourceLocation(), SourceLocation(),
-        Ctx.getFunctionType(Ctx.IntTy, {}), std::string(Name), nullptr);
-    Funcs.push_back(FD);
-    FD->setImplicit(true);
+    // FD = FunctionDecl::create(
+    //     Ctx, SourceLocation(), SourceLocation(), SourceLocation(),
+    //     Ctx.getFunctionType(Ctx.IntTy, {}), std::string(Name), nullptr);
+    // Funcs.push_back(FD);
+    // FD->setImplicit(true);
   }
 
   auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, Ctx.IntTy, FD);
