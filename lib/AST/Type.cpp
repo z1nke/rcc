@@ -115,16 +115,16 @@ QualType QualType::getCanonicalType() const {
   return TypePtr ? TypePtr->getCanonicalType() : *this;
 }
 
-bool QualType::isIntegerType() const {
+bool QualType::isVoidType() const {
   if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
-    return BT->isIntegerType();
+    return BT->isVoidType();
 
   return false;
 }
 
-bool QualType::isVoidType() const {
+bool QualType::isIntegerType() const {
   if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
-    return BT->isVoidType();
+    return BT->isIntegerType();
 
   return false;
 }
@@ -189,10 +189,16 @@ QualType Type::getPointeeOrArrayElementType() const {
   return QualType();
 }
 
+bool Type::isBooleanType() const {
+  const auto *BT = dynCast<BuiltinType>(getCanonicalType());
+  return BT && BT->getKind() == BuiltinType::BK_Bool;
+}
+
 bool Type::isUnsignedIntegerType() const {
-  // TODO: Impl
-  // if (const auto *BT = dynCast<BuiltinType>(getCanonicalType())) {
-  // }
+  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType())) {
+    auto Kind = BT->getKind();
+    return Kind == BuiltinType::BK_Bool;
+  }
 
   return false;
 }
@@ -220,8 +226,10 @@ TagDecl *Type::getAsTagDecl() const {
   return nullptr;
 }
 
+bool BuiltinType::isBooleanType() const { return BK == BK_Bool; }
+
 bool BuiltinType::isIntegerType() const {
-  return BK >= BK_Char && BK <= BK_LongLong;
+  return BK >= BK_Bool && BK <= BK_LongLong;
 }
 
 bool BuiltinType::isVoidType() const { return BK == BK_Void; }
@@ -230,6 +238,8 @@ const char *BuiltinType::getKindStr() const {
   switch (BK) {
   case BK_Void:
     return "void";
+  case BK_Bool:
+    return "_Bool";
   case BK_Char:
     return "char";
   case BK_Short:
@@ -238,6 +248,8 @@ const char *BuiltinType::getKindStr() const {
     return "int";
   case BK_Long:
     return "long";
+  case BK_LongLong:
+    return "long long";
   default:
     RCC_UNREACHABLE("Unknown builtin type");
   }

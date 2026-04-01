@@ -14,11 +14,13 @@ public:
 
   const std::string &getErrorMsg() const { return ErrMsg; }
   const std::string &getOutputPath() const { return OutputPath; }
+  bool hasAstDump() const { return AstDump; }
 
 private:
   std::vector<const char *> Inputs;
   std::string OutputPath;
   std::string ErrMsg;
+  bool AstDump = false;
 };
 
 } // namespace rcc

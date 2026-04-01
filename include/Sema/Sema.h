@@ -48,6 +48,7 @@ public:
                               unsigned TagKind);
 
   void complete(FunctionDecl *FD);
+  void complete(VarDecl *Var, Expr *Init);
 
   Stmt *actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
                       SourceLocation EndLoc, std::vector<Decl *> Decls);

@@ -50,7 +50,10 @@ void CompilerInstance::run() {
   Sema S(*ACtx, *Diag);
   Parser P(Toks, *ACtx, S, *SM);
   TranslationUnitDecl *TU = P.parse();
-  // TU->dump();
+  if (Invocation->hasAstDump()) {
+    TU->dump();
+    return;
+  }
   CodeGen CG(*Diag, Fp);
   CG.codegen(TU, Inputs[0]);
 }

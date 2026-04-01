@@ -64,8 +64,8 @@ public:
   const Type *operator->() const { return getTypePtr(); }
 
   QualType getCanonicalType() const;
-  bool isIntegerType() const;
   bool isVoidType() const;
+  bool isIntegerType() const;
 
   friend bool operator==(const QualType &LHS, const QualType &RHS) {
     return LHS.Value == RHS.Value;
@@ -114,6 +114,8 @@ public:
   QualType getBaseElementType() const;
   const Type *getPointeeOrArrayElementTypePtr() const;
   QualType getPointeeOrArrayElementType() const;
+
+  bool isBooleanType() const;
   bool isUnsignedIntegerType() const;
   bool isSignedIntegerType() const;
   bool isSignedIntegerOrEnumerationType() const;
@@ -147,6 +149,7 @@ class BuiltinType final : public Type {
 public:
   enum Kind {
     BK_Void,
+    BK_Bool,
     BK_Char,
     BK_Short,
     BK_Int,
@@ -158,6 +161,7 @@ public:
     return T->getTypeKind() == Type::TK_Builtin;
   }
 
+  bool isBooleanType() const;
   bool isIntegerType() const;
   bool isVoidType() const;
 

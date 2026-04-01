@@ -28,6 +28,11 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-ast-dump") {
+      Invocation->AstDump = true;
+      continue;
+    }
+
     if (Arg.starts_with("-o")) {
       Invocation->OutputPath = Arg.substr(2);
       continue;

@@ -344,6 +344,11 @@ const std::string &CodeGen::getStringLabel(const StringLiteral *SL) {
 }
 
 void CodeGen::genIntCast(const Type *From, const Type *To) {
+  if (To->isBooleanType()) {
+    emit("  snez a0, a0");
+    return;
+  }
+
   enum CastTypeID : unsigned {
     I8,
     I16,

@@ -141,6 +141,22 @@ void Sema::complete(FunctionDecl *FD) {
   FD->setLocalVars(std::move(Vars));
 }
 
+void Sema::complete(VarDecl *Var, Expr *Init) {
+  QualType InitType = Init->getType();
+  QualType VarType = Var->getType();
+  if (!Ctx.hasSameType(VarType, InitType)) {
+    auto CK = getCastKind(VarType, InitType);
+    if (!CK)
+      Diag.fatalAt(Var->getLocation(), "invalid variable init type");
+
+    if (*CK != CastExpr::CK_NoOp)
+      Init = impCastExprToType(Init, VarType, *CK);
+  }
+
+  Var->setInit(Init);
+  Var->setEndLoc(Init->getEndLoc());
+}
+
 Expr *Sema::actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
                                QualType T, std::string Str) {
   return StringLiteral::create(Ctx, BegLoc, EndLoc, T, Str);
@@ -602,6 +618,9 @@ std::optional<unsigned> Sema::getCastKind(QualType ToType, QualType FromType) {
 
   const auto *ToPtrTy = ToType->getAs<PointerType>();
   const auto *FromPtrTy = FromType->getAs<PointerType>();
+  if (FromType->isArraryType() && ToPtrTy)
+    return CastExpr::CK_ArrayToPointerDecay;
+
   if (ToPtrTy && FromPtrTy) {
     QualType ToPointeeTy = ToPtrTy->getPointeeType();
     QualType FromPointeeTy = FromPtrTy->getPointeeType();
@@ -824,6 +843,9 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) {
   switch (DS.getTypeSpecType()) {
   case DeclSpec::TST_Void:
     T = Ctx.VoidTy;
+    break;
+  case DeclSpec::TST_UnderlineBool:
+    T = Ctx.BoolTy;
     break;
   case DeclSpec::TST_Char:
     T = Ctx.CharTy;

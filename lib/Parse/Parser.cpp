@@ -363,7 +363,7 @@ Stmt *Parser::parseDeclStmt() {
 }
 
 // declspecs: typespec declspecs?
-// typespce: void | char | short | int | long | structDecl | unionDecl
+// typespce: void | _Bool | char | short | int | long | structDecl | unionDecl
 void Parser::parseDeclSpecs(DeclSpec &DS) {
 #define STORAGE_CLASS_SPEC_CASE(T)                                             \
   case Token::TK_##T:                                                          \
@@ -387,6 +387,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
     switch (CurTok->getKind()) {
       STORAGE_CLASS_SPEC_CASE(Typedef);
       TYPE_SPEC_TYPE_CASE(Void);
+      TYPE_SPEC_TYPE_CASE(UnderlineBool);
       TYPE_SPEC_TYPE_CASE(Char);
       TYPE_SPEC_TYPE_CASE(Int);
       TYPE_SPEC_WIDTH_CASE(Short);
@@ -456,9 +457,8 @@ Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
 
 void Parser::tryParseVarInit(VarDecl *Var) {
   if (tryConsume(Token::TK_Equal)) {
-    Expr *E = parseInitExpr();
-    Var->setInit(E);
-    Var->setEndLoc(E->getEndLoc());
+    Expr *Init = parseInitExpr();
+    S.complete(Var, Init);
   }
 }
 
@@ -708,6 +708,7 @@ QualType Parser::parseTypeName() {
 bool Parser::isTypeName(const Token *Tok) {
   switch (Tok->getKind()) {
   case Token::TK_Void:
+  case Token::TK_UnderlineBool:
   case Token::TK_Char:
   case Token::TK_Short:
   case Token::TK_Int:

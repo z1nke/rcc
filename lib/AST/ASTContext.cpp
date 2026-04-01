@@ -6,6 +6,7 @@ namespace rcc {
 
 void ASTContext::initBuiltinTypes() {
   initBuiltinType(VoidTy, BuiltinType::BK_Void, 1, 1);
+  initBuiltinType(BoolTy, BuiltinType::BK_Bool, 1, 1);
   initBuiltinType(CharTy, BuiltinType::BK_Char, 1, 1);
   initBuiltinType(ShortTy, BuiltinType::BK_Short, 2, 2);
   initBuiltinType(IntTy, BuiltinType::BK_Int, 4, 4);
@@ -101,6 +102,8 @@ unsigned ASTContext::getIntRank(const Type *T) const {
   const auto *BT = dynCast<BuiltinType>(T);
   assert(BT);
   switch (BT->getKind()) {
+  case BuiltinType::BK_Bool:
+    return 1 + (getIntWidth(BoolTy) << 3);
   case BuiltinType::BK_Char:
     return 2 + (getIntWidth(CharTy) << 3);
   case BuiltinType::BK_Short:

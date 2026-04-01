@@ -81,6 +81,8 @@ const char *DeclSpec::getSpecifierName(TypeSpecType T) {
     return "void";
   case TST_Char:
     return "char";
+  case TST_UnderlineBool:
+    return "_Bool";
   case TST_Int:
     return "int";
   case TST_Struct:

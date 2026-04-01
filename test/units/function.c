@@ -79,6 +79,10 @@ int div_long(long a, long b) {
   return a / b;
 }
 
+// [72] Add _Bool type
+_Bool bool_fn_add(_Bool x) { return x + 1; }
+_Bool bool_fn_sub(_Bool x) { return x - 1; }
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -123,6 +127,14 @@ int main() {
 
   // [71] Handle function argument type conversion
   ASSERT(-5, div_long(-10, 2));
+
+  // [72] Add _Bool type
+  ASSERT(1, bool_fn_add(3));
+  ASSERT(0, bool_fn_sub(3));
+  ASSERT(1, bool_fn_add(-3));
+  ASSERT(0, bool_fn_sub(-3));
+  ASSERT(1, bool_fn_add(0));
+  ASSERT(1, bool_fn_sub(0));
 
   printf("OK\n");
   return 0;

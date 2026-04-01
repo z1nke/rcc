@@ -28,6 +28,7 @@ public:
   enum TypeSpecType {
     TST_Unspecified,
     TST_Void,
+    TST_UnderlineBool,
     TST_Char,
     TST_Int,
     TST_Struct,
