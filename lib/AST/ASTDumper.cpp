@@ -153,6 +153,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_UnaryExprOrTypeTraitExpr:
     visit(cast<UnaryExprOrTypeTraitExpr>(S));
     break;
+  case Stmt::SK_CharacterLiteral:
+    visit(cast<CharacterLiteral>(S));
+    break;
   case Stmt::SK_StringLiteral:
     visit(cast<StringLiteral>(S));
     break;
@@ -305,6 +308,11 @@ void ASTDumper::visit(const ArraySubscriptExpr *ASE) {
     ScopedIndent SI(*this, true);
     visit(ASE->getRHS());
   }
+}
+
+void ASTDumper::visit(const CharacterLiteral *CL) {
+  std::println(stderr, "CharacterLiteral '{}' '{}'",
+               CL->getType().getAsString(), static_cast<char>(CL->getValue()));
 }
 
 void ASTDumper::visit(const StringLiteral *SL) {

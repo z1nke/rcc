@@ -157,6 +157,11 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   Var->setEndLoc(Init->getEndLoc());
 }
 
+Expr *Sema::actOnCharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                                  QualType T, unsigned Val) {
+  return CharacterLiteral::create(Ctx, BegLoc, EndLoc, T, Val);
+}
+
 Expr *Sema::actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
                                QualType T, std::string Str) {
   return StringLiteral::create(Ctx, BegLoc, EndLoc, T, Str);

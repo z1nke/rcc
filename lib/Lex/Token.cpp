@@ -38,10 +38,10 @@ static int escapeHex(const char *&P, Diagnostic &Diag) {
   return C;
 }
 
-static int escapeChar(const char *&P, Diagnostic &Diag) {
+static unsigned escapeChar(const char *&P, Diagnostic &Diag) {
   if ('0' <= *P && *P <= '7') {
     // Octal escape sequence \abc <=> (a*8+b)*8+c
-    int C = *P++ - '0';
+    unsigned C = *P++ - '0';
     if ('0' <= *P && *P <= '7') {
       C = (C << 3) + (*P++ - '0');
       if ('0' <= *P && *P <= '7')
@@ -50,7 +50,7 @@ static int escapeChar(const char *&P, Diagnostic &Diag) {
     return C;
   }
 
-  int C = *P;
+  unsigned C = *P;
   switch (*P++) {
   case 'a':
     return '\a';
@@ -81,8 +81,19 @@ static int escapeChar(const char *&P, Diagnostic &Diag) {
   }
 }
 
-std::string Token::lexStringLiteral(Diagnostic &Diag) const {
-  assert(Kind == TK_Str && "expect a string literal");
+unsigned Token::getCharLiteral(Diagnostic &Diag) const {
+  assert(Kind == TK_CharLiteral && "expect a character literal");
+  const char *P = Loc + 1; // Skip the opening '\''.
+  assert(P < Loc + Len - 1);
+  if (*P != '\\')
+    return static_cast<unsigned>(*P);
+
+  ++P; // Skip the '\'.
+  return escapeChar(P, Diag);
+}
+
+std::string Token::getStringLiteral(Diagnostic &Diag) const {
+  assert(Kind == TK_StrLiteral && "expect a string literal");
   std::string Result;
   Result.reserve(Len - 2);
   for (const char *P = Loc + 1; P < Loc + Len - 1;) {

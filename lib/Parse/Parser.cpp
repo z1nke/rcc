@@ -776,15 +776,24 @@ Expr *Parser::parsePostfixExpr() {
 //             | decl-ref-expr
 //             | call-expr
 //             | stmt-expr
-//             | str
-//             | num
+//             | character-literal
+//             | string-literal
+//             | numeric-constant
 // decl-ref-expr: ident
 Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
     return parseParenOrStmtExpr();
 
-  if (CurTok->is(Token::TK_Str)) {
-    auto SL = CurTok->lexStringLiteral(Diag);
+  if (CurTok->is(Token::TK_CharLiteral)) {
+    unsigned Val = CurTok->getCharLiteral(Diag);
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    auto EndLoc = SM.createEndLocation(CurTok);
+    skip();
+    return S.actOnCharacterLiteral(BegLoc, EndLoc, Ctx.CharTy, Val);
+  }
+
+  if (CurTok->is(Token::TK_StrLiteral)) {
+    auto SL = CurTok->getStringLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
     skip();

@@ -249,6 +249,18 @@ IntegerLiteral *IntegerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) IntegerLiteral(BegLoc, EndLoc, T, Val);
 }
 
+CharacterLiteral *CharacterLiteral::create(ASTContext &Ctx,
+                                           SourceLocation BegLoc,
+                                           SourceLocation EndLoc, QualType T,
+                                           unsigned Val) {
+  void *Mem = Ctx.allocate(sizeof(CharacterLiteral), alignof(CharacterLiteral));
+  return new (Mem) CharacterLiteral(BegLoc, EndLoc, T, Val);
+}
+
+CharacterLiteral::CharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                                   QualType T, unsigned Val)
+    : Expr(SK_CharacterLiteral, BegLoc, EndLoc, T), Val(Val) {}
+
 StringLiteral *StringLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
                                      SourceLocation EndLoc, QualType T,
                                      std::string Str) {

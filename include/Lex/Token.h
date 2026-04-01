@@ -26,7 +26,8 @@ public:
 
   std::string_view getIdentifer() const;
   std::int64_t getVal() const;
-  std::string lexStringLiteral(Diagnostic &Diag) const;
+  unsigned getCharLiteral(Diagnostic &Diag) const;
+  std::string getStringLiteral(Diagnostic &Diag) const;
 
   bool is(TokenKind TK) const { return TK == Kind; }
 

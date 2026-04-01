@@ -22,6 +22,7 @@ private:
                      int Len = 1);
 
   void lexNumericLiteral(Token *&Curr, const char *&P);
+  void lexCharLiteral(Token *&Curr, const char *&P);
   void lexStringLiteral(Token *&Curr, const char *&P);
 
   Token::TokenKind getTokenKindOfIdent(std::string_view Ident);

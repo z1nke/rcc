@@ -289,6 +289,12 @@ void CodeGen::genExpr(const Expr *E) {
     emit("  li a0, {}", Val);
     break;
   }
+  case Stmt::SK_CharacterLiteral: {
+    auto Val = cast<CharacterLiteral>(E)->getValue();
+    emit("  # a0 = '{}'", static_cast<unsigned char>(Val));
+    emit("  li a0, {}", Val);
+    break;
+  }
   case Stmt::SK_StringLiteral:
     genStringLiteral(cast<StringLiteral>(E));
     break;

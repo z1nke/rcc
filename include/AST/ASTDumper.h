@@ -56,6 +56,7 @@ public:
   void visit(const DeclRefExpr *Ref);
   void visit(const CallExpr *Call);
   void visit(const ArraySubscriptExpr *ASE);
+  void visit(const CharacterLiteral *CL);
   void visit(const StringLiteral *SL);
   void visit(const UnaryExprOrTypeTraitExpr *UE);
   void visit(const MemberExpr *ME);

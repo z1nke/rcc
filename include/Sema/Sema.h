@@ -62,6 +62,8 @@ public:
                      Stmt *Body);
   Stmt *actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                        Stmt *Body);
+  Expr *actOnCharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                              QualType T, unsigned Val);
   Expr *actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
                            QualType T, std::string Str);
   Expr *actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,

@@ -309,6 +309,26 @@ private:
   std::int64_t Val;
 };
 
+class CharacterLiteral final : public Expr {
+public:
+  static CharacterLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
+                                  SourceLocation EndLoc, QualType T,
+                                  unsigned Val);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_CharacterLiteral;
+  }
+
+  unsigned getValue() const { return Val; }
+
+private:
+  CharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                   unsigned Val);
+
+private:
+  unsigned Val;
+};
+
 class StringLiteral final : public Expr {
 public:
   static StringLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,

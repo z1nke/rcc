@@ -48,6 +48,9 @@ Token *Lexer::tokenize(const char *P) {
     }
 
     switch (*P) {
+    case '\'':
+      lexCharLiteral(Curr, P);
+      break;
     case '"':
       lexStringLiteral(Curr, P);
       break;
@@ -160,6 +163,22 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   Curr = Curr->getNext();
 }
 
+void Lexer::lexCharLiteral(Token *&Curr, const char *&P) {
+  const char *Start = P;
+  ++P; // skip opening '\''
+
+  for (; *P != '\''; ++P) {
+    if (*P == '\n' || *P == '\0')
+      Diag.fatalAt(Start, "unclosed character literal");
+
+    if (*P == '\\')
+      ++P;
+  }
+
+  Curr->setNext(newToken(Token::TK_CharLiteral, Start, ++P));
+  Curr = Curr->getNext();
+}
+
 void Lexer::lexStringLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
   ++P; // skip opening '"'
@@ -171,7 +190,7 @@ void Lexer::lexStringLiteral(Token *&Curr, const char *&P) {
       ++P;
   }
 
-  Curr->setNext(newToken(Token::TK_Str, Start, ++P));
+  Curr->setNext(newToken(Token::TK_StrLiteral, Start, ++P));
   Curr = Curr->getNext();
 }
 
