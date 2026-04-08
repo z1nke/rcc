@@ -301,12 +301,9 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_ParenExpr:
     genExpr(cast<ParenExpr>(E)->getSubExpr());
     break;
-  case Stmt::SK_DeclRefExpr: {
-    const auto *Ref = cast<DeclRefExpr>(E);
-    genAddr(Ref->getDecl()); // a0 = addr
-    load(Ref->getTypePtr()); // a0 = *a0
+  case Stmt::SK_DeclRefExpr:
+    genDeclRefExpr(cast<DeclRefExpr>(E));
     break;
-  }
   case Stmt::SK_MemberExpr: {
     const auto *Member = cast<MemberExpr>(E);
     genAddr(Member);            // a0 = addr
@@ -406,6 +403,17 @@ void CodeGen::genIntCast(const Type *From, const Type *To) {
 void CodeGen::genStringLiteral(const StringLiteral *SL) {
   emit("  # load address of string literal");
   emit("  la a0, {}", getStringLabel(SL));
+}
+
+void CodeGen::genDeclRefExpr(const DeclRefExpr *Ref) {
+  const auto *D = Ref->getDecl();
+  if (const auto *ECD = dynCast<EnumConstantDecl>(D)) {
+    emit("  li a0, {}", ECD->getValue());
+    return;
+  }
+
+  genAddr(D);              // a0 = addr
+  load(Ref->getTypePtr()); // a0 = *a0
 }
 
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {

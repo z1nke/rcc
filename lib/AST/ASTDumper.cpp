@@ -86,6 +86,17 @@ void ASTDumper::visit(const VarDecl *Var) {
   }
 }
 
+void ASTDumper::visit(const EnumConstantDecl *ECD) {
+  std::println(stderr, "EnumConstantDecl {} {} '{}'", ECD->getName(),
+               ECD->getValue(), ECD->getType().getAsString());
+  if (ECD->getInit()) {
+    ScopedIndent SI(*this, true);
+    visit(ECD->getInit());
+  }
+}
+
+void ASTDumper::visit(const FieldDecl *Field) { printName(Field); }
+
 void ASTDumper::visit(const RecordDecl *Record) {
   printName(Record);
   for (const auto *Field : Record->fields()) {
@@ -94,7 +105,14 @@ void ASTDumper::visit(const RecordDecl *Record) {
   }
 }
 
-void ASTDumper::visit(const FieldDecl *Field) { printName(Field); }
+void ASTDumper::visit(const EnumDecl *Enum) {
+  std::println(stderr, "{} {}", Enum->getKindStr(), Enum->getName());
+  bool IsSingle = Enum->enumerators().size() == 1;
+  for (const auto *ECD : Enum->enumerators()) {
+    ScopedIndent SI(*this, IsSingle);
+    visit(ECD);
+  }
+}
 
 void ASTDumper::visit(const TypedefDecl *Typedef) {
   std::println(stderr, "{} {} '{}'", "typedef", Typedef->getName(),

@@ -104,6 +104,34 @@ RecordDecl::RecordDecl(ASTContext &Ctx, SourceLocation Loc,
                        std::string Name, TagDecl::TagKind TK)
     : TagDecl(Ctx, DK_Record, TK, Loc, BegLoc, EndLoc, std::move(Name)) {}
 
+EnumConstantDecl *EnumConstantDecl::create(ASTContext &Ctx, SourceLocation Loc,
+                                           SourceLocation BegLoc,
+                                           SourceLocation EndLoc, QualType T,
+                                           std::string Name, std::int64_t Val,
+                                           const Expr *Init) {
+  void *Mem = Ctx.allocate(sizeof(EnumConstantDecl), alignof(EnumConstantDecl));
+  return new (Mem)
+      EnumConstantDecl(Ctx, Loc, BegLoc, EndLoc, T, std::move(Name), Val, Init);
+}
+
+EnumConstantDecl::EnumConstantDecl(ASTContext &Ctx, SourceLocation Loc,
+                                   SourceLocation BegLoc, SourceLocation EndLoc,
+                                   QualType T, std::string Name,
+                                   std::int64_t Val, const Expr *Init)
+    : ValueDecl(Ctx, DK_EnumConstant, Loc, BegLoc, EndLoc, T, std::move(Name)),
+      Val(Val), Init(const_cast<Expr *>(Init)) {}
+
+EnumDecl *EnumDecl::create(ASTContext &Ctx, SourceLocation Loc,
+                           SourceLocation BegLoc, SourceLocation EndLoc,
+                           std::string Name) {
+  void *Mem = Ctx.allocate(sizeof(EnumDecl), alignof(EnumDecl));
+  return new (Mem) EnumDecl(Ctx, Loc, BegLoc, EndLoc, std::move(Name));
+}
+
+EnumDecl::EnumDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+                   SourceLocation EndLoc, std::string Name)
+    : TagDecl(Ctx, DK_Enum, TK_Enum, Loc, BegLoc, EndLoc, std::move(Name)) {}
+
 TypedefDecl *TypedefDecl::create(ASTContext &Ctx, SourceLocation Loc,
                                  SourceLocation BegLoc, SourceLocation EndLoc,
                                  std::string Name, QualType Underlying) {

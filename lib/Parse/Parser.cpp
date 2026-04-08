@@ -184,6 +184,83 @@ RecordDecl *Parser::parseUnionDecl() {
   return Union;
 }
 
+// enum-specifier: enum identifier? '{' enumerator-list '}'
+//               | enum identifier? '{' enumerator-list ',' '}'
+//               | enum identifier
+EnumDecl *Parser::parseEnumDecl() {
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Enum);
+  std::string_view Ident;
+  SourceLocation Loc = BegLoc;
+  if (CurTok->is(Token::TK_Ident)) {
+    Loc = SM.createBeginLocation(CurTok);
+    Ident = CurTok->getIdentifer();
+    skip();
+  }
+
+  EnumDecl *Enum = S.actOnEnumDecl(Loc, BegLoc, SourceLocation(), Ident);
+  QualType ET = Ctx.getEnumType(Enum);
+  Enum->setTypeForDecl(ET.getTypePtr());
+  if (tryConsume(Token::TK_LBrace)) {
+    std::vector<EnumConstantDecl *> Constants = parseEnumeratorList(ET);
+    Enum->setEnumerators(std::move(Constants));
+    skip(Token::TK_RBrace);
+  }
+
+  return Enum;
+}
+
+// enumerator-list: enumerator
+//                | enumerator-list ',' enumerator
+std::vector<EnumConstantDecl *> Parser::parseEnumeratorList(QualType ET) {
+  int Val = 0;
+  std::vector<EnumConstantDecl *> Constants;
+  while (CurTok->isNot(Token::TK_RBrace)) {
+    auto *ECD = parseEnumerator(ET, Val);
+    Constants.push_back(ECD);
+    if (tryConsume(Token::TK_Comma))
+      continue;
+    break;
+  }
+  return Constants;
+}
+
+// enumerator: enumeration-constant
+//           | enumeration-constant '=' constant-expression
+// enumeration-constant: identifier
+EnumConstantDecl *Parser::parseEnumerator(QualType ET, int &Val) {
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  if (CurTok->isNot(Token::TK_Ident))
+    Diag.fatalAt(BegLoc, "expect identifier in enumeration-constant");
+
+  std::string_view Ident = CurTok->getIdentifer();
+  auto EndLoc = SM.createEndLocation(CurTok);
+  skip();
+
+  Expr *Init = nullptr;
+  if (tryConsume(Token::TK_Equal)) {
+    Init = parseConstantExpr();
+    if (!Init->getType()->isIntegerType())
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "enumerator initializer must be integer");
+  }
+
+  if (Init) {
+    EndLoc = Init->getEndLoc();
+    auto InitVal = Init->evaluateAsInt();
+    if (!InitVal)
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "enumerator initializer must be constant expression");
+
+    std::visit([&Val](auto &&V) { Val = static_cast<int>(V); }, *InitVal);
+  }
+
+  auto *ECD = S.actOnEnumConstantDecl(BegLoc, BegLoc, EndLoc, ET,
+                                      std::string(Ident), Val, Init);
+  ++Val;
+  return ECD;
+}
+
 RecordDecl *Parser::parseStructUnionDecl(SourceLocation BegLoc,
                                          unsigned TagKind) {
   auto Loc = SM.createBeginLocation(CurTok);
@@ -364,6 +441,7 @@ Stmt *Parser::parseDeclStmt() {
 
 // declspecs: typespec declspecs?
 // typespce: void | _Bool | char | short | int | long | structDecl | unionDecl
+//         | enumSpecifier
 void Parser::parseDeclSpecs(DeclSpec &DS) {
 #define STORAGE_CLASS_SPEC_CASE(T)                                             \
   case Token::TK_##T:                                                          \
@@ -399,6 +477,10 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
     case Token::TK_Union:
       DS.setTypeSpecType(DeclSpec::TST_Union, TyLoc);
       DS.setRepDecl(parseUnionDecl());
+      break;
+    case Token::TK_Enum:
+      DS.setTypeSpecType(DeclSpec::TST_Enum, TyLoc);
+      DS.setRepDecl(parseEnumDecl());
       break;
     case Token::TK_Ident: {
       if (DS.hasTypeSpecifier())
@@ -590,6 +672,17 @@ Expr *Parser::parseEqualityExpr() {
                          Token::TK_NotEqual>();
 }
 
+// constant-expr: conditional-expr
+// conditional-expr: logical-or-expr
+//                 | logical-or-expr ? expr : conditional-expr
+// logical-or-expr(||)
+// logical-and-expr(&&)
+// inclusive-or-expr(|)
+// exclusive-or-expr(^)
+// and-expr: equality-expr
+//         | and-expr & equality-expr
+Expr *Parser::parseConstantExpr() { return parseEqualityExpr(); }
+
 // relational-expr: add-expr { ('<' | '<=' | '>' | '>=') add-expr }
 Expr *Parser::parseRelationalExpr() {
   return parseBinaryExpr<&Parser::parseAddExpr, Token::TK_Less,
@@ -716,6 +809,7 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Struct:
   case Token::TK_Union:
   case Token::TK_Typedef:
+  case Token::TK_Enum:
     return true;
   case Token::TK_Ident:
     return S.findTypedef(Tok->getIdentifer());

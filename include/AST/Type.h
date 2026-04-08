@@ -13,7 +13,9 @@ class QualType;
 class Type;
 class TagDecl;
 class RecordDecl;
+class EnumDecl;
 class TypedefDecl;
+
 class Qualifiers {
 public:
   enum : std::uint32_t {
@@ -103,22 +105,23 @@ public:
 
   QualType getCanonicalType() const;
 
-  bool isScalarType() const;
-  bool isArithmeticType() const;
-  bool isPointerType() const { return Kind == TK_Pointer; }
-  bool isFunctionType() const { return Kind == TK_Function; }
-  bool isArraryType() const { return Kind == TK_ConstantArray; }
-  bool isRecordType() const { return Kind == TK_Record; }
-
   QualType getPointeeType() const;
   QualType getBaseElementType() const;
   const Type *getPointeeOrArrayElementTypePtr() const;
   QualType getPointeeOrArrayElementType() const;
 
+  bool isScalarType() const;
+  bool isArithmeticType() const;
+  bool isIntegerType() const;
   bool isBooleanType() const;
   bool isUnsignedIntegerType() const;
   bool isSignedIntegerType() const;
   bool isSignedIntegerOrEnumerationType() const;
+  bool isPointerType() const;
+  bool isFunctionType() const;
+  bool isArraryType() const;
+  bool isRecordType() const;
+  bool isEnumType() const;
 
   template <typename To> const To *getAs() const {
     if (const auto *Ty = dynCast<To>(this))
@@ -293,6 +296,23 @@ private:
 
   RecordType(RecordDecl *RD, std::size_t Size, std::size_t Align = 0)
       : TagType(TK_Record, Size, Align, reinterpret_cast<TagDecl *>(RD)) {}
+};
+
+class EnumType final : public TagType {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_Enum;
+  }
+
+  EnumDecl *getDecl() const {
+    return reinterpret_cast<EnumDecl *>(TagType::getDecl());
+  }
+
+private:
+  friend class ASTContext;
+
+  EnumType(EnumDecl *ED, std::size_t Size, std::size_t Align = 0)
+      : TagType(TK_Enum, Size, Align, reinterpret_cast<TagDecl *>(ED)) {}
 };
 
 class TypedefType final : public Type {

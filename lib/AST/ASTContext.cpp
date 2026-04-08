@@ -58,6 +58,17 @@ QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size,
   return QualType(Ty);
 }
 
+QualType ASTContext::getEnumType(EnumDecl *ED) {
+  const auto *Canonical = ED->getCanonicalDecl();
+  EnumType *&Ty = EnumTypes[Canonical];
+  if (Ty)
+    return QualType(Ty);
+
+  Ty = new (*this, alignof(EnumType))
+      EnumType(ED, IntTy->getSize(), IntTy->getAlign());
+  return QualType(Ty);
+}
+
 QualType ASTContext::getTypedefType(TypedefDecl *TD, QualType Underlying) {
   TypedefType *&Ty = TypedefTypes[TD];
   if (Ty)

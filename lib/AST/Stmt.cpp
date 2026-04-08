@@ -193,6 +193,131 @@ Expr *Expr::ignoreParenCasts() {
   return ignoreExprNodes(this, ignoreParenSingleStep, ignoreCastSingleStep);
 }
 
+static std::optional<Expr::EvalResult>
+evaluateUnaryOperator(const UnaryOperator *UO) {
+  auto SubVal = UO->getSubExpr()->evaluate();
+  if (!SubVal)
+    return std::nullopt;
+
+  switch (UO->getOpcode()) {
+  case UnaryOperator::UO_Plus:
+    return SubVal;
+  case UnaryOperator::UO_Minus:
+    return std::visit([](auto &&Arg) { return Expr::EvalResult(-Arg); },
+                      *SubVal);
+  default:
+    return std::nullopt;
+  }
+}
+
+static std::optional<Expr::EvalResult>
+evaluateUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
+  return Expr::EvalResult(static_cast<std::uint64_t>(UE->getSize()));
+}
+
+static std::optional<Expr::EvalResult>
+evaluateBinaryOperator(const BinaryOperator *BO) {
+  // TODO
+  return std::nullopt;
+}
+
+static std::optional<Expr::EvalResult> evaluateCastExpr(const CastExpr *Cast) {
+  auto SubVal = Cast->getSubExpr()->evaluate();
+  if (!SubVal)
+    return std::nullopt;
+
+  switch (Cast->getCastKind()) {
+  case CastExpr::CK_NoOp:
+    return SubVal;
+  case CastExpr::CK_ToVoid:
+    return std::nullopt;
+  case CastExpr::CK_IntegralCast: {
+    // TODO
+    return std::nullopt;
+  }
+  case CastExpr::CK_ArrayToPointerDecay:
+    return std::nullopt;
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<Expr::EvalResult> Expr::evaluate() const {
+  QualType T = getType();
+  if (T.isNull() || !T->isArithmeticType())
+    return std::nullopt;
+
+  switch (getKind()) {
+  case Stmt::SK_UnaryOperator:
+    return evaluateUnaryOperator(cast<UnaryOperator>(this));
+  case Stmt::SK_UnaryExprOrTypeTraitExpr:
+    return evaluateUnaryExprOrTypeTraitExpr(
+        cast<UnaryExprOrTypeTraitExpr>(this));
+  case Stmt::SK_BinaryOperator:
+    return evaluateBinaryOperator(cast<BinaryOperator>(this));
+  case Stmt::SK_IntegerLiteral: {
+    const auto *IL = cast<IntegerLiteral>(this);
+    if (T->isSignedIntegerType())
+      return IL->getVal();
+    return static_cast<std::uint64_t>(IL->getVal());
+  }
+  case Stmt::SK_CharacterLiteral: {
+    const auto *CL = cast<CharacterLiteral>(this);
+    return static_cast<std::uint64_t>(CL->getValue());
+  }
+  case Stmt::SK_StringLiteral:
+    // TODO
+    return std::nullopt;
+  case Stmt::SK_ParenExpr:
+    return cast<ParenExpr>(this)->evaluate();
+  case Stmt::SK_DeclRefExpr:
+  case Stmt::SK_ArraySubscriptExpr:
+  case Stmt::SK_CallExpr:
+  case Stmt::SK_MemberExpr:
+    return std::nullopt;
+  case Stmt::SK_CastExpr:
+    return evaluateCastExpr(cast<CastExpr>(this));
+  case Stmt::SK_StmtExpr:
+    return std::nullopt;
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<Expr::EvalResult> Expr::evaluateAsInt() const {
+  QualType QT = getType();
+  if (QT.isNull() || !QT.isIntegerType())
+    return std::nullopt;
+
+  auto Val = evaluate();
+  if (!Val)
+    return std::nullopt;
+
+  return std::visit(
+      [](auto &&V) -> std::optional<Expr::EvalResult> {
+        using T = std::decay_t<decltype(V)>;
+        if constexpr (std::is_integral_v<T>)
+          return V;
+        return std::nullopt;
+      },
+      *Val);
+}
+
+std::optional<Expr::EvalResult> Expr::evaluateAsBool() const {
+  QualType QT = getType();
+  if (QT.isNull() || !QT->isBooleanType())
+    return std::nullopt;
+
+  auto Val = evaluate();
+  if (!Val)
+    return std::nullopt;
+
+  if (auto *Ptr = std::get_if<bool>(&*Val))
+    return *Ptr;
+
+  return std::nullopt;
+}
+
 BinaryOperator::BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
                                QualType T, SourceLocation OpLoc, Expr *LHS,
                                Expr *RHS, Opcode Op)

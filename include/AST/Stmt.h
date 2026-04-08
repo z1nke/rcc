@@ -5,6 +5,7 @@
 #include "Basic/SourceLocation.h"
 
 #include <cstdint>
+#include <variant>
 #include <vector>
 
 namespace rcc {
@@ -113,6 +114,13 @@ public:
   const Expr *ignoreParenCasts() const {
     return const_cast<Expr *>(this)->ignoreParenCasts();
   }
+
+public:
+  using EvalResult =
+      std::variant<std::int64_t, std::uint64_t, double, char, bool>;
+  std::optional<EvalResult> evaluate() const;
+  std::optional<EvalResult> evaluateAsInt() const;
+  std::optional<EvalResult> evaluateAsBool() const;
 
 protected:
   Expr(StmtKind Kind, SourceLocation BegLoc, SourceLocation EndLoc, QualType T)

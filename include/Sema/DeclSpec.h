@@ -33,6 +33,7 @@ public:
     TST_Int,
     TST_Struct,
     TST_Union,
+    TST_Enum,
     TST_Typename, // Typedef, struct/union name or enum name.
   };
 

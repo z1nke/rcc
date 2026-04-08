@@ -16,10 +16,13 @@ class Stmt;
 class Expr;
 class Decl;
 class NamedDecl;
+class ValueDecl;
 class VarDecl;
 class ParamVarDecl;
 class Declarator;
 class FunctionDecl;
+class EnumConstantDecl;
+class EnumDecl;
 class FieldDecl;
 class DeclSpec;
 
@@ -46,6 +49,14 @@ public:
   RecordDecl *actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
                               SourceLocation EndLoc, std::string_view Ident,
                               unsigned TagKind);
+
+  EnumConstantDecl *actOnEnumConstantDecl(SourceLocation Loc,
+                                          SourceLocation BegLoc,
+                                          SourceLocation EndLoc, QualType T,
+                                          std::string Name, std::int64_t Val,
+                                          const Expr *Init);
+  EnumDecl *actOnEnumDecl(SourceLocation Loc, SourceLocation BegLoc,
+                          SourceLocation EndLoc, std::string_view Ident);
 
   void complete(FunctionDecl *FD);
   void complete(VarDecl *Var, Expr *Init);
@@ -91,7 +102,7 @@ public:
   Scope *getCurrScope() const { return CurrScope; }
 
 private:
-  VarDecl *findVar(std::string_view Ident) const;
+  ValueDecl *findValueDecl(std::string_view Ident) const;
   TagDecl *findTagDecl(std::string_view Ident) const;
   FunctionDecl *findFunction(std::string_view Ident) const;
   TypedefDecl *findTypedef(std::string_view Ident) const;

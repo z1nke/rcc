@@ -115,6 +115,21 @@ RecordDecl *Sema::actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
                             static_cast<RecordDecl::TagKind>(TagKind));
 }
 
+EnumConstantDecl *
+Sema::actOnEnumConstantDecl(SourceLocation Loc, SourceLocation BegLoc,
+                            SourceLocation EndLoc, QualType T, std::string Name,
+                            std::int64_t Val, const Expr *Init) {
+  auto *ECD = EnumConstantDecl::create(Ctx, Loc, BegLoc, EndLoc, T,
+                                       std::move(Name), Val, Init);
+  addDecl(ECD);
+  return ECD;
+}
+
+EnumDecl *Sema::actOnEnumDecl(SourceLocation Loc, SourceLocation BegLoc,
+                              SourceLocation EndLoc, std::string_view Ident) {
+  return EnumDecl::create(Ctx, Loc, BegLoc, EndLoc, std::string(Ident));
+}
+
 void Sema::complete(FunctionDecl *FD) {
   std::vector<QualType> ParamTypes;
   for (const auto *Param : Params)
@@ -294,11 +309,11 @@ Expr *Sema::actOnParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
 
 Expr *Sema::actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                              std::string_view Ident) {
-  VarDecl *Var = findVar(Ident);
-  if (!Var)
+  auto *ND = findValueDecl(Ident);
+  if (!ND)
     Diag.fatalAt(BegLoc, "undeclared variable '{}'", Ident.data());
 
-  return DeclRefExpr::create(Ctx, BegLoc, EndLoc, Var->getType(), Var);
+  return DeclRefExpr::create(Ctx, BegLoc, EndLoc, ND->getType(), ND);
 }
 
 Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
@@ -793,15 +808,15 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
   }
 }
 
-VarDecl *Sema::findVar(std::string_view Ident) const {
+ValueDecl *Sema::findValueDecl(std::string_view Ident) const {
   for (Scope *S = CurrScope; S; S = S->getParent()) {
     for (auto *D : S->decls()) {
-      auto *Var = dynCast<VarDecl>(D);
-      if (!Var)
+      auto *VD = dynCast<ValueDecl>(D);
+      if (!VD)
         continue;
 
-      if (Var->getName() == Ident)
-        return Var;
+      if (VD->getName() == Ident)
+        return VD;
     }
   }
 
@@ -876,11 +891,12 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) {
     break;
   }
   case DeclSpec::TST_Struct:
-  case DeclSpec::TST_Union: {
-    const auto *RD = dynCast<RecordDecl>(DS.getRepDecl());
-    if (!RD)
+  case DeclSpec::TST_Union:
+  case DeclSpec::TST_Enum: {
+    const auto *TD = dynCast<TagDecl>(DS.getRepDecl());
+    if (!TD)
       Diag.fatalAt(DS.getTypeSpecLoc(), "struct/union has no declaration");
-    T = RD->getType();
+    T = TD->getType();
     break;
   }
   case DeclSpec::TST_Typename: {

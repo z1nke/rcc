@@ -11,6 +11,8 @@ class TranslationUnitDecl;
 class ValueDecl;
 class TypeDecl;
 class VarDecl;
+class EnumConstantDecl;
+class EnumDecl;
 class FunctionDecl;
 
 class Stmt;
@@ -36,8 +38,10 @@ public:
   void visit(const TranslationUnitDecl *TU);
   void visit(const FunctionDecl *Func);
   void visit(const VarDecl *Var);
-  void visit(const RecordDecl *Record);
+  void visit(const EnumConstantDecl *ECD);
   void visit(const FieldDecl *Field);
+  void visit(const RecordDecl *Record);
+  void visit(const EnumDecl *Enum);
   void visit(const TypedefDecl *Typedef);
 
 public:

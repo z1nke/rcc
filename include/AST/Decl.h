@@ -21,15 +21,19 @@ public:
     DK_TranslationUnit,
     DK_Var,
     DK_Function,
+    DK_EnumConstant,
     DK_Field,
     DK_Record,
+    DK_Enum,
     DK_Typedef,
     FirstTypeDeclKind = DK_Record,
     LastTypeDeclKind = DK_Typedef,
     FirstTagDeclKind = DK_Record,
-    LastTagDeclKind = DK_Record,
+    LastTagDeclKind = DK_Enum,
     FirstNamedDeclKind = DK_Var,
     LastNamedDeclKind = DK_Typedef,
+    FirstValueDeclKind = DK_Var,
+    LastValueDeclKind = DK_Field,
   };
 
   Decl(ASTContext &Ctx, DeclKind Kind, SourceLocation Loc,
@@ -108,6 +112,11 @@ public:
             SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
             std::string Name)
       : NamedDecl(Ctx, Kind, Loc, BegLoc, EndLoc, std::move(Name)), Ty(T) {}
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(DeclKind DK) {
+    return DK >= FirstValueDeclKind && DK <= LastValueDeclKind;
+  }
 
   QualType getType() const { return Ty; }
   void setType(QualType T) { Ty = T; }
@@ -292,6 +301,54 @@ private:
 
 private:
   std::vector<FieldDecl *> Fields;
+};
+
+class EnumConstantDecl final : public ValueDecl {
+public:
+  static EnumConstantDecl *create(ASTContext &Ctx, SourceLocation Loc,
+                                  SourceLocation BegLoc, SourceLocation EndLoc,
+                                  QualType T, std::string Name,
+                                  std::int64_t Val, const Expr *Init);
+
+  static bool classof(const Decl *D) { return D->getKind() == DK_EnumConstant; }
+
+  int getValue() const { return Val; }
+  const Expr *getInit() const { return Init; }
+  Expr *getInit() { return Init; }
+
+private:
+  EnumConstantDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+                   SourceLocation EndLoc, QualType T, std::string Name,
+                   std::int64_t Val, const Expr *Init);
+
+private:
+  std::int64_t Val;
+  Expr *Init;
+};
+
+class EnumDecl final : public TagDecl {
+public:
+  static EnumDecl *create(ASTContext &Ctx, SourceLocation Loc,
+                          SourceLocation BegLoc, SourceLocation EndLoc,
+                          std::string Name);
+
+  static bool classof(const Decl *D) { return D->getKind() == DK_Enum; }
+
+  const EnumDecl *getCanonicalDecl() const { return this; }
+
+  const std::vector<EnumConstantDecl *> &enumerators() const {
+    return EnumConstants;
+  }
+  void addEnumerator(EnumConstantDecl *D) { EnumConstants.push_back(D); }
+  void setEnumerators(std::vector<EnumConstantDecl *> EnumConstants) {
+    this->EnumConstants = std::move(EnumConstants);
+  }
+
+private:
+  EnumDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+           SourceLocation EndLoc, std::string Name);
+
+  std::vector<EnumConstantDecl *> EnumConstants;
 };
 
 class TypedefDecl final : public TypeDecl {

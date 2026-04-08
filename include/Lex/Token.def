@@ -47,6 +47,7 @@ KEYWORD(Long, "long")
 KEYWORD(Sizeof, "sizeof")
 KEYWORD(Struct, "struct")
 KEYWORD(Union, "union")
+KEYWORD(Enum, "enum")
 KEYWORD(Typedef, "typedef")
 
 #undef KEYWORD

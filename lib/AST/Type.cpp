@@ -123,8 +123,12 @@ bool QualType::isVoidType() const {
 }
 
 bool QualType::isIntegerType() const {
-  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
+  QualType CanType = getCanonicalType();
+  if (const auto *BT = dynCast<BuiltinType>(CanType))
     return BT->isIntegerType();
+
+  if (isa<EnumType>(CanType))
+    return true;
 
   return false;
 }
@@ -136,32 +140,22 @@ void Type::dump() const {
 
 QualType Type::getCanonicalType() const {
   switch (Kind) {
-  case TK_Typedef: {
+  case TK_Typedef:
     return cast<TypedefType>(this)->getCanonicalType();
   default:
     break;
   }
-  }
   return QualType(this);
 }
 
+// Scalar type: arithmetic type or pointer type.
 bool Type::isScalarType() const {
-  QualType CanonicalType = getCanonicalType();
-  if (const auto *BT = dynCast<BuiltinType>(CanonicalType)) {
-    // TODO: Other builtin type.
-    return BT->isIntegerType();
-  }
-
-  return isa<PointerType>(CanonicalType);
+  return isArithmeticType() || isPointerType();
 }
 
+// Arithmetic type: integer type or floating point type.
 bool Type::isArithmeticType() const {
-  QualType CanonicalType = getCanonicalType();
-  if (const auto *BT = dynCast<BuiltinType>(CanonicalType)) {
-    // TODO: Other builtin type.
-    return BT->isIntegerType();
-  }
-  return false;
+  return isIntegerType();
 }
 
 QualType Type::getPointeeType() const {
@@ -189,6 +183,17 @@ QualType Type::getPointeeOrArrayElementType() const {
   return QualType();
 }
 
+bool Type::isIntegerType() const {
+  QualType CanonicalType = getCanonicalType();
+  if (const auto *BT = dynCast<BuiltinType>(CanonicalType))
+    return BT->isIntegerType();
+
+  if (CanonicalType->isEnumType())
+    return true;
+
+  return false;
+}
+
 bool Type::isBooleanType() const {
   const auto *BT = dynCast<BuiltinType>(getCanonicalType());
   return BT && BT->getKind() == BuiltinType::BK_Bool;
@@ -212,8 +217,37 @@ bool Type::isSignedIntegerType() const {
 }
 
 bool Type::isSignedIntegerOrEnumerationType() const {
-  // TODO: Enum
-  return isSignedIntegerType();
+  if (isSignedIntegerType())
+    return true;
+
+  if (isa<EnumType>(getCanonicalType()))
+    return true;
+
+  return false;
+}
+bool Type::isPointerType() const {
+  QualType CanType = getCanonicalType();
+  return CanType->getTypeKind() == TK_Pointer;
+}
+
+bool Type::isFunctionType() const {
+  QualType CanType = getCanonicalType();
+  return CanType->getTypeKind() == TK_Function;
+}
+
+bool Type::isArraryType() const {
+  QualType CanType = getCanonicalType();
+  return CanType->getTypeKind() == TK_ConstantArray;
+}
+
+bool Type::isRecordType() const {
+  QualType CanType = getCanonicalType();
+  return CanType->getTypeKind() == TK_Record;
+}
+
+bool Type::isEnumType() const {
+  QualType CanType = getCanonicalType();
+  return CanType->getTypeKind() == TK_Enum;
 }
 
 RecordDecl *Type::getAsRecordDecl() const {

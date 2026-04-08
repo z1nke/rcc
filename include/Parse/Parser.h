@@ -16,6 +16,8 @@ class Decl;
 class TranslationUnitDecl;
 class FunctionDecl;
 class RecordDecl;
+class EnumDecl;
+class EnumConstantDecl;
 class FieldDecl;
 class VarDecl;
 class TypedefDecl;
@@ -42,6 +44,11 @@ private:
   RecordDecl *parseUnionDecl();
   RecordDecl *parseStructUnionDecl(SourceLocation BegLoc, unsigned TagKind);
   std::vector<FieldDecl *> parseFields();
+  
+  EnumDecl *parseEnumDecl();
+  std::vector<EnumConstantDecl *> parseEnumeratorList(QualType ET);
+  EnumConstantDecl *parseEnumerator(QualType ET, int &Val);
+
   FunctionDecl *parseFunctionBody(FunctionDecl *Func);
   FunctionDecl *parseFunctionDecl(FunctionDecl *Func);
   std::vector<VarDecl *> parseRestVarDecl(SourceLocation BegLoc, DeclSpec &DS,
@@ -63,6 +70,7 @@ private:
   Expr *parseExpr();
   Expr *parseAssign();
   Expr *parseEqualityExpr();
+  Expr *parseConstantExpr();
   Expr *parseRelationalExpr();
   Expr *parseAddExpr();
   Expr *parseMulExpr();

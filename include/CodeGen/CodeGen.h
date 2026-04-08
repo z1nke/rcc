@@ -35,6 +35,7 @@ private:
   void genWhileStmt(const WhileStmt *While);
   void genExpr(const Expr *E);
   void genStringLiteral(const StringLiteral *SL);
+  void genDeclRefExpr(const DeclRefExpr *Ref);
   void genBinaryOperator(const BinaryOperator *BO);
   void genUnaryOperator(const UnaryOperator *UO);
   void genCallExpr(const CallExpr *CE);
