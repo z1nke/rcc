@@ -27,10 +27,14 @@ int main() {
   // [14] Support null statement
   ASSERT(5, ({ ;;; 5; }));
 
-  // [48] 支持 , 运算符
+  // [48] Add comma operator
   ASSERT(3, (1,2,3));
   ASSERT(5, ({ int i=2, j=3; (i=5,j)=6; i; }));
   ASSERT(6, ({ int i=2, j=3; (i=5,j)=6; j; }));
+
+  // [76] Allow for-loops to define local variables
+  ASSERT(55, ({ int j=0; for (int i=0; i<=10; i=i+1) j=j+i; j; }));
+  ASSERT(3, ({ int i=3; int j=0; for (int i=0; i<=10; i=i+1) j=j+i; i; }));
 
   printf("OK\n");
   return 0;
