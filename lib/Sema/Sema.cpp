@@ -90,13 +90,14 @@ void Sema::addDecl(Decl *D) {
 
 FunctionDecl *Sema::actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                       Stmt *Body) {
-  return actOnFunctionDecl(Ctx, D.getLocation(), D.getTypeSpecLoc(),
-                           D.getEndLoc(), D.getIdent(), FT->getReturnType(),
-                           Body);
+
+  return actOnFunctionDecl(Ctx, D.getDeclSpec(), D.getLocation(),
+                           D.getTypeSpecLoc(), D.getEndLoc(), D.getIdent(),
+                           FT->getReturnType(), Body);
 }
 
-FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
-                                      SourceLocation BegLoc,
+FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
+                                      SourceLocation Loc, SourceLocation BegLoc,
                                       SourceLocation EndLoc, std::string Name,
                                       QualType RetType, Stmt *Body) {
   auto *Func = FunctionDecl::create(Ctx, Loc, BegLoc, EndLoc,
@@ -104,6 +105,8 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                                     std::move(Name), Body);
   assert(CurrScope->isFunctionScope());
   addDecl(Func);
+  if (DS.getStorageClassSpec() == DeclSpec::SCS_Static)
+    Func->setIsStatic();
   Funcs.push_back(Func);
   return Func;
 }

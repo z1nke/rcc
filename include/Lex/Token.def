@@ -49,6 +49,7 @@ KEYWORD(Struct, "struct")
 KEYWORD(Union, "union")
 KEYWORD(Enum, "enum")
 KEYWORD(Typedef, "typedef")
+KEYWORD(Static, "static")
 
 #undef KEYWORD
 #undef TOKEN

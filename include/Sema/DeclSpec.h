@@ -19,7 +19,7 @@ public:
     SCS_Unspecified,
     SCS_Typedef,
     // SCS_Extern,
-    // SCS_Static,
+    SCS_Static,
     // SCS_Auto,
     // SCS_Register,
   };

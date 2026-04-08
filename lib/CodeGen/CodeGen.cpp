@@ -92,7 +92,11 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   CurrFunc = FD;
   std::size_t StackSize = assignLVarOffsets(FD);
   const char *Name = FD->getName().c_str();
-  emit("  .globl {}", Name);
+  if (FD->isStatic())
+    emit("  .local {}", Name);
+  else
+    emit("  .globl {}", Name);
+
   emit("  .text");
   emit("{}:", Name);
 

@@ -439,9 +439,11 @@ Stmt *Parser::parseDeclStmt() {
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
-// declspecs: typespec declspecs?
-// typespce: void | _Bool | char | short | int | long | structDecl | unionDecl
-//         | enumSpecifier
+// declspecs: storage-class-spec declspecs?
+//          | type-spec declspecs?
+// storage-class-spec: typedef | extern | static | auto | register
+// typespec: void | _Bool | char | short | int | long | struct-or-union-spec
+//         | enum-spec | typedef-name
 void Parser::parseDeclSpecs(DeclSpec &DS) {
 #define STORAGE_CLASS_SPEC_CASE(T)                                             \
   case Token::TK_##T:                                                          \
@@ -464,6 +466,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
     auto TyLoc = SM.createBeginLocation(CurTok);
     switch (CurTok->getKind()) {
       STORAGE_CLASS_SPEC_CASE(Typedef);
+      STORAGE_CLASS_SPEC_CASE(Static);
       TYPE_SPEC_TYPE_CASE(Void);
       TYPE_SPEC_TYPE_CASE(UnderlineBool);
       TYPE_SPEC_TYPE_CASE(Char);

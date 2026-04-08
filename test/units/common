@@ -9,3 +9,6 @@ void assert(int expected, int actual, char *code, int line) {
     exit(1);
   }
 }
+
+// [75] Support file-scope functions
+static int static_fn() { return 5; }

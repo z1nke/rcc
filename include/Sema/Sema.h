@@ -39,10 +39,10 @@ public:
   TypedefDecl *actOnTypedefDecl(Declarator &D, QualType T);
   FieldDecl *actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent);
   ParamVarDecl *actOnParamVarDecl(Declarator &D, unsigned Index);
-  FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, SourceLocation Loc,
-                                  SourceLocation BegLoc, SourceLocation EndLoc,
-                                  std::string Name, QualType RetType,
-                                  Stmt *Body);
+  FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
+                                  SourceLocation Loc, SourceLocation BegLoc,
+                                  SourceLocation EndLoc, std::string Name,
+                                  QualType RetType, Stmt *Body);
   FunctionDecl *actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                   Stmt *Body);
 

@@ -193,6 +193,9 @@ public:
   unsigned getNumParams() const { return Params.size(); }
   const ParamVarDecl *getParam(unsigned Index) const { return Params[Index]; }
 
+  bool isStatic() const { return IsStatic; }
+  void setIsStatic(bool IsStatic = true) { this->IsStatic = IsStatic; }
+
 protected:
   FunctionDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                SourceLocation EndLoc, QualType T, std::string Name, Stmt *Body);
@@ -201,6 +204,7 @@ private:
   Stmt *Body = nullptr;
   std::vector<ParamVarDecl *> Params;
   std::vector<VarDecl *> LocalVars; // Temporary handling.
+  bool IsStatic = false;
 };
 
 class RecordDecl;
