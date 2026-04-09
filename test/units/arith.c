@@ -49,6 +49,16 @@ int main() {
   // [68] Implement usual arithmetic conversion
   ASSERT(0, 1073741824 * 100 / 100);
 
+    // [77] Add +=, -=, *= and /=
+  ASSERT(7, ({ int i=2; i+=5; i; }));
+  ASSERT(7, ({ int i=2; i+=5; }));
+  ASSERT(3, ({ int i=5; i-=2; i; }));
+  ASSERT(3, ({ int i=5; i-=2; }));
+  ASSERT(6, ({ int i=3; i*=2; i; }));
+  ASSERT(6, ({ int i=3; i*=2; }));
+  ASSERT(3, ({ int i=6; i/=2; i; }));
+  ASSERT(3, ({ int i=6; i/=2; }));
+
   printf("OK\n");
   return 0;
 }

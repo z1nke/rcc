@@ -257,6 +257,10 @@ class BinaryOperator final : public Expr {
 public:
   enum Opcode {
     BO_Assign,
+    BO_AddAssign,
+    BO_SubAssign,
+    BO_MulAssign,
+    BO_DivAssign,
     BO_Add,
     BO_Sub,
     BO_Mul,
@@ -284,6 +288,10 @@ public:
   const char *getOpcodeStr() const;
   Expr *getLHS() const { return LHS; }
   Expr *getRHS() const { return RHS; }
+  bool isCompoundAssign() const {
+    return Kind >= BO_AddAssign && Kind <= BO_DivAssign;
+  }
+  Opcode getOpForCompoundAssign() const;
 
 private:
   BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,

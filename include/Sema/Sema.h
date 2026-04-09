@@ -116,34 +116,38 @@ private:
     ACK_CompAssign,
   };
 
-  void checkScalarType(QualType T);
-  void checkIntType(Expr *E);
-  void checkArithmeticType(Expr *E);
+  void checkScalarType(QualType T) const;
+  void checkIntType(Expr *E) const;
+  void checkArithmeticType(Expr *E) const;
 
-  QualType usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK);
-  Expr *usualUnaryConv(Expr *E);
-  Expr *defaultFunctionArrayLvalueConv(Expr *E);
-  Expr *defaultFunctionArrayConv(Expr *E);
-  Expr *defaultLvalueConv(Expr *E);
-  std::optional<unsigned> getCastKind(QualType ToType, QualType FromType);
+  QualType usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) const;
+  Expr *usualUnaryConv(Expr *E) const;
+  Expr *defaultFunctionArrayLvalueConv(Expr *E) const;
+  Expr *defaultFunctionArrayConv(Expr *E) const;
+  Expr *defaultLvalueConv(Expr *E) const;
+  std::optional<unsigned> getCastKind(QualType ToType, QualType FromType) const;
 
   QualType getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
-                                 unsigned Op);
-  QualType getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS);
-  QualType getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS);
+                                 unsigned Op) const;
+  QualType getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                        bool IsCompAssign = false) const;
+  QualType getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                        bool IsCompAssign = false) const;
   QualType getMulDivOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
-                           bool IsCompAssign);
+                           bool IsCompAssign = false) const;
+  QualType getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                                   unsigned Op) const;
 
   QualType getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
-                                unsigned Op);
+                                unsigned Op) const;
 
 public:
-  Expr *impCastExprToType(Expr *E, QualType Ty, unsigned CK);
+  Expr *impCastExprToType(Expr *E, QualType Ty, unsigned CK) const;
 
 private:
-  QualType getTypeForDeclarator(Declarator &D);
-  QualType convertDeclSpecToType(const DeclSpec &DS);
-  QualType tryDecayArrayType(QualType T);
+  QualType getTypeForDeclarator(Declarator &D) const;
+  QualType convertDeclSpecToType(const DeclSpec &DS) const;
+  QualType tryDecayArrayType(QualType T) const;
   std::size_t getArrayLength(const Expr *E) const;
   void addDecl(Decl *D);
 

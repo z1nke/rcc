@@ -482,17 +482,17 @@ Expr *Sema::actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
   Diag.fatalAt(BegLoc, "field '{}' not found in record", Ident);
 }
 
-void Sema::checkScalarType(QualType T) {
+void Sema::checkScalarType(QualType T) const {
   if (!T->isScalarType())
     Diag.fatalAt(SourceLocation(), "type requires scalar type");
 }
 
-void Sema::checkIntType(Expr *E) {
+void Sema::checkIntType(Expr *E) const {
   if (!E->getType().isIntegerType())
     Diag.fatalAt(E->getBeginLoc(), "expression requires integer type");
 }
 
-void Sema::checkArithmeticType(Expr *E) {
+void Sema::checkArithmeticType(Expr *E) const {
   if (!E->getType()->isArithmeticType())
     Diag.fatalAt(E->getBeginLoc(), "expression requires arithmetic type");
 }
@@ -502,7 +502,7 @@ void Sema::checkArithmeticType(Expr *E) {
 /// sometimes suppressed. For example, the array->pointer conversion doesn't
 /// apply if the array is an argument to the sizeof or address (&) operators.
 /// In these instances, this routine should *not* be called.
-Expr *Sema::usualUnaryConv(Expr *E) {
+Expr *Sema::usualUnaryConv(Expr *E) const {
   E = defaultFunctionArrayLvalueConv(E);
   assert(E);
 
@@ -513,11 +513,11 @@ Expr *Sema::usualUnaryConv(Expr *E) {
   return E;
 }
 
-Expr *Sema::defaultFunctionArrayLvalueConv(Expr *E) {
+Expr *Sema::defaultFunctionArrayLvalueConv(Expr *E) const {
   return defaultLvalueConv(defaultFunctionArrayConv(E));
 }
 
-Expr *Sema::defaultFunctionArrayConv(Expr *E) {
+Expr *Sema::defaultFunctionArrayConv(Expr *E) const {
   QualType T = E->getType();
   assert(!T.isNull());
 
@@ -535,16 +535,17 @@ Expr *Sema::defaultFunctionArrayConv(Expr *E) {
   return E;
 }
 
-Expr *Sema::defaultLvalueConv(Expr *E) {
+Expr *Sema::defaultLvalueConv(Expr *E) const {
   // TODO: Impl
   return E;
 }
 
-using PerformCastFn = Expr *(*)(Sema &, Expr *, QualType);
+using PerformCastFn = Expr *(*)(const Sema &, Expr *, QualType);
 
 template <PerformCastFn doLHSCast, PerformCastFn doRHSCast>
-static QualType handleArithConv(Sema &S, Expr *&LHS, Expr *&RHS, QualType LType,
-                                QualType RType, bool IsCompAssign) {
+static QualType handleArithConv(const Sema &S, Expr *&LHS, Expr *&RHS,
+                                QualType LType, QualType RType,
+                                bool IsCompAssign) {
   const ASTContext &Ctx = S.getASTContext();
   int Order = Ctx.getIntTypeOrder(LType, RType);
   bool IsLS = LType->isSignedIntegerOrEnumerationType();
@@ -594,7 +595,7 @@ static QualType handleArithConv(Sema &S, Expr *&LHS, Expr *&RHS, QualType LType,
   return LType;
 }
 
-static Expr *doIntegralCast(Sema &S, Expr *E, QualType ToType) {
+static Expr *doIntegralCast(const Sema &S, Expr *E, QualType ToType) {
   return S.impCastExprToType(E, ToType, CastExpr::CK_IntegralCast);
 }
 
@@ -602,7 +603,7 @@ static Expr *doIntegralCast(Sema &S, Expr *E, QualType ToType) {
 /// binary operators (C99 6.3.1.8). If both operands aren't arithmetic, this
 /// routine returns the first non-arithmetic type found. The client is
 /// responsible for emitting appropriate error diagnostics.
-QualType Sema::usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) {
+QualType Sema::usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) const {
   // TODO: checkEnumArithmeticConversions
   if (ACK != ACK_CompAssign) {
     LHS = usualUnaryConv(LHS);
@@ -624,7 +625,7 @@ QualType Sema::usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) {
       *this, LHS, RHS, LType, RType, ACK == ACK_CompAssign);
 }
 
-Expr *Sema::impCastExprToType(Expr *E, QualType Ty, unsigned CK) {
+Expr *Sema::impCastExprToType(Expr *E, QualType Ty, unsigned CK) const {
   QualType ExprTy = E->getType().getCanonicalType();
   QualType TypeTy = Ty.getCanonicalType();
   if (ExprTy == TypeTy)
@@ -635,7 +636,8 @@ Expr *Sema::impCastExprToType(Expr *E, QualType Ty, unsigned CK) {
                           true /*Implicit*/);
 }
 
-std::optional<unsigned> Sema::getCastKind(QualType ToType, QualType FromType) {
+std::optional<unsigned> Sema::getCastKind(QualType ToType,
+                                          QualType FromType) const {
   if (ToType == FromType)
     return CastExpr::CK_NoOp;
 
@@ -664,8 +666,32 @@ std::optional<unsigned> Sema::getCastKind(QualType ToType, QualType FromType) {
   return std::nullopt;
 }
 
+QualType Sema::getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS,
+                                       Expr *&RHS, unsigned Op) const {
+  QualType LType = LHS->getType();
+  if (LType->isArraryType())
+    Diag.fatalAt(LHS->getBeginLoc(), "cannot assign to array type");
+
+  switch (Op) {
+  case BinaryOperator::BO_AddAssign:
+    (void)getAddOpType(OpLoc, LHS, RHS, true);
+    break;
+  case BinaryOperator::BO_SubAssign:
+    (void)getSubOpType(OpLoc, LHS, RHS, true);
+    break;
+  case BinaryOperator::BO_MulAssign:
+  case BinaryOperator::BO_DivAssign:
+    (void)getMulDivOpType(OpLoc, LHS, RHS, true);
+    break;
+  default:
+    Diag.fatalAt(OpLoc, "unknown compound assignment opcode");
+  }
+
+  return LType;
+}
+
 QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
-                                     Expr *&RHS, unsigned Op) {
+                                     Expr *&RHS, unsigned Op) const {
   switch (Op) {
   case BinaryOperator::BO_Assign: {
     QualType LType = LHS->getType();
@@ -694,7 +720,12 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
     return getSubOpType(OpLoc, LHS, RHS);
   case BinaryOperator::BO_Mul:
   case BinaryOperator::BO_Div:
-    return getMulDivOpType(OpLoc, LHS, RHS, false);
+    return getMulDivOpType(OpLoc, LHS, RHS);
+  case BinaryOperator::BO_AddAssign:
+  case BinaryOperator::BO_SubAssign:
+  case BinaryOperator::BO_MulAssign:
+  case BinaryOperator::BO_DivAssign:
+    return getCompoundAssignOpType(OpLoc, LHS, RHS, Op);
   case BinaryOperator::BO_EQ:
   case BinaryOperator::BO_NE:
   case BinaryOperator::BO_LT:
@@ -710,8 +741,10 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
   }
 }
 
-QualType Sema::getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
-  LHS = usualUnaryConv(LHS);
+QualType Sema::getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                            bool IsCompAssign) const {
+  if (!IsCompAssign)
+    LHS = usualUnaryConv(LHS);
   RHS = usualUnaryConv(RHS);
   QualType LType = LHS->getType();
   QualType RType = RHS->getType();
@@ -723,9 +756,10 @@ QualType Sema::getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
     Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
 
   bool LIsArithmetic = LType->isArithmeticType();
-  bool RIsArithmetic = LType->isArithmeticType();
+  bool RIsArithmetic = RType->isArithmeticType();
   if (LIsArithmetic && RIsArithmetic)
-    return usualArithConv(LHS, RHS, ACK_Arithmetic);
+    return usualArithConv(LHS, RHS,
+                          IsCompAssign ? ACK_CompAssign : ACK_Arithmetic);
 
   if (LIsPtr) {
     checkIntType(RHS);
@@ -733,6 +767,8 @@ QualType Sema::getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
   }
 
   if (RIsPtr) {
+    if (IsCompAssign)
+      Diag.fatalAt(OpLoc, "invalid compound assignment operand");
     checkIntType(LHS);
     return RType;
   }
@@ -740,8 +776,10 @@ QualType Sema::getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
   Diag.fatalAt(OpLoc, "invalid operand");
 }
 
-QualType Sema::getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
-  LHS = usualUnaryConv(LHS);
+QualType Sema::getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                            bool IsCompAssign) const {
+  if (!IsCompAssign)
+    LHS = usualUnaryConv(LHS);
   RHS = usualUnaryConv(RHS);
   QualType LType = LHS->getType();
   QualType RType = RHS->getType();
@@ -749,13 +787,17 @@ QualType Sema::getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
   checkScalarType(RType);
   bool LIsPtr = LType->isPointerType();
   bool RIsPtr = RType->isPointerType();
-  if (LIsPtr && RIsPtr)
+  if (LIsPtr && RIsPtr) {
+    if (IsCompAssign)
+      Diag.fatalAt(LHS->getBeginLoc(), "invalid compound assignment operand");
     return Ctx.IntTy; // FIXME: ptrdiff_t
+  }
 
   bool LIsArithmetic = LType->isArithmeticType();
-  bool RIsArithmetic = LType->isArithmeticType();
+  bool RIsArithmetic = RType->isArithmeticType();
   if (LIsArithmetic && RIsArithmetic)
-    return usualArithConv(LHS, RHS, ACK_Arithmetic);
+    return usualArithConv(LHS, RHS,
+                          IsCompAssign ? ACK_CompAssign : ACK_Arithmetic);
 
   if (LIsPtr) {
     checkIntType(RHS);
@@ -766,8 +808,9 @@ QualType Sema::getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS) {
 }
 
 QualType Sema::getMulDivOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
-                               bool IsCompAssign) {
-  LHS = usualUnaryConv(LHS);
+                               bool IsCompAssign) const {
+  if (!IsCompAssign)
+    LHS = usualUnaryConv(LHS);
   RHS = usualUnaryConv(RHS);
   if (LHS->getType()->isPointerType())
     Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
@@ -779,7 +822,7 @@ QualType Sema::getMulDivOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
 }
 
 QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
-                                    unsigned Op) {
+                                    unsigned Op) const {
   switch (Op) {
   case UnaryOperator::UO_Plus:
   case UnaryOperator::UO_Minus:
@@ -861,7 +904,7 @@ TypedefDecl *Sema::findTypedef(std::string_view Ident) const {
   return nullptr;
 }
 
-QualType Sema::convertDeclSpecToType(const DeclSpec &DS) {
+QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
   QualType T;
   switch (DS.getTypeSpecType()) {
   case DeclSpec::TST_Void:
@@ -917,7 +960,7 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) {
   return T;
 }
 
-QualType Sema::getTypeForDeclarator(Declarator &D) {
+QualType Sema::getTypeForDeclarator(Declarator &D) const {
   const DeclSpec &DS = D.getDeclSpec();
   QualType T = convertDeclSpecToType(DS);
   // Get full type.
@@ -942,7 +985,7 @@ QualType Sema::getTypeForDeclarator(Declarator &D) {
   return T;
 }
 
-QualType Sema::tryDecayArrayType(QualType T) {
+QualType Sema::tryDecayArrayType(QualType T) const {
   if (const auto *AT = T->getAs<ArrayType>())
     return Ctx.getPointerType(AT->getElementType());
   return T;

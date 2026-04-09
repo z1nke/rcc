@@ -658,15 +658,34 @@ Expr *Parser::parseExpr() {
   return Assign;
 }
 
+static std::optional<BinaryOperator::Opcode> getOpcode(const Token &Tok) {
+  switch (Tok.getKind()) {
+  case Token::TK_Equal:
+    return BinaryOperator::BO_Assign;
+  case Token::TK_PlusEqual:
+    return BinaryOperator::BO_AddAssign;
+  case Token::TK_MinusEqual:
+    return BinaryOperator::BO_SubAssign;
+  case Token::TK_StarEqual:
+    return BinaryOperator::BO_MulAssign;
+  case Token::TK_SlashEqual:
+    return BinaryOperator::BO_DivAssign;
+  default:
+    return std::nullopt;
+  }
+}
+
 // assign-expr: equality-expr { '=' assign-expr }
 Expr *Parser::parseAssign() {
   Expr *LHS = parseEqualityExpr();
   auto OpLoc = SM.createBeginLocation(CurTok);
-  if (tryConsume(Token::TK_Equal)) {
-    Expr *RHS = parseAssign();
-    LHS = S.actOnBinaryOperator(OpLoc, LHS, RHS, BinaryOperator::BO_Assign);
-  }
-  return LHS;
+  auto Opcode = getOpcode(*CurTok);
+  if (!Opcode)
+    return LHS;
+
+  skip();
+  Expr *RHS = parseAssign();
+  return S.actOnBinaryOperator(OpLoc, LHS, RHS, *Opcode);
 }
 
 // equality-expr: relational-expr { ('==' | '!=') relational-expr }

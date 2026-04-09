@@ -420,6 +420,49 @@ void CodeGen::genDeclRefExpr(const DeclRefExpr *Ref) {
   load(Ref->getTypePtr()); // a0 = *a0
 }
 
+void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
+                                         QualType LType, QualType RType,
+                                         const char *Suffix) {
+  switch (Op) {
+  case BinaryOperator::BO_Add:
+    if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
+      // Ptr + Int(a1)
+      emit("  li t0, {}", PointeeTy->getSize());
+      emit("  mul a1, a1, t0");
+    } else if (const auto *PointeeTy =
+                   RType->getPointeeOrArrayElementTypePtr()) {
+      // Int(a0) + Ptr
+      emit("  li t0, {}", PointeeTy->getSize());
+      emit("  mul a0, a0, t0");
+    }
+    emit("  add{} a0, a0, a1", Suffix);
+    return;
+  case BinaryOperator::BO_Sub:
+    if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
+      if (RType->isPointerType()) {
+        // Ptr - Ptr
+        emit("  sub a0, a0, a1");
+        emit("  li t0, {}", PointeeTy->getSize());
+        emit("  div a0, a0, t0");
+        return;
+      }
+      // Ptr - Int(a1)
+      emit("  li t0, {}", PointeeTy->getSize());
+      emit("  mul a1, a1, t0");
+    }
+    emit("  sub{} a0, a0, a1", Suffix);
+    return;
+  case BinaryOperator::BO_Mul:
+    emit("  mul{} a0, a0, a1", Suffix);
+    return;
+  case BinaryOperator::BO_Div:
+    emit("  div{} a0, a0, a1", Suffix);
+    return;
+  default:
+    RCC_UNREACHABLE("emitBinaryArithmeticResult: not an arithmetic opcode");
+  }
+}
+
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   const auto *LHS = BO->getLHS();
   const auto *RHS = BO->getRHS();
@@ -437,6 +480,30 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     return;
   }
 
+  QualType LType = LHS->getType();
+  QualType RType = RHS->getType();
+  const char *Suffix = LType->getSize() <= 4 ? "w" : "";
+
+  if (BO->isCompoundAssign()) {
+    // A op= B
+    // push &A
+    genAddr(LHS);
+    push();
+
+    // a0 = LHS, a1 = RHS
+    genExpr(RHS);
+    push();
+    genExpr(LHS);
+    pop("a1");
+
+    auto BaseOp = BO->getOpForCompoundAssign();
+    // a0 = LHS op RHS
+    emitBinaryArithmeticResult(BaseOp, LType, RType, Suffix);
+    // *&A = a0
+    store(LType.getTypePtr());
+    return;
+  }
+
   // a0 op a1
   genExpr(RHS);
   push();
@@ -444,51 +511,18 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   pop("a1");
 
   auto Op = BO->getOpcode();
-  QualType LType = LHS->getType();
-  const char *Suffix = LType->getSize() <= 4 ? "w" : "";
   switch (Op) {
-  case BinaryOperator::BO_Add: {
-    QualType LType = LHS->getType();
-    QualType RType = RHS->getType();
-    if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
-      // Ptr + Int(a1)
-      emit("  li t0, {}", PointeeTy->getSize());
-      emit("  mul a1, a1, t0");
-    } else if (const auto *PointeeTy =
-                   RType->getPointeeOrArrayElementTypePtr()) {
-      // Int(a0) + Ptr
-      emit("  li t0, {}", PointeeTy->getSize());
-      emit("  mul a0, a0, t0");
-    }
-
-    emit("  add{} a0, a0, a1", Suffix);
+  case BinaryOperator::BO_Add:
+    emitBinaryArithmeticResult(BinaryOperator::BO_Add, LType, RType, Suffix);
     return;
-  }
-  case BinaryOperator::BO_Sub: {
-    QualType LType = LHS->getType();
-    QualType RType = RHS->getType();
-    if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
-      if (RType->isPointerType()) {
-        // Ptr - Ptr
-        emit("  sub a0, a0, a1");
-        emit("  li t0, {}", PointeeTy->getSize());
-        emit("  div a0, a0, t0");
-        return;
-      }
-
-      // Ptr - Int(a1)
-      emit("  li t0, {}", PointeeTy->getSize());
-      emit("  mul a1, a1, t0");
-    }
-
-    emit("  sub{} a0, a0, a1", Suffix);
+  case BinaryOperator::BO_Sub:
+    emitBinaryArithmeticResult(BinaryOperator::BO_Sub, LType, RType, Suffix);
     return;
-  }
   case BinaryOperator::BO_Mul:
-    emit("  mul{} a0, a0, a1", Suffix);
+    emitBinaryArithmeticResult(BinaryOperator::BO_Mul, LType, RType, Suffix);
     return;
   case BinaryOperator::BO_Div:
-    emit("  div{} a0, a0, a1", Suffix);
+    emitBinaryArithmeticResult(BinaryOperator::BO_Div, LType, RType, Suffix);
     return;
   case BinaryOperator::BO_EQ:
     // a0 = a0 ^ a1
