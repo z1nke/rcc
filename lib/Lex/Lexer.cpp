@@ -55,13 +55,17 @@ Token *Lexer::tokenize(const char *P) {
       lexStringLiteral(Curr, P);
       break;
     case '+':
-      if (*(P + 1) == '=')
+      if (*(P + 1) == '+')
+        lexPunctuator(Curr, Token::TK_PlusPlus, P, 2);
+      else if (*(P + 1) == '=')
         lexPunctuator(Curr, Token::TK_PlusEqual, P, 2);
       else
         lexPunctuator(Curr, Token::TK_Plus, P);
       break;
     case '-':
-      if (*(P + 1) == '>')
+      if (*(P + 1) == '-')
+        lexPunctuator(Curr, Token::TK_MinusMinus, P, 2);
+      else if (*(P + 1) == '>')
         lexPunctuator(Curr, Token::TK_Arrow, P, 2);
       else if (*(P + 1) == '=')
         lexPunctuator(Curr, Token::TK_MinusEqual, P, 2);

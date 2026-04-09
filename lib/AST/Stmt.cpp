@@ -102,8 +102,8 @@ UnaryOperator *UnaryOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) UnaryOperator(BegLoc, EndLoc, T, SubExpr, Op);
 }
 
-const char *UnaryOperator::getOpcodeStr() const {
-  switch (Kind) {
+const char *UnaryOperator::getOpcodeStr(Opcode Op) {
+  switch (Op) {
   case UO_Plus:
     return "+";
   case UO_Minus:
@@ -112,6 +112,10 @@ const char *UnaryOperator::getOpcodeStr() const {
     return "&";
   case UO_Deref:
     return "*";
+  case UO_PreInc:
+    return "++";
+  case UO_PreDec:
+    return "--";
   default:
     RCC_UNREACHABLE("[AST] Unknown unary opcode");
   }

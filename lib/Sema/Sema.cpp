@@ -821,6 +821,28 @@ QualType Sema::getMulDivOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
   return usualArithConv(LHS, RHS, ACK);
 }
 
+static bool isModifiableLvalue(const Expr *E) {
+  E = E->ignoreParens();
+  switch (E->getKind()) {
+  case Stmt::SK_DeclRefExpr:
+  case Stmt::SK_ArraySubscriptExpr:
+  case Stmt::SK_MemberExpr:
+    return true;
+  case Stmt::SK_UnaryOperator:
+    return cast<UnaryOperator>(E)->getOpcode() == UnaryOperator::UO_Deref;
+  case Stmt::SK_BinaryOperator: {
+    const auto *BO = cast<BinaryOperator>(E);
+    if (BO->getOpcode() == BinaryOperator::BO_Comma)
+      return isModifiableLvalue(BO->getRHS());
+    return false;
+  }
+  case Stmt::SK_ParenExpr:
+    return isModifiableLvalue(cast<ParenExpr>(E)->getSubExpr());
+  default:
+    return false;
+  }
+}
+
 QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
                                     unsigned Op) const {
   switch (Op) {
@@ -848,6 +870,22 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
     if (Result.isVoidType())
       Diag.fatalAt(SubExpr->getBeginLoc(), "dereferencing a void pointer");
     return Result;
+  }
+  case UnaryOperator::UO_PreInc:
+  case UnaryOperator::UO_PreDec: {
+    if (!isModifiableLvalue(SubExpr)) {
+      Diag.fatalAt(
+          SubExpr->getBeginLoc(), "operand of '{}' must be a modifiable lvalue",
+          UnaryOperator::getOpcodeStr(static_cast<UnaryOperator::Opcode>(Op)));
+    }
+
+    QualType T = SubExpr->getType();
+    if (!T->isScalarType()) {
+      Diag.fatalAt(
+          SubExpr->getBeginLoc(), "operand of '{}' must have scalar type",
+          UnaryOperator::getOpcodeStr(static_cast<UnaryOperator::Opcode>(Op)));
+    }
+    return T;
   }
   default:
     Diag.fatalAt(OpLoc, "unknown unary opcode");

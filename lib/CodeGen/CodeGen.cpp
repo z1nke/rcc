@@ -585,6 +585,23 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     genExpr(UO->getSubExpr());
     load(UO->getTypePtr());
     break;
+  case UnaryOperator::UO_PreInc:
+  case UnaryOperator::UO_PreDec: {
+    const auto *SubExpr = UO->getSubExpr();
+    QualType SubType = SubExpr->getType();
+    std::size_t Step = 1;
+    if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
+      Step = PointeeTy->getSize();
+
+    emit("  # pre {} operator", UO->getOpcodeStr());
+    genAddr(SubExpr);
+    push();
+    genExpr(SubExpr);
+    emit("  li t0, {}", Step);
+    emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+    store(SubType.getTypePtr());
+    break;
+  }
   default:
     Diag.fatalAt(UO->getBeginLoc(), "invalid unary opcode: {}",
                  UO->getOpcodeStr());
