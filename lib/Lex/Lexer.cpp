@@ -175,7 +175,25 @@ Token *Lexer::tokenizeFile(const char *Path) {
 
 void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
-  std::int64_t Val = std::strtoul(P, &const_cast<char *&>(P), 10);
+  int Base = 10;
+  if (*P == '0') {
+    char Next = *(P + 1);
+    if (Next == 'x' || Next == 'X') {
+      P += 2;
+      Base = 16;
+    } else if (Next == 'b' || Next == 'B') {
+      P += 2;
+      Base = 2;
+    } else {
+      ++P;
+      Base = 8;
+    }
+  }
+
+  std::int64_t Val = std::strtoul(P, &const_cast<char *&>(P), Base);
+  if (std::isalnum(*P))
+    Diag.fatalAt(P, "invalid numeric literal suffix: {}", *P);
+
   Curr->setNext(newToken(Token::TK_Num, Start, P, Val));
   Curr = Curr->getNext();
 }
