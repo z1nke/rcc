@@ -44,6 +44,12 @@ Each stage must have clear data structures and responsibilities.
 
 ---
 
+## Unit Test
+
+Run make run-test -j8 in build directory.
+
+---
+
 ## Guidelines:
 
 - headers in `include/`

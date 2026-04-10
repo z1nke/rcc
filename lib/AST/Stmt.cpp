@@ -113,8 +113,10 @@ const char *UnaryOperator::getOpcodeStr(Opcode Op) {
   case UO_Deref:
     return "*";
   case UO_PreInc:
+  case UO_PostInc:
     return "++";
   case UO_PreDec:
+  case UO_PostDec:
     return "--";
   default:
     RCC_UNREACHABLE("[AST] Unknown unary opcode");

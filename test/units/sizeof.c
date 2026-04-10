@@ -35,6 +35,9 @@ int main() {
   // [78] Add pre ++ and --
   ASSERT(1, ({ char i; sizeof(++i); }));
 
+  // [79] Add post ++ and --
+  ASSERT(1, ({ char i; sizeof(i++); }));
+
   printf("OK\n");
   return 0;
 }

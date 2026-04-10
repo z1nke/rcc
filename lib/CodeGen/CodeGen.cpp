@@ -596,10 +596,29 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     emit("  # pre {} operator", UO->getOpcodeStr());
     genAddr(SubExpr);
     push();
-    genExpr(SubExpr);
+    load(SubType.getTypePtr());
     emit("  li t0, {}", Step);
     emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
     store(SubType.getTypePtr());
+    break;
+  }
+  case UnaryOperator::UO_PostInc:
+  case UnaryOperator::UO_PostDec: {
+    const auto *SubExpr = UO->getSubExpr();
+    QualType SubType = SubExpr->getType();
+    std::size_t Step = 1;
+    if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
+      Step = PointeeTy->getSize();
+
+    emit("  # post {} operator", UO->getOpcodeStr());
+    genAddr(SubExpr);
+    push();
+    load(SubType.getTypePtr());
+    emit("  mv t2, a0");
+    emit("  li t0, {}", Step);
+    emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+    store(SubType.getTypePtr());
+    emit("  mv a0, t2");
     break;
   }
   default:

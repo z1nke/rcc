@@ -849,6 +849,8 @@ bool Parser::isTypeName(const Token *Tok) {
 //             | postfix-expr '[' expr ']'
 //             | postfix-expr '.' identifier
 //             | postfix-expr '->' identifier
+//             | postfix-expr '++'
+//             | postfix-expr '--'
 Expr *Parser::parsePostfixExpr() {
   Expr *LHS = parsePrimaryExpr();
   while (true) {
@@ -886,6 +888,16 @@ Expr *Parser::parsePostfixExpr() {
       auto EndLoc = SM.createEndLocation(CurTok);
       skip();
       LHS = S.actOnMemberAccessExpr(OpLoc, EndLoc, LHS, Ident, true);
+      continue;
+    }
+
+    if (tryConsume(Token::TK_PlusPlus)) {
+      LHS = S.actOnUnaryOperator(OpLoc, LHS, UnaryOperator::UO_PostInc);
+      continue;
+    }
+
+    if (tryConsume(Token::TK_MinusMinus)) {
+      LHS = S.actOnUnaryOperator(OpLoc, LHS, UnaryOperator::UO_PostDec);
       continue;
     }
 

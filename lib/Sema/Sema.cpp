@@ -872,7 +872,9 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
     return Result;
   }
   case UnaryOperator::UO_PreInc:
-  case UnaryOperator::UO_PreDec: {
+  case UnaryOperator::UO_PreDec:
+  case UnaryOperator::UO_PostInc:
+  case UnaryOperator::UO_PostDec: {
     if (!isModifiableLvalue(SubExpr)) {
       Diag.fatalAt(
           SubExpr->getBeginLoc(), "operand of '{}' must be a modifiable lvalue",

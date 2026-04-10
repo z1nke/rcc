@@ -231,6 +231,8 @@ public:
     UO_Deref,
     UO_PreInc,
     UO_PreDec,
+    UO_PostInc,
+    UO_PostDec,
   };
 
   static UnaryOperator *create(ASTContext &Ctx, SourceLocation BegLoc,
@@ -248,13 +250,22 @@ public:
   static const char *getOpcodeStr(Opcode Op);
 
   bool isIncrement() const { return isIncrement(getOpcode()); }
-  static bool isIncrement(Opcode Op) { return Op == UO_PreInc; }
+  static bool isIncrement(Opcode Op) {
+    return Op == UO_PreInc || Op == UO_PostInc;
+  }
 
   bool isDecrement() const { return getOpcode() == UO_PreDec; }
-  static bool isDecrement(Opcode Op) { return Op == UO_PreDec; }
+  static bool isDecrement(Opcode Op) {
+    return Op == UO_PreDec || Op == UO_PostDec;
+  }
 
   bool isPrefix() const { return isPrefix(getOpcode()); }
   static bool isPrefix(Opcode Op) { return Op == UO_PreInc || Op == UO_PreDec; }
+
+  bool isPostfix() const { return isPostfix(getOpcode()); }
+  static bool isPostfix(Opcode Op) {
+    return Op == UO_PostInc || Op == UO_PostDec;
+  }
 
 private:
   UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
