@@ -850,6 +850,9 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
   case UnaryOperator::UO_Minus:
     checkArithmeticType(SubExpr);
     return SubExpr->getType();
+  case UnaryOperator::UO_LNot:
+    checkScalarType(SubExpr->getType());
+    return Ctx.IntTy;
   case UnaryOperator::UO_Addrof:
     // FIXME: Temporarily handle array type.
     if (const auto *ArrType = SubExpr->getType()->getAs<ArrayType>())

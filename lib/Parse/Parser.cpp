@@ -744,6 +744,8 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
     return UnaryOperator::UO_Plus;
   case Token::TK_Minus:
     return UnaryOperator::UO_Minus;
+  case Token::TK_Exclaim:
+    return UnaryOperator::UO_LNot;
   case Token::TK_Amp:
     return UnaryOperator::UO_Addrof;
   case Token::TK_Star:
@@ -758,14 +760,23 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
 }
 
 // unary-expr: postfix-expr
+//           | '++' unary-expr
+//           | '--' unary-expr
 //           | unary-operator cast-expr
 //           | sizeof unary-expr
 //           | sizeof '(' type-name ')'
 Expr *Parser::parseUnaryExpr() {
-  // unary-operator: '+' | '-' | '*' | '&' | '++' | '--'
-  if (CurTok->isOneOf(Token::TK_Plus, Token::TK_Minus, Token::TK_Star,
-                      Token::TK_Amp, Token::TK_PlusPlus,
-                      Token::TK_MinusMinus)) {
+  if (CurTok->isOneOf(Token::TK_PlusPlus, Token::TK_MinusMinus)) {
+    auto Op = getUnaryOpcode(CurTok->getKind());
+    auto OpLoc = SM.createBeginLocation(CurTok);
+    skip();
+    Expr *SubExpr = parseUnaryExpr();
+    return S.actOnUnaryOperator(OpLoc, SubExpr, Op);
+  }
+
+  // unary-operator: '&' | '*' | '+' | '-' | '!'
+  if (CurTok->isOneOf(Token::TK_Amp, Token::TK_Star, Token::TK_Plus,
+                      Token::TK_Minus, Token::TK_Exclaim)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
     auto OpLoc = SM.createBeginLocation(CurTok);
     skip();

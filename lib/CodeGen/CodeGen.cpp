@@ -576,6 +576,11 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     genExpr(UO->getSubExpr());
     emit("  neg{} a0, a0", UO->getType()->getSize() <= 4 ? "w" : "");
     break;
+  case UnaryOperator::UO_LNot:
+    genExpr(UO->getSubExpr());
+    emit("  # unary lnot");
+    emit("  seqz a0, a0");
+    break;
   case UnaryOperator::UO_Addrof:
     emit("  # addrof");
     genAddr(UO->getSubExpr());

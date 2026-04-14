@@ -118,7 +118,7 @@ Token *Lexer::tokenize(const char *P) {
         lexPunctuator(Curr, Token::TK_NotEqual, P, 2);
         break;
       }
-      RCC_UNREACHABLE("Not supported 'not' token");
+      lexPunctuator(Curr, Token::TK_Exclaim, P);
       break;
     case '<':
       if (*(P + 1) == '=')

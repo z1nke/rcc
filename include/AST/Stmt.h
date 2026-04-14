@@ -227,6 +227,7 @@ public:
   enum Opcode {
     UO_Plus,
     UO_Minus,
+    UO_LNot,
     UO_Addrof,
     UO_Deref,
     UO_PreInc,

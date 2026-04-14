@@ -108,6 +108,8 @@ const char *UnaryOperator::getOpcodeStr(Opcode Op) {
     return "+";
   case UO_Minus:
     return "-";
+  case UO_LNot:
+    return "!";
   case UO_Addrof:
     return "&";
   case UO_Deref:
@@ -210,6 +212,9 @@ evaluateUnaryOperator(const UnaryOperator *UO) {
     return SubVal;
   case UnaryOperator::UO_Minus:
     return std::visit([](auto &&Arg) { return Expr::EvalResult(-Arg); },
+                      *SubVal);
+  case UnaryOperator::UO_LNot:
+    return std::visit([](auto &&Arg) { return Expr::EvalResult(!Arg); },
                       *SubVal);
   default:
     return std::nullopt;
