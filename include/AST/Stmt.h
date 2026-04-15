@@ -298,6 +298,8 @@ public:
     BO_And,
     BO_Or,
     BO_Xor,
+    BO_LAnd,
+    BO_LOr,
     BO_EQ,
     BO_NE,
     BO_LT,

@@ -688,7 +688,7 @@ static std::optional<BinaryOperator::Opcode> getAssignOpcode(const Token &Tok) {
 // TODO: assign-expr: conditional-expr
 //                  | unary-expr assign-op assign-expr
 Expr *Parser::parseAssign() {
-  Expr *LHS = parseBitwiseOrExpr();
+  Expr *LHS = parseLogicalOrExpr();
   auto OpLoc = SM.createBeginLocation(CurTok);
   auto Opcode = getAssignOpcode(*CurTok);
   if (!Opcode)
@@ -712,12 +712,19 @@ Expr *Parser::parseEqualityExpr() {
 // constant-expr: conditional-expr
 // conditional-expr: logical-or-expr
 //                 | logical-or-expr ? expr : conditional-expr
-// logical-or-expr(||)
-// logical-and-expr(&&)
-// inclusive-or-expr(|)
-// exclusive-or-expr(^)
+Expr *Parser::parseConstantExpr() { return parseLogicalOrExpr(); }
 
-Expr *Parser::parseConstantExpr() { return parseBitwiseOrExpr(); }
+// logical-or-expr: logical-and-expr
+//                | logical-or-expr '||' logical-and-expr
+Expr *Parser::parseLogicalOrExpr() {
+  return parseBinaryExpr<&Parser::parseLogicalAndExpr, Token::TK_PipePipe>();
+}
+
+// logical-and-expr: inclusive-or-expr
+//                 | logical-and-expr '&&' inclusive-or-expr
+Expr *Parser::parseLogicalAndExpr() {
+  return parseBinaryExpr<&Parser::parseBitwiseOrExpr, Token::TK_AmpAmp>();
+}
 
 // inclusive-or-expr: exclusive-or-expr
 //                  | inclusive-or-expr '|' exclusive-or-expr
@@ -1063,6 +1070,10 @@ static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
     return BinaryOperator::BO_Or;
   case Token::TK_Caret:
     return BinaryOperator::BO_Xor;
+  case Token::TK_AmpAmp:
+    return BinaryOperator::BO_LAnd;
+  case Token::TK_PipePipe:
+    return BinaryOperator::BO_LOr;
   case Token::TK_EqualEqual:
     return BinaryOperator::BO_EQ;
   case Token::TK_NotEqual:

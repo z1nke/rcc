@@ -478,18 +478,50 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
 void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   const auto *LHS = BO->getLHS();
   const auto *RHS = BO->getRHS();
-  if (BO->getOpcode() == BinaryOperator::BO_Assign) {
+  auto Op = BO->getOpcode();
+  switch (Op) {
+  case BinaryOperator::BO_Assign:
     genAddr(LHS);
     push();                   // a1 = addrof(lhs)
     genExpr(BO->getRHS());    // a0 = rhs
     store(LHS->getTypePtr()); // *(a1) = a0
     return;
-  }
-
-  if (BO->getOpcode() == BinaryOperator::BO_Comma) {
+  case BinaryOperator::BO_Comma:
     genExpr(LHS);
     genExpr(RHS);
     return;
+  case BinaryOperator::BO_LAnd: {
+    int Count = getCount();
+    genExpr(LHS);
+    emit("  # logical-and test left");
+    emit("  beqz a0, .L.false.{}", Count);
+    genExpr(RHS);
+    emit("  # logical-and test right");
+    emit("  beqz a0, .L.false.{}", Count);
+    emit("  li a0, 1");
+    emit("  j .L.end.{}", Count);
+    emit(".L.false.{}:", Count);
+    emit("  li a0, 0");
+    emit(".L.end.{}:", Count);
+    return;
+  }
+  case BinaryOperator::BO_LOr: {
+    int Count = getCount();
+    genExpr(LHS);
+    emit("  # logical-or test left");
+    emit("  bnez a0, .L.true.{}", Count);
+    genExpr(RHS);
+    emit("  # logical-or test right");
+    emit("  bnez a0, .L.true.{}", Count);
+    emit("  li a0, 0");
+    emit("  j .L.end.{}", Count);
+    emit(".L.true.{}:", Count);
+    emit("  li a0, 1");
+    emit(".L.end.{}:", Count);
+    return;
+  }
+  default:
+    break;
   }
 
   QualType LType = LHS->getType();
@@ -522,7 +554,6 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   genExpr(LHS);
   pop("a1");
 
-  auto Op = BO->getOpcode();
   switch (Op) {
   case BinaryOperator::BO_Add:
   case BinaryOperator::BO_Sub:

@@ -381,6 +381,10 @@ const char *BinaryOperator::getOpcodeStr() const {
     return "|";
   case BO_Xor:
     return "^";
+  case BO_LAnd:
+    return "&&";
+  case BO_LOr:
+    return "||";
   case BO_EQ:
     return "==";
   case BO_NE:

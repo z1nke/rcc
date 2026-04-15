@@ -732,6 +732,13 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_Or:
   case BinaryOperator::BO_Xor:
     return getBitwiseOpType(OpLoc, LHS, RHS);
+  case BinaryOperator::BO_LAnd:
+  case BinaryOperator::BO_LOr:
+    LHS = usualUnaryConv(LHS);
+    RHS = usualUnaryConv(RHS);
+    checkScalarType(LHS->getType());
+    checkScalarType(RHS->getType());
+    return Ctx.IntTy;
   case BinaryOperator::BO_AddAssign:
   case BinaryOperator::BO_SubAssign:
   case BinaryOperator::BO_MulAssign:
