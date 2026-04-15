@@ -160,9 +160,7 @@ bool Type::isScalarType() const {
 }
 
 // Arithmetic type: integer type or floating point type.
-bool Type::isArithmeticType() const {
-  return isIntegerType();
-}
+bool Type::isArithmeticType() const { return isIntegerType(); }
 
 QualType Type::getPointeeType() const {
   if (const auto *PtrTy = dynCast<PointerType>(this))
@@ -243,17 +241,17 @@ bool Type::isFunctionType() const {
 
 bool Type::isArraryType() const {
   QualType CanType = getCanonicalType();
-  return CanType->getTypeKind() == TK_ConstantArray;
+  return CanType->getAs<ArrayType>();
 }
 
 bool Type::isRecordType() const {
   QualType CanType = getCanonicalType();
-  return CanType->getTypeKind() == TK_Record;
+  return CanType->getAs<RecordType>();
 }
 
 bool Type::isEnumType() const {
   QualType CanType = getCanonicalType();
-  return CanType->getTypeKind() == TK_Enum;
+  return CanType->getAs<EnumType>();
 }
 
 RecordDecl *Type::getAsRecordDecl() const {

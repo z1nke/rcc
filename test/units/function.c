@@ -86,6 +86,9 @@ _Bool bool_fn_sub(_Bool x) { return x - 1; }
 // [75] Support file-scope functions
 static int static_fn() { return 3; }
 
+// [87] Decay an array to a pointer in the func param context
+int param_decay(int x[]) { return x[0]; }
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -141,6 +144,9 @@ int main() {
 
   // [75] Support file-scope functions
   ASSERT(3, static_fn());
+
+  // [87] Decay an array to a pointer in the func param context
+  ASSERT(3, ({ int x[2]; x[0]=3; param_decay(x); }));
 
   printf("OK\n");
   return 0;

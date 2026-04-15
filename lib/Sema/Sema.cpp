@@ -58,6 +58,12 @@ FieldDecl *Sema::actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent) {
 ParamVarDecl *Sema::actOnParamVarDecl(Declarator &D, unsigned Index) {
   assert(CurrScope->getFlags() & Scope::FnScope);
   QualType T = getTypeForDeclarator(D);
+  if (T->isArraryType()) {
+    // TODO: Add DecayedType.
+    QualType BaseType = T->getBaseElementType();
+    T = Ctx.getPointerType(BaseType);
+  }
+
   const DeclSpec &DS = D.getDeclSpec();
   ParamVarDecl *Param =
       ParamVarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
