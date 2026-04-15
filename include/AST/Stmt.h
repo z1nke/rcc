@@ -286,10 +286,12 @@ public:
     BO_SubAssign,
     BO_MulAssign,
     BO_DivAssign,
+    BO_RemAssign,
     BO_Add,
     BO_Sub,
     BO_Mul,
     BO_Div,
+    BO_Rem,
     BO_EQ,
     BO_NE,
     BO_LT,
@@ -314,7 +316,7 @@ public:
   Expr *getLHS() const { return LHS; }
   Expr *getRHS() const { return RHS; }
   bool isCompoundAssign() const {
-    return Kind >= BO_AddAssign && Kind <= BO_DivAssign;
+    return Kind >= BO_AddAssign && Kind <= BO_RemAssign;
   }
   Opcode getOpForCompoundAssign() const;
 

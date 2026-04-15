@@ -101,6 +101,12 @@ Token *Lexer::tokenize(const char *P) {
 
       lexPunctuator(Curr, Token::TK_Slash, P);
       break;
+    case '%':
+      if (*(P + 1) == '=')
+        lexPunctuator(Curr, Token::TK_PercentEqual, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Percent, P);
+      break;
     case '(':
       lexPunctuator(Curr, Token::TK_LParen, P);
       break;

@@ -458,6 +458,9 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
   case BinaryOperator::BO_Div:
     emit("  div{} a0, a0, a1", Suffix);
     return;
+  case BinaryOperator::BO_Rem:
+    emit("  rem{} a0, a0, a1", Suffix);
+    return;
   default:
     RCC_UNREACHABLE("emitBinaryArithmeticResult: not an arithmetic opcode");
   }
@@ -513,16 +516,11 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   auto Op = BO->getOpcode();
   switch (Op) {
   case BinaryOperator::BO_Add:
-    emitBinaryArithmeticResult(BinaryOperator::BO_Add, LType, RType, Suffix);
-    return;
   case BinaryOperator::BO_Sub:
-    emitBinaryArithmeticResult(BinaryOperator::BO_Sub, LType, RType, Suffix);
-    return;
   case BinaryOperator::BO_Mul:
-    emitBinaryArithmeticResult(BinaryOperator::BO_Mul, LType, RType, Suffix);
-    return;
   case BinaryOperator::BO_Div:
-    emitBinaryArithmeticResult(BinaryOperator::BO_Div, LType, RType, Suffix);
+  case BinaryOperator::BO_Rem:
+    emitBinaryArithmeticResult(Op, LType, RType, Suffix);
     return;
   case BinaryOperator::BO_EQ:
     // a0 = a0 ^ a1

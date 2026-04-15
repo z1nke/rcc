@@ -670,6 +670,8 @@ static std::optional<BinaryOperator::Opcode> getOpcode(const Token &Tok) {
     return BinaryOperator::BO_MulAssign;
   case Token::TK_SlashEqual:
     return BinaryOperator::BO_DivAssign;
+  case Token::TK_PercentEqual:
+    return BinaryOperator::BO_RemAssign;
   default:
     return std::nullopt;
   }
@@ -718,10 +720,10 @@ Expr *Parser::parseAddExpr() {
                          Token::TK_Minus>();
 }
 
-// mul-expr: cast-expr { ('*' | '/') cast-expr }
+// mul-expr: cast-expr { ('*' | '/' | '%') cast-expr }
 Expr *Parser::parseMulExpr() {
   return parseBinaryExpr<&Parser::parseCastExpr, Token::TK_Star,
-                         Token::TK_Slash>();
+                         Token::TK_Slash, Token::TK_Percent>();
 }
 
 // cast-expr: unary-expr | '(' type-name ')' cast-expr
@@ -1023,6 +1025,8 @@ static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
     return BinaryOperator::BO_Mul;
   case Token::TK_Slash:
     return BinaryOperator::BO_Div;
+  case Token::TK_Percent:
+    return BinaryOperator::BO_Rem;
   case Token::TK_EqualEqual:
     return BinaryOperator::BO_EQ;
   case Token::TK_NotEqual:

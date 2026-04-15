@@ -37,8 +37,8 @@ private:
   void genStringLiteral(const StringLiteral *SL);
   void genDeclRefExpr(const DeclRefExpr *Ref);
   void genBinaryOperator(const BinaryOperator *BO);
-  /// Emits a0 = (lhs op rhs) given a0 = lhs and a1 = rhs. \p Op is BO_Add,
-  /// BO_Sub, BO_Mul, or BO_Div only (used for plain binops and compound assign).
+
+  /// Emits a0 = (lhs op rhs) given a0 = lhs and a1 = rhs.
   void emitBinaryArithmeticResult(BinaryOperator::Opcode Op, QualType LType,
                                   QualType RType, const char *Suffix);
   void genUnaryOperator(const UnaryOperator *UO);

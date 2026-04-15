@@ -681,6 +681,7 @@ QualType Sema::getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS,
     break;
   case BinaryOperator::BO_MulAssign:
   case BinaryOperator::BO_DivAssign:
+  case BinaryOperator::BO_RemAssign:
     (void)getMulDivOpType(OpLoc, LHS, RHS, true);
     break;
   default:
@@ -720,11 +721,13 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
     return getSubOpType(OpLoc, LHS, RHS);
   case BinaryOperator::BO_Mul:
   case BinaryOperator::BO_Div:
+  case BinaryOperator::BO_Rem:
     return getMulDivOpType(OpLoc, LHS, RHS);
   case BinaryOperator::BO_AddAssign:
   case BinaryOperator::BO_SubAssign:
   case BinaryOperator::BO_MulAssign:
   case BinaryOperator::BO_DivAssign:
+  case BinaryOperator::BO_RemAssign:
     return getCompoundAssignOpType(OpLoc, LHS, RHS, Op);
   case BinaryOperator::BO_EQ:
   case BinaryOperator::BO_NE:
