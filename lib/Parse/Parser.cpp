@@ -658,7 +658,7 @@ Expr *Parser::parseExpr() {
   return Assign;
 }
 
-static std::optional<BinaryOperator::Opcode> getOpcode(const Token &Tok) {
+static std::optional<BinaryOperator::Opcode> getAssignOpcode(const Token &Tok) {
   switch (Tok.getKind()) {
   case Token::TK_Equal:
     return BinaryOperator::BO_Assign;
@@ -672,16 +672,25 @@ static std::optional<BinaryOperator::Opcode> getOpcode(const Token &Tok) {
     return BinaryOperator::BO_DivAssign;
   case Token::TK_PercentEqual:
     return BinaryOperator::BO_RemAssign;
+  case Token::TK_AmpEqual:
+    return BinaryOperator::BO_AndAssign;
+  case Token::TK_PipeEqual:
+    return BinaryOperator::BO_OrAssign;
+  case Token::TK_CaretEqual:
+    return BinaryOperator::BO_XorAssign;
   default:
     return std::nullopt;
   }
 }
 
-// assign-expr: equality-expr { '=' assign-expr }
+// assign-expr: inclusive-or-expr { assign-op assign-expr }
+// assign-op: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^='
+// TODO: assign-expr: conditional-expr
+//                  | unary-expr assign-op assign-expr
 Expr *Parser::parseAssign() {
-  Expr *LHS = parseEqualityExpr();
+  Expr *LHS = parseBitwiseOrExpr();
   auto OpLoc = SM.createBeginLocation(CurTok);
-  auto Opcode = getOpcode(*CurTok);
+  auto Opcode = getAssignOpcode(*CurTok);
   if (!Opcode)
     return LHS;
 
@@ -690,6 +699,10 @@ Expr *Parser::parseAssign() {
   return S.actOnBinaryOperator(OpLoc, LHS, RHS, *Opcode);
 }
 
+// equality-expr: relational-expr
+//              | equality-expr '==' relational-expr
+//              | equality-expr '!=' relational-expr
+// Left Recursion Elimination =>
 // equality-expr: relational-expr { ('==' | '!=') relational-expr }
 Expr *Parser::parseEqualityExpr() {
   return parseBinaryExpr<&Parser::parseRelationalExpr, Token::TK_EqualEqual,
@@ -703,9 +716,26 @@ Expr *Parser::parseEqualityExpr() {
 // logical-and-expr(&&)
 // inclusive-or-expr(|)
 // exclusive-or-expr(^)
+
+Expr *Parser::parseConstantExpr() { return parseBitwiseOrExpr(); }
+
+// inclusive-or-expr: exclusive-or-expr
+//                  | inclusive-or-expr '|' exclusive-or-expr
+Expr *Parser::parseBitwiseOrExpr() {
+  return parseBinaryExpr<&Parser::parseBitwiseXorExpr, Token::TK_Pipe>();
+}
+
+// exclusive-or-expr: and-expr
+//                  | exclusive-or-expr '^' and-expr
+Expr *Parser::parseBitwiseXorExpr() {
+  return parseBinaryExpr<&Parser::parseBitwiseAndExpr, Token::TK_Caret>();
+}
+
 // and-expr: equality-expr
 //         | and-expr & equality-expr
-Expr *Parser::parseConstantExpr() { return parseEqualityExpr(); }
+Expr *Parser::parseBitwiseAndExpr() {
+  return parseBinaryExpr<&Parser::parseEqualityExpr, Token::TK_Amp>();
+}
 
 // relational-expr: add-expr { ('<' | '<=' | '>' | '>=') add-expr }
 Expr *Parser::parseRelationalExpr() {
@@ -1027,6 +1057,12 @@ static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
     return BinaryOperator::BO_Div;
   case Token::TK_Percent:
     return BinaryOperator::BO_Rem;
+  case Token::TK_Amp:
+    return BinaryOperator::BO_And;
+  case Token::TK_Pipe:
+    return BinaryOperator::BO_Or;
+  case Token::TK_Caret:
+    return BinaryOperator::BO_Xor;
   case Token::TK_EqualEqual:
     return BinaryOperator::BO_EQ;
   case Token::TK_NotEqual:
@@ -1048,10 +1084,10 @@ template <auto ParseOperand, Token::TokenKind... Tks>
 Expr *Parser::parseBinaryExpr() {
   Expr *LHS = (this->*ParseOperand)();
   while (true) {
-    if (CurTok->isOneOf(Tks...)) {
+    if ((CurTok->is(Tks) || ...)) {
       auto OpLoc = SM.createBeginLocation(CurTok);
       auto Op = getBinaryOpcode(CurTok->getKind());
-      CurTok = CurTok->getNext();
+      skip();
       Expr *RHS = (this->*ParseOperand)();
       LHS = S.actOnBinaryOperator(OpLoc, LHS, RHS, Op);
       continue;
@@ -1059,8 +1095,6 @@ Expr *Parser::parseBinaryExpr() {
 
     return LHS;
   }
-
-  return nullptr;
 }
 
 Scope *Parser::getCurrScope() const { return S.getCurrScope(); }

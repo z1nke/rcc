@@ -40,7 +40,7 @@ private:
 
   /// Emits a0 = (lhs op rhs) given a0 = lhs and a1 = rhs.
   void emitBinaryArithmeticResult(BinaryOperator::Opcode Op, QualType LType,
-                                  QualType RType, const char *Suffix);
+                          QualType RType, const char *Suffix);
   void genUnaryOperator(const UnaryOperator *UO);
   void genCallExpr(const CallExpr *CE);
   void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);

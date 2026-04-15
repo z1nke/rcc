@@ -44,7 +44,7 @@ private:
   RecordDecl *parseUnionDecl();
   RecordDecl *parseStructUnionDecl(SourceLocation BegLoc, unsigned TagKind);
   std::vector<FieldDecl *> parseFields();
-  
+
   EnumDecl *parseEnumDecl();
   std::vector<EnumConstantDecl *> parseEnumeratorList(QualType ET);
   EnumConstantDecl *parseEnumerator(QualType ET, int &Val);
@@ -69,6 +69,9 @@ private:
   Stmt *parseExprStmt();
   Expr *parseExpr();
   Expr *parseAssign();
+  Expr *parseBitwiseOrExpr();
+  Expr *parseBitwiseXorExpr();
+  Expr *parseBitwiseAndExpr();
   Expr *parseEqualityExpr();
   Expr *parseConstantExpr();
   Expr *parseRelationalExpr();

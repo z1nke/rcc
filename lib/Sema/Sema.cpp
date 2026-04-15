@@ -684,6 +684,11 @@ QualType Sema::getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_RemAssign:
     (void)getMulDivOpType(OpLoc, LHS, RHS, true);
     break;
+  case BinaryOperator::BO_AndAssign:
+  case BinaryOperator::BO_OrAssign:
+  case BinaryOperator::BO_XorAssign:
+    (void)getBitwiseOpType(OpLoc, LHS, RHS, true);
+    break;
   default:
     Diag.fatalAt(OpLoc, "unknown compound assignment opcode");
   }
@@ -723,11 +728,18 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_Div:
   case BinaryOperator::BO_Rem:
     return getMulDivOpType(OpLoc, LHS, RHS);
+  case BinaryOperator::BO_And:
+  case BinaryOperator::BO_Or:
+  case BinaryOperator::BO_Xor:
+    return getBitwiseOpType(OpLoc, LHS, RHS);
   case BinaryOperator::BO_AddAssign:
   case BinaryOperator::BO_SubAssign:
   case BinaryOperator::BO_MulAssign:
   case BinaryOperator::BO_DivAssign:
   case BinaryOperator::BO_RemAssign:
+  case BinaryOperator::BO_AndAssign:
+  case BinaryOperator::BO_OrAssign:
+  case BinaryOperator::BO_XorAssign:
     return getCompoundAssignOpType(OpLoc, LHS, RHS, Op);
   case BinaryOperator::BO_EQ:
   case BinaryOperator::BO_NE:
@@ -821,6 +833,18 @@ QualType Sema::getMulDivOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
     Diag.fatalAt(LHS->getBeginLoc(), "invalid operand");
 
   auto ACK = IsCompAssign ? ACK_CompAssign : ACK_Arithmetic;
+  return usualArithConv(LHS, RHS, ACK);
+}
+
+QualType Sema::getBitwiseOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                                bool IsCompAssign) const {
+  if (!IsCompAssign)
+    LHS = usualUnaryConv(LHS);
+  RHS = usualUnaryConv(RHS);
+
+  checkIntType(LHS);
+  checkIntType(RHS);
+  auto ACK = IsCompAssign ? ACK_CompAssign : ACK_BitwiseOp;
   return usualArithConv(LHS, RHS, ACK);
 }
 

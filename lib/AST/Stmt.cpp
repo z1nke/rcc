@@ -369,6 +369,18 @@ const char *BinaryOperator::getOpcodeStr() const {
     return "/=";
   case BO_RemAssign:
     return "%=";
+  case BO_AndAssign:
+    return "&=";
+  case BO_OrAssign:
+    return "|=";
+  case BO_XorAssign:
+    return "^=";
+  case BO_And:
+    return "&";
+  case BO_Or:
+    return "|";
+  case BO_Xor:
+    return "^";
   case BO_EQ:
     return "==";
   case BO_NE:
@@ -401,6 +413,12 @@ BinaryOperator::Opcode BinaryOperator::getOpForCompoundAssign() const {
     return BO_Div;
   case BO_RemAssign:
     return BO_Rem;
+  case BO_AndAssign:
+    return BO_And;
+  case BO_OrAssign:
+    return BO_Or;
+  case BO_XorAssign:
+    return BO_Xor;
   default:
     RCC_UNREACHABLE("[AST] Unknown compound assignment opcode");
   }

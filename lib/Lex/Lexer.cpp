@@ -150,7 +150,22 @@ Token *Lexer::tokenize(const char *P) {
       lexPunctuator(Curr, Token::TK_RBrace, P);
       break;
     case '&':
-      lexPunctuator(Curr, Token::TK_Amp, P);
+      if (*(P + 1) == '=')
+        lexPunctuator(Curr, Token::TK_AmpEqual, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Amp, P);
+      break;
+    case '|':
+      if (*(P + 1) == '=')
+        lexPunctuator(Curr, Token::TK_PipeEqual, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Pipe, P);
+      break;
+    case '^':
+      if (*(P + 1) == '=')
+        lexPunctuator(Curr, Token::TK_CaretEqual, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Caret, P);
       break;
     case ',':
       lexPunctuator(Curr, Token::TK_Comma, P);

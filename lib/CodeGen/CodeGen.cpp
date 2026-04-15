@@ -461,8 +461,17 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
   case BinaryOperator::BO_Rem:
     emit("  rem{} a0, a0, a1", Suffix);
     return;
+  case BinaryOperator::BO_And:
+    emit("  and a0, a0, a1");
+    return;
+  case BinaryOperator::BO_Or:
+    emit("  or a0, a0, a1");
+    return;
+  case BinaryOperator::BO_Xor:
+    emit("  xor a0, a0, a1");
+    return;
   default:
-    RCC_UNREACHABLE("emitBinaryArithmeticResult: not an arithmetic opcode");
+    RCC_UNREACHABLE("emitBinaryArithmeticResult: invalid opcode");
   }
 }
 
@@ -520,6 +529,9 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_Mul:
   case BinaryOperator::BO_Div:
   case BinaryOperator::BO_Rem:
+  case BinaryOperator::BO_And:
+  case BinaryOperator::BO_Or:
+  case BinaryOperator::BO_Xor:
     emitBinaryArithmeticResult(Op, LType, RType, Suffix);
     return;
   case BinaryOperator::BO_EQ:
