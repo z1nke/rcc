@@ -38,6 +38,7 @@ public:
   QualType getPointerType(QualType PointeeType);
   QualType getFunctionType(QualType RetType, std::vector<QualType> ParamTypes);
   QualType getConstantArrayType(QualType ElementType, std::size_t Len);
+  QualType getIncompleteArrayType(QualType ElementType);
   QualType getRecordType(RecordDecl *RD, std::size_t Size,
                          std::size_t Align = 0);
   QualType getEnumType(EnumDecl *ED);

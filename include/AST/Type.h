@@ -89,6 +89,7 @@ public:
     TK_Typedef,
     TK_Function,
     TK_ConstantArray,
+    TK_IncompleteArray,
     TK_Record,
     TK_Enum,
   };
@@ -227,7 +228,8 @@ private:
 class ArrayType : public Type {
 public:
   static bool classof(const Type *T) {
-    return T->getTypeKind() == Type::TK_ConstantArray;
+    return T->getTypeKind() >= Type::TK_ConstantArray &&
+           T->getTypeKind() <= Type::TK_IncompleteArray;
   }
 
   QualType getElementType() const { return ElementType; }
@@ -235,9 +237,8 @@ public:
 protected:
   friend class ASTContext;
 
-  ArrayType(QualType ElementType, std::size_t Len)
-      : Type(TK_ConstantArray, Len * ElementType->getSize(),
-             ElementType->getAlign()),
+  ArrayType(TypeKind Kind, QualType ElementType, std::size_t Len)
+      : Type(Kind, Len * ElementType->getSize(), ElementType->getAlign()),
         ElementType(ElementType) {}
 
 private:
@@ -256,10 +257,23 @@ private:
   friend class ASTContext;
 
   ConstantArrayType(QualType ElementType, std::size_t Len)
-      : ArrayType(ElementType, Len), Len(Len) {}
+      : ArrayType(TK_ConstantArray, ElementType, Len), Len(Len) {}
 
 private:
   std::size_t Len;
+};
+
+class IncompleteArrayType final : public ArrayType {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_IncompleteArray;
+  }
+
+private:
+  friend class ASTContext;
+
+  IncompleteArrayType(QualType ElementType)
+      : ArrayType(TK_IncompleteArray, ElementType, 0) {}
 };
 
 class TagType : public Type {

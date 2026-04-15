@@ -47,6 +47,12 @@ QualType ASTContext::getConstantArrayType(QualType ElementType,
   return QualType(Ty);
 }
 
+QualType ASTContext::getIncompleteArrayType(QualType ElementType) {
+  auto *Ty = new (*this, alignof(IncompleteArrayType))
+      IncompleteArrayType(ElementType);
+  return QualType(Ty);
+}
+
 QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size,
                                    std::size_t Align) {
   const auto *Canonical = RD->getCanonicalDecl();

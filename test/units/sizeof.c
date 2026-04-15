@@ -38,6 +38,10 @@ int main() {
   // [79] Add post ++ and --
   ASSERT(1, ({ char i; sizeof(i++); }));
 
+  // [86] Add a notion of an incomplete array type
+  ASSERT(8, sizeof(int(*)[10]));
+  ASSERT(8, sizeof(int(*)[][10]));
+
   printf("OK\n");
   return 0;
 }

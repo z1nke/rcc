@@ -613,8 +613,15 @@ void Parser::parseTypeSuffix(Declarator &D) {
       continue;
     }
 
+    // Try parse array declarator.
     if (tryConsume(Token::TK_LSquare)) {
-      // Try parse array declarator.
+      // Parse '[' ']'.
+      if (tryConsume(Token::TK_RSquare)) {
+        D.addDeclChunk(DeclaratorChunk::createArray(nullptr));
+        continue;
+      }
+
+      // Parse '[' assign-expr ']'.
       Expr *LenExpr = parseAssign();
       D.setEndLoc(SM.createBeginLocation(CurTok));
       skip(Token::TK_RSquare);

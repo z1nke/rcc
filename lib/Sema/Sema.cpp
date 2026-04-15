@@ -1055,8 +1055,9 @@ QualType Sema::getTypeForDeclarator(Declarator &D) const {
       break;
     case DeclaratorChunk::DCK_Array:
       if (!Chunk.Arr.LenExpr)
-        Diag.fatalAt(D.getLocation(), "array size must be constant");
-      T = Ctx.getConstantArrayType(T, getArrayLength(Chunk.Arr.LenExpr));
+        T = Ctx.getIncompleteArrayType(T);
+      else
+        T = Ctx.getConstantArrayType(T, getArrayLength(Chunk.Arr.LenExpr));
       break;
     default:
       Diag.fatalAt(DS.getTypeSpecLoc(), "unknown declarator type");

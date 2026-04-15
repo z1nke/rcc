@@ -90,6 +90,12 @@ static TypeDumper dumpToString(QualType T) {
     }
     return Dumper;
   }
+  case Type::TK_IncompleteArray: {
+    const auto *IAT = cast<IncompleteArrayType>(Ty);
+    TypeDumper Dumper = dumpToString(IAT->getBaseElementType());
+    Dumper.Postfix = "[]" + Dumper.Postfix;
+    return Dumper;
+  }
   case Type::TK_Record: {
     const auto *RT = cast<RecordType>(Ty);
     const auto *Record = dynCast<RecordDecl>(RT->getDecl());
