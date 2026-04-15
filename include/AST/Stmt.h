@@ -228,6 +228,7 @@ public:
     UO_Plus,
     UO_Minus,
     UO_LNot,
+    UO_Not,
     UO_Addrof,
     UO_Deref,
     UO_PreInc,

@@ -850,6 +850,10 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
   case UnaryOperator::UO_Minus:
     checkArithmeticType(SubExpr);
     return SubExpr->getType();
+  case UnaryOperator::UO_Not:
+    checkIntType(SubExpr);
+    // FIXME: Integer promotion.
+    return SubExpr->getType();
   case UnaryOperator::UO_LNot:
     checkScalarType(SubExpr->getType());
     return Ctx.IntTy;

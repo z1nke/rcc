@@ -114,11 +114,13 @@ Token *Lexer::tokenize(const char *P) {
         lexPunctuator(Curr, Token::TK_Equal, P);
       break;
     case '!':
-      if (*(P + 1) == '=') {
+      if (*(P + 1) == '=')
         lexPunctuator(Curr, Token::TK_NotEqual, P, 2);
-        break;
-      }
-      lexPunctuator(Curr, Token::TK_Exclaim, P);
+      else
+        lexPunctuator(Curr, Token::TK_Exclaim, P);
+      break;
+    case '~':
+      lexPunctuator(Curr, Token::TK_Tilde, P);
       break;
     case '<':
       if (*(P + 1) == '=')

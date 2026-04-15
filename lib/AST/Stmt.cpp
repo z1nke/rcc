@@ -110,6 +110,8 @@ const char *UnaryOperator::getOpcodeStr(Opcode Op) {
     return "-";
   case UO_LNot:
     return "!";
+  case UO_Not:
+    return "~";
   case UO_Addrof:
     return "&";
   case UO_Deref:
