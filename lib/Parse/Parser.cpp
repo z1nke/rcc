@@ -139,48 +139,18 @@ FunctionDecl *Parser::parseFunctionDecl(FunctionDecl *Func) {
 RecordDecl *Parser::parseStructDecl() {
   auto BegLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Struct);
-  RecordDecl *Struct = parseStructUnionDecl(BegLoc, DeclSpec::TST_Struct);
+  RecordDecl *Struct = parseStructUnionDecl(BegLoc, RecordDecl::TK_Struct);
   if (!Struct)
     Diag.fatalAt(BegLoc, "expected struct declaration");
-
-  std::size_t Offset = 0;
-  std::size_t Align = 1;
-  for (auto *Field : Struct->fields()) {
-    std::size_t FieldAlign = Field->getType()->getAlign();
-    Offset = alignTo(Offset, FieldAlign);
-    Field->setOffset(Offset);
-    Offset += Field->getType()->getSize();
-    if (Align < FieldAlign)
-      Align = FieldAlign;
-  }
-
-  std::size_t Size = alignTo(Offset, Align);
-  QualType RT = Ctx.getRecordType(Struct, Size, Align);
-  Struct->setTypeForDecl(RT.getTypePtr());
   return Struct;
 }
 
 RecordDecl *Parser::parseUnionDecl() {
   auto BegLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Union);
-  RecordDecl *Union = parseStructUnionDecl(BegLoc, DeclSpec::TST_Union);
+  RecordDecl *Union = parseStructUnionDecl(BegLoc, RecordDecl::TK_Union);
   if (!Union)
     Diag.fatalAt(BegLoc, "expected union declaration");
-
-  std::size_t Size = 0;
-  std::size_t Align = 1;
-  for (auto *Field : Union->fields()) {
-    std::size_t FieldAlign = Field->getType()->getAlign();
-    std::size_t FieldSize = Field->getType()->getSize();
-    if (Align < FieldAlign)
-      Align = FieldAlign;
-    if (Size < FieldSize)
-      Size = FieldSize;
-  }
-
-  Size = alignTo(Size, Align);
-  QualType RT = Ctx.getRecordType(Union, Size, Align);
-  Union->setTypeForDecl(RT.getTypePtr());
   return Union;
 }
 
@@ -198,12 +168,32 @@ EnumDecl *Parser::parseEnumDecl() {
     skip();
   }
 
-  EnumDecl *Enum = S.actOnEnumDecl(Loc, BegLoc, SourceLocation(), Ident);
-  QualType ET = Ctx.getEnumType(Enum);
-  Enum->setTypeForDecl(ET.getTypePtr());
+  if (!Ident.empty() && CurTok->isNot(Token::TK_LBrace)) {
+    TagDecl *Tag = S.findTagDecl(Ident);
+    if (Tag) {
+      auto *Enum = dynCast<EnumDecl>(Tag);
+      if (!Enum)
+        Diag.fatalAt(Loc, "use of tag '{}' with wrong kind", Ident);
+      return Enum;
+    }
+
+    Tag = S.actOnTagDecl(Loc, BegLoc, BegLoc, Ident, TagDecl::TK_Enum);
+    auto *Enum = cast<EnumDecl>(Tag);
+    getCurrScope()->addTag(Enum);
+    return Enum;
+  }
+
+  EnumDecl *Enum = cast<EnumDecl>(
+      S.actOnTagDecl(Loc, BegLoc, SourceLocation(), Ident, TagDecl::TK_Enum));
+  S.actOnTagStartDefinition(Loc, Enum);
+  QualType ET = Enum->getType();
+  if (!Ident.empty())
+    getCurrScope()->addTag(Enum);
+
   if (tryConsume(Token::TK_LBrace)) {
     std::vector<EnumConstantDecl *> Constants = parseEnumeratorList(ET);
     Enum->setEnumerators(std::move(Constants));
+    S.actOnTagFinishDefinition(Enum, SM.createBeginLocation(CurTok));
     skip(Token::TK_RBrace);
   }
 
@@ -272,20 +262,38 @@ RecordDecl *Parser::parseStructUnionDecl(SourceLocation BegLoc,
 
   if (!Ident.empty() && CurTok->isNot(Token::TK_LBrace)) {
     TagDecl *Tag = S.findTagDecl(Ident);
-    if (!Tag)
-      Diag.fatalAt(Loc, "unknown struct {} type", Ident);
+    if (Tag) {
+      auto *Record = dynCast<RecordDecl>(Tag);
+      if (!Record ||
+          Record->getTagKind() != static_cast<TagDecl::TagKind>(TagKind))
+        Diag.fatalAt(Loc, "use of tag '{}' with wrong kind", Ident);
+      return Record;
+    }
 
-    return dynCast<RecordDecl>(Tag);
+    Tag = S.actOnTagDecl(Loc, BegLoc, BegLoc, Ident, TagKind);
+    auto *Record = cast<RecordDecl>(Tag);
+    getCurrScope()->addTag(Record);
+    return Record;
   }
 
   if (tryConsume(Token::TK_LBrace)) {
-    auto *Record = S.actOnRecordDecl(Loc, BegLoc, BegLoc, Ident, TagKind);
+    RecordDecl *Record =
+        cast<RecordDecl>(S.actOnTagDecl(Loc, BegLoc, BegLoc, Ident, TagKind));
+    S.actOnTagStartDefinition(Loc, Record);
+
+    // Make a newly declared named tag visible while parsing fields so
+    // self-referential members like `struct T *next;` are accepted.
+    bool NeedLateAddTag = Ident.empty();
+    if (!NeedLateAddTag)
+      getCurrScope()->addTag(Record);
+
     enterScope(Scope::StructScope, Record);
     std::vector<FieldDecl *> Fields = parseFields();
     Record->setFields(std::move(Fields));
     exitScope();
-    Record->setEndLoc(SM.createBeginLocation(CurTok));
-    getCurrScope()->addTag(Record);
+    S.actOnTagFinishDefinition(Record, SM.createBeginLocation(CurTok));
+    if (NeedLateAddTag)
+      getCurrScope()->addTag(Record);
     skip(Token::TK_RBrace);
     return Record;
   }

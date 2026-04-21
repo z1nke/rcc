@@ -56,7 +56,7 @@ QualType ASTContext::getIncompleteArrayType(QualType ElementType) {
 QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size,
                                    std::size_t Align) {
   const auto *Canonical = RD->getCanonicalDecl();
-  RecordType *&Ty = RecordTypes[Canonical];
+  auto *&Ty = TagTypes[Canonical];
   if (Ty)
     return QualType(Ty);
 
@@ -66,7 +66,7 @@ QualType ASTContext::getRecordType(RecordDecl *RD, std::size_t Size,
 
 QualType ASTContext::getEnumType(EnumDecl *ED) {
   const auto *Canonical = ED->getCanonicalDecl();
-  EnumType *&Ty = EnumTypes[Canonical];
+  auto *&Ty = TagTypes[Canonical];
   if (Ty)
     return QualType(Ty);
 

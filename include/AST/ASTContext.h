@@ -39,8 +39,7 @@ public:
   QualType getFunctionType(QualType RetType, std::vector<QualType> ParamTypes);
   QualType getConstantArrayType(QualType ElementType, std::size_t Len);
   QualType getIncompleteArrayType(QualType ElementType);
-  QualType getRecordType(RecordDecl *RD, std::size_t Size,
-                         std::size_t Align = 0);
+  QualType getRecordType(RecordDecl *RD, std::size_t Size, std::size_t Align = 0);
   QualType getEnumType(EnumDecl *ED);
   QualType getTypedefType(TypedefDecl *TD, QualType Underlying);
   QualType getArrayDecayedType(QualType Ty);
@@ -58,8 +57,7 @@ public:
 
   std::vector<Type *> Types;
   std::unordered_map<void *, PointerType *> PointerTypes;
-  std::unordered_map<const RecordDecl *, RecordType *> RecordTypes;
-  std::unordered_map<const EnumDecl *, EnumType *> EnumTypes;
+  std::unordered_map<const TagDecl *, TagType *> TagTypes;
   std::unordered_map<const TypedefDecl *, TypedefType *> TypedefTypes;
 
 private:

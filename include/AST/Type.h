@@ -9,6 +9,7 @@
 
 namespace rcc {
 
+class ASTContext;
 class QualType;
 class Type;
 class TagDecl;
@@ -100,7 +101,8 @@ public:
   void dump() const;
 
   TypeKind getTypeKind() const { return Kind; }
-  std::size_t getSize() const { return Size; }
+  std::size_t getSize() const;
+  void setSize(std::size_t Size) { this->Size = Size; }
   std::size_t getAlign() const { return Align; }
   void setAlign(std::size_t Align) { this->Align = Align; }
 
@@ -123,6 +125,7 @@ public:
   bool isArraryType() const;
   bool isRecordType() const;
   bool isEnumType() const;
+  bool isIncompleteType() const;
 
   template <typename To> const To *getAs() const {
     if (const auto *Ty = dynCast<To>(this))
@@ -237,9 +240,8 @@ public:
 protected:
   friend class ASTContext;
 
-  ArrayType(TypeKind Kind, QualType ElementType, std::size_t Len)
-      : Type(Kind, Len * ElementType->getSize(), ElementType->getAlign()),
-        ElementType(ElementType) {}
+  ArrayType(TypeKind Kind, QualType ElementType, std::size_t Size)
+      : Type(Kind, Size, ElementType->getAlign()), ElementType(ElementType) {}
 
 private:
   QualType ElementType;
@@ -257,7 +259,8 @@ private:
   friend class ASTContext;
 
   ConstantArrayType(QualType ElementType, std::size_t Len)
-      : ArrayType(TK_ConstantArray, ElementType, Len), Len(Len) {}
+      : ArrayType(TK_ConstantArray, ElementType, ElementType->getSize() * Len),
+        Len(Len) {}
 
 private:
   std::size_t Len;

@@ -104,6 +104,14 @@ RecordDecl::RecordDecl(ASTContext &Ctx, SourceLocation Loc,
                        std::string Name, TagDecl::TagKind TK)
     : TagDecl(Ctx, DK_Record, TK, Loc, BegLoc, EndLoc, std::move(Name)) {}
 
+const std::vector<FieldDecl *> &RecordDecl::fields() const {
+  const auto *Definiton = getDefinition();
+  assert(Definiton);
+  if (Definiton != this)
+    return cast<RecordDecl>(Definiton)->fields();
+  return Fields;
+}
+
 EnumConstantDecl *EnumConstantDecl::create(ASTContext &Ctx, SourceLocation Loc,
                                            SourceLocation BegLoc,
                                            SourceLocation EndLoc, QualType T,

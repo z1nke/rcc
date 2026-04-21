@@ -274,6 +274,16 @@ public:
   bool isUnion() const { return TK == TK_Union; }
   bool isEnum() const { return TK == TK_Enum; }
 
+  TagDecl *getCanonicalDecl() { return CanonicalDecl; }
+  const TagDecl *getCanonicalDecl() const { return CanonicalDecl; }
+  void setCanonicalDecl(TagDecl *D) { CanonicalDecl = D; }
+
+  bool isCompleteDefinition() const { return Definition == this; }
+  TagDecl *getDefinition() { return Definition; }
+  const TagDecl *getDefinition() const { return Definition; }
+  bool hasDefinition() const { return Definition; }
+  void setDefinition(TagDecl *D) { Definition = D; }
+
 protected:
   TagDecl(ASTContext &Ctx, DeclKind DK, TagKind TK, SourceLocation Loc,
           SourceLocation BegLoc, SourceLocation EndLoc, std::string Name)
@@ -281,6 +291,8 @@ protected:
 
 private:
   TagKind TK;
+  TagDecl *CanonicalDecl = this;
+  TagDecl *Definition = nullptr;
 };
 
 class RecordDecl final : public TagDecl {
@@ -291,13 +303,11 @@ public:
 
   static bool classof(const Decl *D) { return D->getKind() == DK_Record; }
 
-  const std::vector<FieldDecl *> &fields() const { return Fields; }
+  const std::vector<FieldDecl *> &fields() const;
   void addField(FieldDecl *D) { Fields.push_back(D); }
   void setFields(std::vector<FieldDecl *> Fields) {
     this->Fields = std::move(Fields);
   }
-
-  const RecordDecl *getCanonicalDecl() const { return this; }
 
 private:
   RecordDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
@@ -337,8 +347,6 @@ public:
                           std::string Name);
 
   static bool classof(const Decl *D) { return D->getKind() == DK_Enum; }
-
-  const EnumDecl *getCanonicalDecl() const { return this; }
 
   const std::vector<EnumConstantDecl *> &enumerators() const {
     return EnumConstants;

@@ -117,11 +117,102 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
   return Func;
 }
 
-RecordDecl *Sema::actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
-                                  SourceLocation EndLoc, std::string_view Ident,
-                                  unsigned TagKind) {
-  return RecordDecl::create(Ctx, Loc, BegLoc, EndLoc, std::string(Ident),
-                            static_cast<RecordDecl::TagKind>(TagKind));
+TagDecl *Sema::actOnTagDecl(SourceLocation Loc, SourceLocation BegLoc,
+                            SourceLocation EndLoc, std::string_view Ident,
+                            unsigned TagKind) {
+  auto TK = static_cast<TagDecl::TagKind>(TagKind);
+  TagDecl *Tag = nullptr;
+  switch (TK) {
+  case TagDecl::TK_Struct:
+  case TagDecl::TK_Union: {
+    auto *Record =
+        RecordDecl::create(Ctx, Loc, BegLoc, EndLoc, std::string(Ident),
+                           static_cast<RecordDecl::TagKind>(TagKind));
+    Tag = Record;
+    QualType RT = Ctx.getRecordType(Record, /*Size=*/0, /*Align=*/1);
+    Tag->setTypeForDecl(RT.getTypePtr());
+    break;
+  }
+  case TagDecl::TK_Enum:
+    auto *Enum = EnumDecl::create(Ctx, Loc, BegLoc, EndLoc, std::string(Ident));
+    Tag = Enum;
+    QualType ET = Ctx.getEnumType(Enum);
+    Tag->setTypeForDecl(ET.getTypePtr());
+    break;
+  }
+
+  return Tag;
+}
+
+void Sema::actOnTagStartDefinition(SourceLocation Loc, TagDecl *Tag) {
+  std::string_view Ident = Tag->getName();
+  unsigned TagKind = Tag->getTagKind();
+  TagDecl *FirstDecl = nullptr;
+  if (!Ident.empty()) {
+    for (auto *Tag : std::views::reverse(CurrScope->tags())) {
+      if (Tag->getName() != Ident)
+        continue;
+      if (Tag->getTagKind() != static_cast<TagDecl::TagKind>(TagKind))
+        Diag.fatalAt(Loc, "redefinition of '{}' with wrong kind", Ident);
+      if (Tag->getDefinition())
+        actOnDuplicateDefinition(Loc, Ident, TagKind);
+      FirstDecl = Tag->getCanonicalDecl();
+      break;
+    }
+  }
+
+  Tag->setCanonicalDecl(FirstDecl ? FirstDecl : Tag);
+  Tag->setDefinition(Tag);
+}
+
+void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
+  if (auto *Record = dynCast<RecordDecl>(Tag)) {
+    std::size_t Size = 0;
+    std::size_t Align = 1;
+    if (Record->isStruct()) {
+      std::size_t Offset = 0;
+      for (auto *Field : Record->fields()) {
+        std::size_t FieldAlign = Field->getType()->getAlign();
+        Offset = alignTo(Offset, FieldAlign);
+        Field->setOffset(Offset);
+        Offset += Field->getType()->getSize();
+        if (Align < FieldAlign)
+          Align = FieldAlign;
+      }
+      Size = alignTo(Offset, Align);
+    } else {
+      for (auto *Field : Record->fields()) {
+        std::size_t FieldAlign = Field->getType()->getAlign();
+        std::size_t FieldSize = Field->getType()->getSize();
+        if (Align < FieldAlign)
+          Align = FieldAlign;
+        if (Size < FieldSize)
+          Size = FieldSize;
+      }
+      Size = alignTo(Size, Align);
+    }
+
+    QualType RT = Ctx.getRecordType(Record, Size, Align);
+    auto *RTTy = const_cast<Type *>(RT.getTypePtr());
+    RTTy->setSize(Size);
+    RTTy->setAlign(Align);
+    Record->setTypeForDecl(RT.getTypePtr());
+  }
+
+  Tag->setEndLoc(EndLoc);
+  if (Tag->getName().empty())
+    return;
+
+  for (auto *Prev : CurrScope->tags()) {
+    if (Prev == Tag)
+      continue;
+    if (Prev->getName() != Tag->getName())
+      continue;
+    if (Prev->getTagKind() != Tag->getTagKind())
+      continue;
+    assert(!Prev->getDefinition());
+    Prev->setDefinition(Tag);
+  }
 }
 
 EnumConstantDecl *
@@ -134,9 +225,17 @@ Sema::actOnEnumConstantDecl(SourceLocation Loc, SourceLocation BegLoc,
   return ECD;
 }
 
-EnumDecl *Sema::actOnEnumDecl(SourceLocation Loc, SourceLocation BegLoc,
-                              SourceLocation EndLoc, std::string_view Ident) {
-  return EnumDecl::create(Ctx, Loc, BegLoc, EndLoc, std::string(Ident));
+void Sema::actOnDuplicateDefinition(SourceLocation Loc, std::string_view Name,
+                                    unsigned TagKind) const {
+  switch (static_cast<TagDecl::TagKind>(TagKind)) {
+  case TagDecl::TK_Struct:
+    Diag.fatalAt(Loc, "redefinition of struct '{}'", Name);
+  case TagDecl::TK_Union:
+    Diag.fatalAt(Loc, "redefinition of union '{}'", Name);
+  case TagDecl::TK_Enum:
+    Diag.fatalAt(Loc, "redefinition of enum '{}'", Name);
+  }
+  RCC_UNREACHABLE("Unknown tag kind");
 }
 
 void Sema::complete(FunctionDecl *FD) {
@@ -262,7 +361,7 @@ Stmt *Sema::actOnCompoundStmt(SourceLocation BegLoc, SourceLocation EndLoc,
 
 Stmt *Sema::actOnIfStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Then,
                         Stmt *Else) {
-  checkScalarType(Cond->getType());
+  checkScalarType(Cond);
   auto EndLoc = Else ? Else->getEndLoc() : Then->getEndLoc();
   return IfStmt::create(Ctx, BegLoc, EndLoc, Cond, Then, Else);
 }
@@ -270,14 +369,14 @@ Stmt *Sema::actOnIfStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Then,
 Stmt *Sema::actOnForStmt(SourceLocation BegLoc, Stmt *Init, Expr *Cond,
                          Expr *Inc, Stmt *Body) {
   if (Cond)
-    checkScalarType(Cond->getType());
+    checkScalarType(Cond);
   auto EndLoc = Body->getEndLoc();
   return ForStmt::create(Ctx, BegLoc, EndLoc, Init, Cond, Inc, Body);
 }
 
 Stmt *Sema::actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                            Stmt *Body) {
-  checkScalarType(Cond->getType());
+  checkScalarType(Cond);
   auto EndLoc = Body->getEndLoc();
   return WhileStmt::create(Ctx, BegLoc, EndLoc, Cond, Body);
 }
@@ -299,6 +398,7 @@ Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
 }
 
 Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc, Expr *Ex) {
+  checkSizeofType(BegLoc, Ex->getType());
   // FIXME: Fix sizeof type, int -> size_t.
   return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, Ex->getEndLoc(),
                                           Ctx.IntTy, Ex);
@@ -307,6 +407,7 @@ Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc, Expr *Ex) {
 Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
                                           SourceLocation EndLoc,
                                           const Type *Ty) {
+  checkSizeofType(BegLoc, QualType(Ty));
   // FIXME: Fix sizeof type, int -> size_t.
   return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Ty);
 }
@@ -477,6 +578,9 @@ Expr *Sema::actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
   if (!Record)
     Diag.fatalAt(BegLoc, "member access requires struct or union type");
 
+  if (!Record->hasDefinition())
+    Diag.fatalAt(BegLoc, "incomplete definition of type");
+
   // TODO: Record type must be complete.
   for (auto &Field : Record->fields()) {
     if (Field->getName() != Ident)
@@ -488,9 +592,9 @@ Expr *Sema::actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
   Diag.fatalAt(BegLoc, "field '{}' not found in record", Ident);
 }
 
-void Sema::checkScalarType(QualType T) const {
-  if (!T->isScalarType())
-    Diag.fatalAt(SourceLocation(), "type requires scalar type");
+void Sema::checkScalarType(Expr *E) const {
+  if (!E->getType()->isScalarType())
+    Diag.fatalAt(E->getBeginLoc(), "type requires scalar type");
 }
 
 void Sema::checkIntType(Expr *E) const {
@@ -501,6 +605,17 @@ void Sema::checkIntType(Expr *E) const {
 void Sema::checkArithmeticType(Expr *E) const {
   if (!E->getType()->isArithmeticType())
     Diag.fatalAt(E->getBeginLoc(), "expression requires arithmetic type");
+}
+
+void Sema::checkSizeofType(SourceLocation BegLoc, QualType T) const {
+  if (T->isFunctionType())
+    Diag.fatalAt(BegLoc, "invalid application of 'sizeof' to a function type");
+
+  if (T->isIncompleteType()) {
+    Diag.fatalAt(BegLoc,
+                 "invalid application of 'sizeof' to a incomplete type '{}'",
+                 T.getAsString());
+  }
 }
 
 /// usualUnaryConv - Performs various conversions that are common to most
@@ -742,8 +857,8 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_LOr:
     LHS = usualUnaryConv(LHS);
     RHS = usualUnaryConv(RHS);
-    checkScalarType(LHS->getType());
-    checkScalarType(RHS->getType());
+    checkScalarType(LHS);
+    checkScalarType(RHS);
     return Ctx.IntTy;
   case BinaryOperator::BO_AddAssign:
   case BinaryOperator::BO_SubAssign:
@@ -774,10 +889,11 @@ QualType Sema::getAddOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
   if (!IsCompAssign)
     LHS = usualUnaryConv(LHS);
   RHS = usualUnaryConv(RHS);
+
+  checkScalarType(LHS);
+  checkScalarType(RHS);
   QualType LType = LHS->getType();
   QualType RType = RHS->getType();
-  checkScalarType(LType);
-  checkScalarType(RType);
   bool LIsPtr = LType->isPointerType();
   bool RIsPtr = RType->isPointerType();
   if (LIsPtr && RIsPtr)
@@ -809,10 +925,11 @@ QualType Sema::getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
   if (!IsCompAssign)
     LHS = usualUnaryConv(LHS);
   RHS = usualUnaryConv(RHS);
+
+  checkScalarType(LHS);
+  checkScalarType(RHS);
   QualType LType = LHS->getType();
   QualType RType = RHS->getType();
-  checkScalarType(LType);
-  checkScalarType(RType);
   bool LIsPtr = LType->isPointerType();
   bool RIsPtr = RType->isPointerType();
   if (LIsPtr && RIsPtr) {
@@ -895,7 +1012,7 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
     // FIXME: Integer promotion.
     return SubExpr->getType();
   case UnaryOperator::UO_LNot:
-    checkScalarType(SubExpr->getType());
+    checkScalarType(SubExpr);
     return Ctx.IntTy;
   case UnaryOperator::UO_Addrof:
     // FIXME: Temporarily handle array type.

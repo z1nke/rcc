@@ -1,4 +1,5 @@
 #include "AST/Type.h"
+#include "AST/ASTContext.h"
 #include "AST/Decl.h"
 #include "Support/Casting.h"
 #include "Support/Unreachable.h"
@@ -102,8 +103,18 @@ static TypeDumper dumpToString(QualType T) {
     assert(Record);
 
     TypeDumper Dumper;
-    Dumper.Base = "struct ";
+    Dumper.Base = Record->isUnion() ? "union " : "struct ";
     Dumper.Postfix = Record->getName();
+    return Dumper;
+  }
+  case Type::TK_Enum: {
+    const auto *ET = cast<EnumType>(Ty);
+    const auto *Enum = dynCast<EnumDecl>(ET->getDecl());
+    assert(Enum);
+
+    TypeDumper Dumper;
+    Dumper.Base = "enum ";
+    Dumper.Postfix = Enum->getName();
     return Dumper;
   }
   default:
@@ -142,6 +153,32 @@ bool QualType::isIntegerType() const {
 void Type::dump() const {
   QualType T(this);
   std::println(stderr, "{}", T.getAsString());
+}
+
+std::size_t Type::getSize() const {
+  if (Size != 0)
+    return Size;
+
+  QualType Canonical = getCanonicalType();
+  if (Canonical->Size != 0)
+    return Canonical->Size;
+
+  if (const auto *TT = getAs<RecordType>()) {
+    const auto *D = TT->getDecl();
+    assert(D);
+    const auto *Def = D->getDefinition();
+    if (!Def)
+      return 0;
+    QualType DefType = Def->getType();
+    const auto *DefTypePtr = DefType.getTypePtr();
+    if (!DefTypePtr || DefTypePtr == this)
+      return Size;
+    if (DefTypePtr->Size != 0)
+      return DefTypePtr->Size;
+    return 0;
+  }
+
+  return 0;
 }
 
 QualType Type::getCanonicalType() const {
@@ -252,6 +289,26 @@ bool Type::isRecordType() const {
 bool Type::isEnumType() const {
   QualType CanType = getCanonicalType();
   return CanType->getAs<EnumType>();
+}
+
+bool Type::isIncompleteType() const {
+  QualType CanType = getCanonicalType();
+  switch (CanType->getTypeKind()) {
+  case TK_Builtin:
+    return cast<BuiltinType>(CanType)->isVoidType();
+  case TK_IncompleteArray:
+    return true;
+  case TK_Record: {
+    const auto *RT = cast<RecordType>(CanType);
+    return RT->getDecl()->getDefinition() == nullptr;
+  }
+  case TK_Enum: {
+    const auto *ET = cast<EnumType>(CanType);
+    return ET->getDecl()->getDefinition() == nullptr;
+  }
+  default:
+    return false;
+  }
 }
 
 RecordDecl *Type::getAsRecordDecl() const {

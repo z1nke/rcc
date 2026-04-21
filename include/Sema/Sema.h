@@ -46,18 +46,17 @@ public:
   FunctionDecl *actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                   Stmt *Body);
 
-  RecordDecl *actOnRecordDecl(SourceLocation Loc, SourceLocation BegLoc,
-                              SourceLocation EndLoc, std::string_view Ident,
-                              unsigned TagKind);
+  TagDecl *actOnTagDecl(SourceLocation Loc, SourceLocation BegLoc,
+                        SourceLocation EndLoc, std::string_view Ident,
+                        unsigned TagKind);
+  void actOnTagStartDefinition(SourceLocation Loc, TagDecl *Tag);
+  void actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc);
 
   EnumConstantDecl *actOnEnumConstantDecl(SourceLocation Loc,
                                           SourceLocation BegLoc,
                                           SourceLocation EndLoc, QualType T,
                                           std::string Name, std::int64_t Val,
                                           const Expr *Init);
-  EnumDecl *actOnEnumDecl(SourceLocation Loc, SourceLocation BegLoc,
-                          SourceLocation EndLoc, std::string_view Ident);
-
   void complete(FunctionDecl *FD);
   void complete(VarDecl *Var, Expr *Init);
 
@@ -116,9 +115,10 @@ private:
     ACK_CompAssign,
   };
 
-  void checkScalarType(QualType T) const;
+  void checkScalarType(Expr *E) const;
   void checkIntType(Expr *E) const;
   void checkArithmeticType(Expr *E) const;
+  void checkSizeofType(SourceLocation BegLoc, QualType T) const;
 
   QualType usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) const;
   Expr *usualUnaryConv(Expr *E) const;
@@ -152,6 +152,9 @@ private:
   QualType tryDecayArrayType(QualType T) const;
   std::size_t getArrayLength(const Expr *E) const;
   void addDecl(Decl *D);
+  [[noreturn]] void actOnDuplicateDefinition(SourceLocation Loc,
+                                             std::string_view Name,
+                                             unsigned TagKind) const;
 
 private:
   ASTContext &Ctx;
