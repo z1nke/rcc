@@ -183,6 +183,9 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     genWhileStmt(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_BreakStmt:
+    genBreakStmt(cast<BreakStmt>(S));
+    break;
   case Stmt::SK_GotoStmt:
     genGotoStmt(cast<GotoStmt>(S));
     break;
@@ -255,6 +258,7 @@ void CodeGen::genForStmt(const ForStmt *For) {
   //   ...
   if (const auto *Init = For->getInit())
     genStmt(Init);
+  BreakCounts.push_back(Count);
   emit(".L.begin.{}:", Count);
   if (const auto *Cond = For->getCond()) {
     genExpr(Cond);
@@ -265,6 +269,7 @@ void CodeGen::genForStmt(const ForStmt *For) {
     genExpr(Inc);
   emit("  j .L.begin.{}", Count);
   emit(".L.end.{}:", Count);
+  BreakCounts.pop_back();
 }
 
 void CodeGen::genWhileStmt(const WhileStmt *While) {
@@ -276,12 +281,20 @@ void CodeGen::genWhileStmt(const WhileStmt *While) {
   //   goto .L.begin.C
   // .L.end.C:
   //   ...
+  BreakCounts.push_back(Count);
   emit(".L.begin.{}:", Count);
   genExpr(While->getCond());
   emit("  beqz a0, .L.end.{}", Count);
   genStmt(While->getBody());
   emit("  j .L.begin.{}", Count);
   emit(".L.end.{}:", Count);
+  BreakCounts.pop_back();
+}
+
+void CodeGen::genBreakStmt(const BreakStmt *Break) {
+  if (BreakCounts.empty())
+    Diag.fatalAt(Break->getBeginLoc(), "break statement not in loop");
+  emit("  j .L.end.{}", BreakCounts.back());
 }
 
 void CodeGen::genGotoStmt(const GotoStmt *Goto) {

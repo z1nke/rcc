@@ -150,6 +150,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     visit(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_BreakStmt:
+    visit(cast<BreakStmt>(S));
+    break;
   case Stmt::SK_GotoStmt:
     visit(cast<GotoStmt>(S));
     break;
@@ -277,6 +280,8 @@ void ASTDumper::visit(const WhileStmt *While) {
     visit(While->getBody());
   }
 }
+
+void ASTDumper::visit(const BreakStmt *) { printName("BreakStmt"); }
 
 void ASTDumper::visit(const GotoStmt *Goto) {
   std::println(stderr, "GotoStmt {}", Goto->getLabel()->getName());

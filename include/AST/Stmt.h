@@ -223,6 +223,17 @@ private:
   Stmt *Body;
 };
 
+class BreakStmt final : public Stmt {
+public:
+  static BreakStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_BreakStmt; }
+
+private:
+  BreakStmt(SourceLocation BegLoc, SourceLocation EndLoc);
+};
+
 class GotoStmt final : public Stmt {
 public:
   static GotoStmt *create(ASTContext &Ctx, SourceLocation BegLoc,

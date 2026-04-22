@@ -91,6 +91,15 @@ WhileStmt *WhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) WhileStmt(BegLoc, EndLoc, Cond, Body);
 }
 
+BreakStmt::BreakStmt(SourceLocation BegLoc, SourceLocation EndLoc)
+    : Stmt(SK_BreakStmt, BegLoc, EndLoc) {}
+
+BreakStmt *BreakStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                             SourceLocation EndLoc) {
+  void *Mem = Ctx.allocate(sizeof(BreakStmt), alignof(BreakStmt));
+  return new (Mem) BreakStmt(BegLoc, EndLoc);
+}
+
 GotoStmt::GotoStmt(SourceLocation BegLoc, SourceLocation EndLoc, LabelDecl *Label)
     : Stmt(SK_GotoStmt, BegLoc, EndLoc), Label(Label) {}
 

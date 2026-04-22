@@ -62,6 +62,12 @@ int main() {
   // [90] Resolve conflict between labels and typedefs
   ASSERT(1, ({ typedef int foo; goto foo; foo:; 1; }));
 
+  // [91] Add break statement
+  ASSERT(3, ({ int i=0; for(;i<10;i++) { if (i == 3) break; } i; }));
+  ASSERT(4, ({ int i=0; while (1) { if (i++ == 3) break; } i; }));
+  ASSERT(3, ({ int i=0; for(;i<10;i++) { for (;;) break; if (i == 3) break; } i; }));
+  ASSERT(4, ({ int i=0; while (1) { while(1) break; if (i++ == 3) break; } i; }));
+
   printf("OK\n");
   return 0;
 }

@@ -23,6 +23,7 @@ class NullStmt;
 class IfStmt;
 class ForStmt;
 class WhileStmt;
+class BreakStmt;
 class GotoStmt;
 class LabelStmt;
 class UnaryOperator;
@@ -55,6 +56,7 @@ public:
   void visit(const IfStmt *If);
   void visit(const ForStmt *For);
   void visit(const WhileStmt *While);
+  void visit(const BreakStmt *Break);
   void visit(const GotoStmt *Goto);
   void visit(const LabelStmt *Label);
   void visit(const UnaryOperator *UO);

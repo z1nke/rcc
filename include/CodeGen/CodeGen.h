@@ -33,6 +33,7 @@ private:
   void genIfStmt(const IfStmt *If);
   void genForStmt(const ForStmt *For);
   void genWhileStmt(const WhileStmt *While);
+  void genBreakStmt(const BreakStmt *Break);
   void genGotoStmt(const GotoStmt *Goto);
   void genLabelStmt(const LabelStmt *Label);
   void genExpr(const Expr *E);
@@ -79,6 +80,7 @@ private:
   Diagnostic &Diag;
   const FunctionDecl *CurrFunc = nullptr;
   int Depth = 0;
+  std::vector<int> BreakCounts;
   std::vector<const StringLiteral *> StringLiterals;
   std::unordered_map<const StringLiteral *, std::string> SLCache;
   FILE *Fp;

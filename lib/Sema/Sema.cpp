@@ -389,6 +389,17 @@ Stmt *Sema::actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
   return WhileStmt::create(Ctx, BegLoc, EndLoc, Cond, Body);
 }
 
+Stmt *Sema::actOnBreakStmt(SourceLocation BegLoc, SourceLocation EndLoc) {
+  Scope *S = CurrScope;
+  while (S && !(S->getFlags() & Scope::BreakScope))
+    S = S->getParent();
+
+  if (!S)
+    Diag.fatalAt(BegLoc, "break statement not in loop or switch statement");
+
+  return BreakStmt::create(Ctx, BegLoc, EndLoc);
+}
+
 Stmt *Sema::actOnGotoStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                           std::string_view LabelName) {
   auto Iter = Labels.find(std::string(LabelName));
