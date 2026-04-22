@@ -18,6 +18,7 @@ STMT(IfStmt)
 STMT(ForStmt)
 STMT(WhileStmt)
 STMT(BreakStmt)
+STMT(ContinueStmt)
 STMT(GotoStmt)
 STMT(LabelStmt)
 

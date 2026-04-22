@@ -76,6 +76,7 @@ public:
   Stmt *actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                        Stmt *Body);
   Stmt *actOnBreakStmt(SourceLocation BegLoc, SourceLocation EndLoc);
+  Stmt *actOnContinueStmt(SourceLocation BegLoc, SourceLocation EndLoc);
   Stmt *actOnGotoStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                       std::string_view LabelName);
   Stmt *actOnLabelStmt(SourceLocation BegLoc, SourceLocation EndLoc,

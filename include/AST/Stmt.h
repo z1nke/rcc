@@ -234,6 +234,17 @@ private:
   BreakStmt(SourceLocation BegLoc, SourceLocation EndLoc);
 };
 
+class ContinueStmt final : public Stmt {
+public:
+  static ContinueStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                              SourceLocation EndLoc);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_ContinueStmt; }
+
+private:
+  ContinueStmt(SourceLocation BegLoc, SourceLocation EndLoc);
+};
+
 class GotoStmt final : public Stmt {
 public:
   static GotoStmt *create(ASTContext &Ctx, SourceLocation BegLoc,

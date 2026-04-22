@@ -327,6 +327,7 @@ std::vector<FieldDecl *> Parser::parseFields() {
 //               | while-stmt
 // jump-stmt: goto-stmt
 //          | break-stmt
+//          | continue-stmt
 //          | return-stmt
 Stmt *Parser::parseStmt() {
   if (CurTok->is(Token::TK_Ident)) {
@@ -353,6 +354,8 @@ Stmt *Parser::parseStmt() {
     return parseWhileStmt();
   case Token::TK_Break:
     return parseBreakStmt();
+  case Token::TK_Continue:
+    return parseContinueStmt();
   case Token::TK_Goto:
     return parseGotoStmt();
   default:
@@ -460,6 +463,16 @@ Stmt *Parser::parseBreakStmt() {
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Semicolon);
   return S.actOnBreakStmt(BegLoc, EndLoc);
+}
+
+// continue-stmt: 'continue' ';'
+Stmt *Parser::parseContinueStmt() {
+  assert(CurTok->is(Token::TK_Continue));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
+  auto EndLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Semicolon);
+  return S.actOnContinueStmt(BegLoc, EndLoc);
 }
 
 // goto-stmt: 'goto' ident ';'

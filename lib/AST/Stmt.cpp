@@ -100,6 +100,15 @@ BreakStmt *BreakStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) BreakStmt(BegLoc, EndLoc);
 }
 
+ContinueStmt::ContinueStmt(SourceLocation BegLoc, SourceLocation EndLoc)
+    : Stmt(SK_ContinueStmt, BegLoc, EndLoc) {}
+
+ContinueStmt *ContinueStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                   SourceLocation EndLoc) {
+  void *Mem = Ctx.allocate(sizeof(ContinueStmt), alignof(ContinueStmt));
+  return new (Mem) ContinueStmt(BegLoc, EndLoc);
+}
+
 GotoStmt::GotoStmt(SourceLocation BegLoc, SourceLocation EndLoc, LabelDecl *Label)
     : Stmt(SK_GotoStmt, BegLoc, EndLoc), Label(Label) {}
 

@@ -34,6 +34,7 @@ private:
   void genForStmt(const ForStmt *For);
   void genWhileStmt(const WhileStmt *While);
   void genBreakStmt(const BreakStmt *Break);
+  void genContinueStmt(const ContinueStmt *Continue);
   void genGotoStmt(const GotoStmt *Goto);
   void genLabelStmt(const LabelStmt *Label);
   void genExpr(const Expr *E);
@@ -81,6 +82,7 @@ private:
   const FunctionDecl *CurrFunc = nullptr;
   int Depth = 0;
   std::vector<int> BreakCounts;
+  std::vector<int> ContinueCounts;
   std::vector<const StringLiteral *> StringLiterals;
   std::unordered_map<const StringLiteral *, std::string> SLCache;
   FILE *Fp;
