@@ -30,6 +30,9 @@ void ASTDumper::visit(const Decl *D) {
   case Decl::DK_Field:
     visit(cast<FieldDecl>(D));
     break;
+  case Decl::DK_Label:
+    std::println(stderr, "LabelDecl {}", cast<LabelDecl>(D)->getName());
+    break;
   case Decl::DK_Typedef:
     visit(cast<TypedefDecl>(D));
     break;
@@ -146,6 +149,12 @@ void ASTDumper::visit(const Stmt *S) {
     break;
   case Stmt::SK_WhileStmt:
     visit(cast<WhileStmt>(S));
+    break;
+  case Stmt::SK_GotoStmt:
+    visit(cast<GotoStmt>(S));
+    break;
+  case Stmt::SK_LabelStmt:
+    visit(cast<LabelStmt>(S));
     break;
   case Stmt::SK_UnaryOperator:
     visit(cast<UnaryOperator>(S));
@@ -267,6 +276,16 @@ void ASTDumper::visit(const WhileStmt *While) {
     ScopedIndent SI(*this, false);
     visit(While->getBody());
   }
+}
+
+void ASTDumper::visit(const GotoStmt *Goto) {
+  std::println(stderr, "GotoStmt {}", Goto->getLabel()->getName());
+}
+
+void ASTDumper::visit(const LabelStmt *Label) {
+  std::println(stderr, "LabelStmt {}", Label->getDecl()->getName());
+  ScopedIndent SI(*this, true);
+  visit(Label->getSubStmt());
 }
 
 void ASTDumper::visit(const UnaryOperator *UO) {

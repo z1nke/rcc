@@ -15,6 +15,7 @@ class ASTContext;
 class Decl;
 class ValueDecl;
 class FunctionDecl;
+class LabelDecl;
 
 class Stmt {
 public:
@@ -220,6 +221,41 @@ private:
 private:
   Expr *Cond;
   Stmt *Body;
+};
+
+class GotoStmt final : public Stmt {
+public:
+  static GotoStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                          SourceLocation EndLoc, LabelDecl *Label);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_GotoStmt; }
+
+  LabelDecl *getLabel() const { return Label; }
+
+private:
+  GotoStmt(SourceLocation BegLoc, SourceLocation EndLoc, LabelDecl *Label);
+
+private:
+  LabelDecl *Label;
+};
+
+class LabelStmt final : public Stmt {
+public:
+  static LabelStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc, LabelDecl *Label, Stmt *Sub);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_LabelStmt; }
+
+  LabelDecl *getDecl() const { return Label; }
+  Stmt *getSubStmt() const { return SubStmt; }
+
+private:
+  LabelStmt(SourceLocation BegLoc, SourceLocation EndLoc, LabelDecl *Label,
+            Stmt *Sub);
+
+private:
+  LabelDecl *Label;
+  Stmt *SubStmt;
 };
 
 class UnaryOperator final : public Expr {

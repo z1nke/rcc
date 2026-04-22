@@ -13,6 +13,7 @@ class Token;
 class ASTContext;
 class Stmt;
 class Expr;
+class LabelStmt;
 
 class Decl {
 public:
@@ -23,6 +24,7 @@ public:
     DK_Function,
     DK_EnumConstant,
     DK_Field,
+    DK_Label,
     DK_Record,
     DK_Enum,
     DK_Typedef,
@@ -230,6 +232,25 @@ private:
 private:
   int Offset = 0;
   RecordDecl *Parent = nullptr; // Temporary handling.
+};
+
+class LabelDecl final : public NamedDecl {
+public:
+  static LabelDecl *create(ASTContext &Ctx, SourceLocation Loc,
+                           SourceLocation BegLoc, SourceLocation EndLoc,
+                           std::string Name, LabelStmt *Stmt = nullptr);
+
+  static bool classof(const Decl *D) { return D->getKind() == DK_Label; }
+
+  LabelStmt *getStmt() const { return StmtNode; }
+  void setStmt(LabelStmt *S) { StmtNode = S; }
+
+private:
+  LabelDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+            SourceLocation EndLoc, std::string Name, LabelStmt *Stmt);
+
+private:
+  LabelStmt *StmtNode = nullptr;
 };
 
 class TypeDecl : public NamedDecl {

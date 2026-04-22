@@ -33,6 +33,8 @@ private:
   void genIfStmt(const IfStmt *If);
   void genForStmt(const ForStmt *For);
   void genWhileStmt(const WhileStmt *While);
+  void genGotoStmt(const GotoStmt *Goto);
+  void genLabelStmt(const LabelStmt *Label);
   void genExpr(const Expr *E);
   void genStringLiteral(const StringLiteral *SL);
   void genDeclRefExpr(const DeclRefExpr *Ref);

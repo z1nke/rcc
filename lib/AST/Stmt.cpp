@@ -91,6 +91,26 @@ WhileStmt *WhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) WhileStmt(BegLoc, EndLoc, Cond, Body);
 }
 
+GotoStmt::GotoStmt(SourceLocation BegLoc, SourceLocation EndLoc, LabelDecl *Label)
+    : Stmt(SK_GotoStmt, BegLoc, EndLoc), Label(Label) {}
+
+GotoStmt *GotoStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc, LabelDecl *Label) {
+  void *Mem = Ctx.allocate(sizeof(GotoStmt), alignof(GotoStmt));
+  return new (Mem) GotoStmt(BegLoc, EndLoc, Label);
+}
+
+LabelStmt::LabelStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                     LabelDecl *Label, Stmt *Sub)
+    : Stmt(SK_LabelStmt, BegLoc, EndLoc), Label(Label), SubStmt(Sub) {}
+
+LabelStmt *LabelStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                             SourceLocation EndLoc, LabelDecl *Label,
+                             Stmt *Sub) {
+  void *Mem = Ctx.allocate(sizeof(LabelStmt), alignof(LabelStmt));
+  return new (Mem) LabelStmt(BegLoc, EndLoc, Label, Sub);
+}
+
 UnaryOperator::UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
                              QualType T, Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator, BegLoc, EndLoc, T), SubExpr(SubExpr), Kind(Op) {}

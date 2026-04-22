@@ -20,8 +20,14 @@ const char *Decl::getKindStr() const {
     return "FunctionDecl";
   case DK_Field:
     return "FieldDecl";
+  case DK_Label:
+    return "LabelDecl";
   case DK_Record:
     return "RecordDecl";
+  case DK_EnumConstant:
+    return "EnumConstantDecl";
+  case DK_Enum:
+    return "EnumDecl";
   case DK_Typedef:
     return "TypedefDecl";
   default:
@@ -91,6 +97,19 @@ FieldDecl *FieldDecl::create(ASTContext &Ctx, SourceLocation Loc,
   return new (Mem)
       FieldDecl(Ctx, Loc, BegLoc, EndLoc, T, std::move(Name), Parent);
 }
+
+LabelDecl *LabelDecl::create(ASTContext &Ctx, SourceLocation Loc,
+                             SourceLocation BegLoc, SourceLocation EndLoc,
+                             std::string Name, LabelStmt *Stmt) {
+  void *Mem = Ctx.allocate(sizeof(LabelDecl), alignof(LabelDecl));
+  return new (Mem)
+      LabelDecl(Ctx, Loc, BegLoc, EndLoc, std::move(Name), Stmt);
+}
+
+LabelDecl::LabelDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
+                     SourceLocation EndLoc, std::string Name, LabelStmt *Stmt)
+    : NamedDecl(Ctx, DK_Label, Loc, BegLoc, EndLoc, std::move(Name)),
+      StmtNode(Stmt) {}
 
 RecordDecl *RecordDecl::create(ASTContext &Ctx, SourceLocation Loc,
                                SourceLocation BegLoc, SourceLocation EndLoc,

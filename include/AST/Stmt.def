@@ -17,6 +17,8 @@ STMT(NullStmt)
 STMT(IfStmt)
 STMT(ForStmt)
 STMT(WhileStmt)
+STMT(GotoStmt)
+STMT(LabelStmt)
 
 EXPR(UnaryOperator)
 EXPR(UnaryExprOrTypeTraitExpr)

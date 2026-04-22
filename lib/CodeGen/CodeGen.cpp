@@ -183,6 +183,12 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     genWhileStmt(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_GotoStmt:
+    genGotoStmt(cast<GotoStmt>(S));
+    break;
+  case Stmt::SK_LabelStmt:
+    genLabelStmt(cast<LabelStmt>(S));
+    break;
   case Stmt::SK_DeclStmt:
     genDeclStmt(cast<DeclStmt>(S));
     break;
@@ -276,6 +282,21 @@ void CodeGen::genWhileStmt(const WhileStmt *While) {
   genStmt(While->getBody());
   emit("  j .L.begin.{}", Count);
   emit(".L.end.{}:", Count);
+}
+
+void CodeGen::genGotoStmt(const GotoStmt *Goto) {
+  const LabelDecl *Label = Goto->getLabel();
+  std::string AsmLabel =
+      std::format(".L.label.{}.{}", CurrFunc->getName(), Label->getName());
+  emit("  j {}", AsmLabel);
+}
+
+void CodeGen::genLabelStmt(const LabelStmt *Label) {
+  const LabelDecl *Decl = Label->getDecl();
+  std::string AsmLabel =
+      std::format(".L.label.{}.{}", CurrFunc->getName(), Decl->getName());
+  emit("{}:", AsmLabel);
+  genStmt(Label->getSubStmt());
 }
 
 void CodeGen::genExpr(const Expr *E) {

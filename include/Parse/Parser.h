@@ -65,6 +65,8 @@ private:
   Stmt *parseIfStmt();
   Stmt *parseForStmt();
   Stmt *parseWhileStmt();
+  Stmt *parseGotoStmt();
+  Stmt *parseLabelStmt();
   Stmt *parseDeclStmt();
   Stmt *parseExprStmt();
   Expr *parseExpr();

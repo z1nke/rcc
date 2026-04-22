@@ -314,15 +314,26 @@ std::vector<FieldDecl *> Parser::parseFields() {
   return Fields;
 }
 
-// stmt: return-stmt
+// stmt: label-stmt
 //     | compound-stmt
-//     | if-stmt
-//     | for-stmt
-//     | while-stmt
+//     | expr-stmt
+//     | selection-stmt
+//     | iteration-stmt
+//     | jump-stmt
 //     | null-stmt
 //     | decl-stmt
-//     | expr-stmt
+// selection-stmt: if-stmt
+// iteration-stmt: for-stmt
+//               | while-stmt
+// jump-stmt: goto-stmt
+//          | return-stmt
 Stmt *Parser::parseStmt() {
+  if (CurTok->is(Token::TK_Ident)) {
+    Token *Next = CurTok->getNext();
+    if (Next && Next->is(Token::TK_Colon))
+      return parseLabelStmt();
+  }
+
   if (isTypeName(CurTok))
     return parseDeclStmt();
 
@@ -339,6 +350,8 @@ Stmt *Parser::parseStmt() {
     return parseForStmt();
   case Token::TK_While:
     return parseWhileStmt();
+  case Token::TK_Goto:
+    return parseGotoStmt();
   default:
     break;
   }
@@ -434,6 +447,31 @@ Stmt *Parser::parseWhileStmt() {
   Stmt *Body = parseStmt();
   exitScope();
   return S.actOnWhileStmt(Ctx, BegLoc, Cond, Body);
+}
+
+// goto-stmt: 'goto' ident ';'
+Stmt *Parser::parseGotoStmt() {
+  assert(CurTok->is(Token::TK_Goto));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
+  if (CurTok->isNot(Token::TK_Ident))
+    Diag.fatalAt(SM.createBeginLocation(CurTok), "expected label name");
+  std::string_view LabelName = CurTok->getIdentifer();
+  skip();
+  auto EndLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Semicolon);
+  return S.actOnGotoStmt(BegLoc, EndLoc, LabelName);
+}
+
+// label-stmt: ident ':' stmt
+Stmt *Parser::parseLabelStmt() {
+  assert(CurTok->is(Token::TK_Ident));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  std::string_view LabelName = CurTok->getIdentifer();
+  skip();
+  skip(Token::TK_Colon);
+  Stmt *SubStmt = parseStmt();
+  return S.actOnLabelStmt(BegLoc, SubStmt->getEndLoc(), LabelName, SubStmt);
 }
 
 // decl-stmt: declspecs init-declarator-list? ';'

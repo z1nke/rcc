@@ -5,7 +5,9 @@
 #include "Basic/SourceLocation.h"
 #include "Sema/Scope.h"
 
+#include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace rcc {
@@ -25,6 +27,7 @@ class EnumConstantDecl;
 class EnumDecl;
 class FieldDecl;
 class DeclSpec;
+class LabelDecl;
 
 class Sema {
 public:
@@ -72,6 +75,10 @@ public:
                      Stmt *Body);
   Stmt *actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                        Stmt *Body);
+  Stmt *actOnGotoStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                      std::string_view LabelName);
+  Stmt *actOnLabelStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                       std::string_view LabelName, Stmt *SubStmt);
   Expr *actOnCharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
                               QualType T, unsigned Val);
   Expr *actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -165,6 +172,7 @@ private:
   std::vector<VarDecl *> LocalVars;
   std::vector<ParamVarDecl *> Params;
   std::vector<FunctionDecl *> Funcs;
+  std::unordered_map<std::string, LabelDecl *> Labels;
 };
 
 } // namespace rcc

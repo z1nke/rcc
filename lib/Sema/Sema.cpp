@@ -255,8 +255,16 @@ void Sema::complete(FunctionDecl *FD) {
   QualType NewFT = Ctx.getFunctionType(RetType, std::move(ParamTypes));
   FD->setType(NewFT);
 
-  if (!FD->getBody())
+  if (!FD->getBody()) {
+    Labels.clear();
     return;
+  }
+
+  for (const auto &[Name, Label] : Labels) {
+    if (!Label->getStmt())
+      Diag.fatalAt(FD->getBeginLoc(), "use of undeclared label '{}'", Name);
+  }
+  Labels.clear();
 
   std::vector<VarDecl *> Vars;
   std::swap(Vars, LocalVars);
@@ -379,6 +387,40 @@ Stmt *Sema::actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
   checkScalarType(Cond);
   auto EndLoc = Body->getEndLoc();
   return WhileStmt::create(Ctx, BegLoc, EndLoc, Cond, Body);
+}
+
+Stmt *Sema::actOnGotoStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                          std::string_view LabelName) {
+  auto Iter = Labels.find(std::string(LabelName));
+  LabelDecl *Label = nullptr;
+  if (Iter != Labels.end()) {
+    Label = Iter->second;
+  } else {
+    Label =
+        LabelDecl::create(Ctx, BegLoc, BegLoc, EndLoc, std::string(LabelName));
+    Labels.emplace(Label->getName(), Label);
+  }
+  return GotoStmt::create(Ctx, BegLoc, EndLoc, Label);
+}
+
+Stmt *Sema::actOnLabelStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                           std::string_view LabelName, Stmt *SubStmt) {
+  auto Iter = Labels.find(std::string(LabelName));
+  LabelDecl *Label = nullptr;
+  if (Iter != Labels.end()) {
+    Label = Iter->second;
+    if (Label->getStmt())
+      Diag.fatalAt(BegLoc, "duplicate label '{}'", LabelName);
+    Label->setBeginLoc(BegLoc);
+    Label->setEndLoc(EndLoc);
+  } else {
+    Label =
+        LabelDecl::create(Ctx, BegLoc, BegLoc, EndLoc, std::string(LabelName));
+    Labels.emplace(Label->getName(), Label);
+  }
+  auto *LS = LabelStmt::create(Ctx, BegLoc, EndLoc, Label, SubStmt);
+  Label->setStmt(LS);
+  return LS;
 }
 
 Expr *Sema::actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
