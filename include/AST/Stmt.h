@@ -120,8 +120,8 @@ public:
   using EvalResult =
       std::variant<std::int64_t, std::uint64_t, double, char, bool>;
   std::optional<EvalResult> evaluate() const;
-  std::optional<EvalResult> evaluateAsInt() const;
-  std::optional<EvalResult> evaluateAsBool() const;
+  std::optional<std::int64_t> evaluateAsInt() const;
+  std::optional<bool> evaluateAsBool() const;
 
 protected:
   Expr(StmtKind Kind, SourceLocation BegLoc, SourceLocation EndLoc, QualType T)

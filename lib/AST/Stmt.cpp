@@ -144,7 +144,8 @@ ContinueStmt *ContinueStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) ContinueStmt(BegLoc, EndLoc);
 }
 
-GotoStmt::GotoStmt(SourceLocation BegLoc, SourceLocation EndLoc, LabelDecl *Label)
+GotoStmt::GotoStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                   LabelDecl *Label)
     : Stmt(SK_GotoStmt, BegLoc, EndLoc), Label(Label) {}
 
 GotoStmt *GotoStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
@@ -278,7 +279,7 @@ Expr *Expr::ignoreParenCasts() {
 
 static std::optional<Expr::EvalResult>
 evaluateUnaryOperator(const UnaryOperator *UO) {
-  auto SubVal = UO->getSubExpr()->evaluate();
+  auto SubVal = UO->getSubExpr()->evaluateAsInt();
   if (!SubVal)
     return std::nullopt;
 
@@ -286,11 +287,11 @@ evaluateUnaryOperator(const UnaryOperator *UO) {
   case UnaryOperator::UO_Plus:
     return SubVal;
   case UnaryOperator::UO_Minus:
-    return std::visit([](auto &&Arg) { return Expr::EvalResult(-Arg); },
-                      *SubVal);
+    return Expr::EvalResult(-(*SubVal));
   case UnaryOperator::UO_LNot:
-    return std::visit([](auto &&Arg) { return Expr::EvalResult(!Arg); },
-                      *SubVal);
+    return Expr::EvalResult(!(*SubVal));
+  case UnaryOperator::UO_Not:
+    return Expr::EvalResult(~(*SubVal));
   default:
     return std::nullopt;
   }
@@ -303,12 +304,93 @@ evaluateUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
 
 static std::optional<Expr::EvalResult>
 evaluateBinaryOperator(const BinaryOperator *BO) {
-  // TODO
-  return std::nullopt;
+  auto LHSVal = BO->getLHS()->evaluateAsInt();
+  auto RHSVal = BO->getRHS()->evaluateAsInt();
+  if (!LHSVal || !RHSVal)
+    return std::nullopt;
+
+  auto AsU64 = [](std::int64_t Val) -> std::uint64_t {
+    return static_cast<std::uint64_t>(Val);
+  };
+
+  const QualType LHSTy = BO->getLHS()->getType();
+  const QualType RHSTy = BO->getRHS()->getType();
+  switch (BO->getOpcode()) {
+  case BinaryOperator::BO_Add: {
+    if (LHSTy->isPointerType() && RHSTy->isIntegerType()) {
+      std::int64_t ElemSize = LHSTy->getPointeeType()->getSize();
+      if (ElemSize == 0)
+        return std::nullopt;
+      return Expr::EvalResult(AsU64(*LHSVal) + (*RHSVal) * ElemSize);
+    }
+    if (LHSTy->isIntegerType() && RHSTy->isPointerType()) {
+      std::int64_t ElemSize = RHSTy->getPointeeType()->getSize();
+      if (ElemSize == 0)
+        return std::nullopt;
+      return Expr::EvalResult(AsU64(*RHSVal) + (*LHSVal) * ElemSize);
+    }
+    if (LHSTy.isIntegerType() && RHSTy.isIntegerType())
+      return Expr::EvalResult((*LHSVal) + (*RHSVal));
+    return std::nullopt;
+  }
+  case BinaryOperator::BO_Sub: {
+    if (LHSTy->isPointerType() && RHSTy->isIntegerType()) {
+      std::int64_t ElemSize = LHSTy->getPointeeType()->getSize();
+      if (ElemSize == 0)
+        return std::nullopt;
+      return Expr::EvalResult(AsU64(*LHSVal) - (*RHSVal) * ElemSize);
+    }
+    if (LHSTy->isPointerType() && RHSTy->isPointerType()) {
+      std::int64_t ElemSize = LHSTy->getPointeeType()->getSize();
+      if (ElemSize == 0)
+        return std::nullopt;
+      return Expr::EvalResult(((*LHSVal) - (*RHSVal)) / ElemSize);
+    }
+    if (LHSTy.isIntegerType() && RHSTy.isIntegerType())
+      return Expr::EvalResult((*LHSVal) - (*RHSVal));
+    return std::nullopt;
+  }
+  case BinaryOperator::BO_Mul:
+    return Expr::EvalResult((*LHSVal) * (*RHSVal));
+  case BinaryOperator::BO_Div:
+    return Expr::EvalResult((*LHSVal) / (*RHSVal));
+  case BinaryOperator::BO_Rem:
+    return Expr::EvalResult((*LHSVal) % (*RHSVal));
+  case BinaryOperator::BO_And:
+    return Expr::EvalResult((*LHSVal) & (*RHSVal));
+  case BinaryOperator::BO_Or:
+    return Expr::EvalResult((*LHSVal) | (*RHSVal));
+  case BinaryOperator::BO_Xor:
+    return Expr::EvalResult((*LHSVal) ^ (*RHSVal));
+  case BinaryOperator::BO_Shl:
+    return Expr::EvalResult((*LHSVal) << (*RHSVal));
+  case BinaryOperator::BO_Shr:
+    return Expr::EvalResult((*LHSVal) >> (*RHSVal));
+  case BinaryOperator::BO_EQ:
+    return Expr::EvalResult((*LHSVal) == (*RHSVal));
+  case BinaryOperator::BO_NE:
+    return Expr::EvalResult((*LHSVal) != (*RHSVal));
+  case BinaryOperator::BO_LT:
+    return Expr::EvalResult((*LHSVal) < (*RHSVal));
+  case BinaryOperator::BO_GT:
+    return Expr::EvalResult((*LHSVal) > (*RHSVal));
+  case BinaryOperator::BO_LE:
+    return Expr::EvalResult((*LHSVal) <= (*RHSVal));
+  case BinaryOperator::BO_GE:
+    return Expr::EvalResult((*LHSVal) >= (*RHSVal));
+  case BinaryOperator::BO_LAnd:
+    return Expr::EvalResult((*LHSVal) && (*RHSVal));
+  case BinaryOperator::BO_LOr:
+    return Expr::EvalResult((*LHSVal) || (*RHSVal));
+  case BinaryOperator::BO_Comma:
+    return RHSVal;
+  default:
+    return std::nullopt;
+  }
 }
 
 static std::optional<Expr::EvalResult> evaluateCastExpr(const CastExpr *Cast) {
-  auto SubVal = Cast->getSubExpr()->evaluate();
+  auto SubVal = Cast->getSubExpr()->evaluateAsInt();
   if (!SubVal)
     return std::nullopt;
 
@@ -317,10 +399,38 @@ static std::optional<Expr::EvalResult> evaluateCastExpr(const CastExpr *Cast) {
     return SubVal;
   case CastExpr::CK_ToVoid:
     return std::nullopt;
+  case CastExpr::CK_BitCast:
+    return SubVal;
   case CastExpr::CK_IntegralCast: {
-    // TODO
-    return std::nullopt;
+    const QualType ToTy = Cast->getType();
+    if (!ToTy->isIntegerType())
+      return std::nullopt;
+
+    std::uint64_t UVal = static_cast<std::uint64_t>(*SubVal);
+    std::size_t Width = ToTy->getSize() * 8;
+    if (Width == 0)
+      return std::nullopt;
+    if (Width < 64)
+      UVal &= ((1ULL << Width) - 1);
+
+    if (ToTy->isBooleanType())
+      return Expr::EvalResult(static_cast<bool>(UVal));
+    if (ToTy->isSignedIntegerType()) {
+      std::int64_t SVal = static_cast<std::int64_t>(UVal);
+      if (Width < 64) {
+        std::uint64_t SignBit = 1ULL << (Width - 1);
+        if (UVal & SignBit)
+          SVal |= static_cast<std::int64_t>(~((1ULL << Width) - 1));
+      }
+      return Expr::EvalResult(SVal);
+    }
+    return Expr::EvalResult(UVal);
   }
+  case CastExpr::CK_PointerToIntegral:
+    return Expr::EvalResult(static_cast<std::uint64_t>(*SubVal));
+  case CastExpr::CK_IntegralToPointer:
+    return Expr::EvalResult(static_cast<std::uint64_t>(*SubVal));
+  case CastExpr::CK_FuncToPointerDecay:
   case CastExpr::CK_ArrayToPointerDecay:
     return std::nullopt;
   default:
@@ -330,7 +440,7 @@ static std::optional<Expr::EvalResult> evaluateCastExpr(const CastExpr *Cast) {
 
 std::optional<Expr::EvalResult> Expr::evaluate() const {
   QualType T = getType();
-  if (T.isNull() || !T->isArithmeticType())
+  if (T.isNull() || (!T->isArithmeticType() && !T->isPointerType()))
     return std::nullopt;
 
   switch (getKind()) {
@@ -341,8 +451,15 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
         cast<UnaryExprOrTypeTraitExpr>(this));
   case Stmt::SK_BinaryOperator:
     return evaluateBinaryOperator(cast<BinaryOperator>(this));
-  case Stmt::SK_ConditionalOperator:
-    return std::nullopt;
+  case Stmt::SK_ConditionalOperator: {
+    const auto *CO = cast<ConditionalOperator>(this);
+    auto CondVal = CO->getCond()->evaluateAsBool();
+    if (!CondVal)
+      return std::nullopt;
+    if (*CondVal)
+      return CO->getTrueExpr()->evaluate();
+    return CO->getFalseExpr()->evaluate();
+  }
   case Stmt::SK_IntegerLiteral: {
     const auto *IL = cast<IntegerLiteral>(this);
     if (T->isSignedIntegerType())
@@ -357,7 +474,7 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
     // TODO
     return std::nullopt;
   case Stmt::SK_ParenExpr:
-    return cast<ParenExpr>(this)->evaluate();
+    return cast<ParenExpr>(this)->getSubExpr()->evaluate();
   case Stmt::SK_DeclRefExpr:
   case Stmt::SK_ArraySubscriptExpr:
   case Stmt::SK_CallExpr:
@@ -372,17 +489,13 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
   }
 }
 
-std::optional<Expr::EvalResult> Expr::evaluateAsInt() const {
-  QualType QT = getType();
-  if (QT.isNull() || !QT.isIntegerType())
-    return std::nullopt;
-
+std::optional<std::int64_t> Expr::evaluateAsInt() const {
   auto Val = evaluate();
   if (!Val)
     return std::nullopt;
 
   return std::visit(
-      [](auto &&V) -> std::optional<Expr::EvalResult> {
+      [](auto &&V) -> std::optional<std::int64_t> {
         using T = std::decay_t<decltype(V)>;
         if constexpr (std::is_integral_v<T>)
           return V;
@@ -391,19 +504,16 @@ std::optional<Expr::EvalResult> Expr::evaluateAsInt() const {
       *Val);
 }
 
-std::optional<Expr::EvalResult> Expr::evaluateAsBool() const {
+std::optional<bool> Expr::evaluateAsBool() const {
   QualType QT = getType();
-  if (QT.isNull() || !QT->isBooleanType())
+  if (QT.isNull() || (!QT->isBooleanType() && !QT->isIntegerType() &&
+                      !QT->isPointerType()))
     return std::nullopt;
 
-  auto Val = evaluate();
-  if (!Val)
+  auto IntVal = evaluateAsInt();
+  if (!IntVal)
     return std::nullopt;
-
-  if (auto *Ptr = std::get_if<bool>(&*Val))
-    return *Ptr;
-
-  return std::nullopt;
+  return *IntVal != 0;
 }
 
 BinaryOperator::BinaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -522,14 +632,12 @@ ConditionalOperator::ConditionalOperator(SourceLocation BegLoc,
     : Expr(SK_ConditionalOperator, BegLoc, EndLoc, T), Cond(Cond),
       TrueExpr(TrueExpr), FalseExpr(FalseExpr) {}
 
-ConditionalOperator *ConditionalOperator::create(ASTContext &Ctx,
-                                                 SourceLocation BegLoc,
-                                                 SourceLocation EndLoc,
-                                                 QualType T, Expr *Cond,
-                                                 Expr *TrueExpr,
-                                                 Expr *FalseExpr) {
-  void *Mem = Ctx.allocate(sizeof(ConditionalOperator),
-                           alignof(ConditionalOperator));
+ConditionalOperator *
+ConditionalOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
+                            SourceLocation EndLoc, QualType T, Expr *Cond,
+                            Expr *TrueExpr, Expr *FalseExpr) {
+  void *Mem =
+      Ctx.allocate(sizeof(ConditionalOperator), alignof(ConditionalOperator));
   return new (Mem)
       ConditionalOperator(BegLoc, EndLoc, T, Cond, TrueExpr, FalseExpr);
 }

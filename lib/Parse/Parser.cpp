@@ -242,7 +242,7 @@ EnumConstantDecl *Parser::parseEnumerator(QualType ET, int &Val) {
       Diag.fatalAt(Init->getBeginLoc(),
                    "enumerator initializer must be constant expression");
 
-    std::visit([&Val](auto &&V) { Val = static_cast<int>(V); }, *InitVal);
+    Val = static_cast<int>(*InitVal);
   }
 
   auto *ECD = S.actOnEnumConstantDecl(BegLoc, BegLoc, EndLoc, ET,

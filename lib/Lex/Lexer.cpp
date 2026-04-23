@@ -226,7 +226,6 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
       P += 2;
       Base = 2;
     } else {
-      ++P;
       Base = 8;
     }
   }

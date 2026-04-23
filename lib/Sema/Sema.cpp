@@ -411,9 +411,7 @@ Stmt *Sema::actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt) {
   if (!Val)
     Diag.fatalAt(BegLoc, "case label does not reduce to an integer constant");
 
-  std::int64_t CaseValue = 0;
-  std::visit([&CaseValue](auto &&V) { CaseValue = static_cast<std::int64_t>(V); },
-             *Val);
+  std::int64_t CaseValue = *Val;
 
   SwitchInfo &SI = SwitchStack.back();
   for (const auto *SC = SI.FirstCase; SC; SC = SC->getNextSwitchCase()) {
@@ -1405,13 +1403,16 @@ QualType Sema::tryDecayArrayType(QualType T) const {
 }
 
 std::size_t Sema::getArrayLength(const Expr *E) const {
-  if (const auto *IL = dynCast<IntegerLiteral>(E)) {
-    std::int64_t Val = IL->getVal();
-    if (Val <= 0)
-      Diag.fatalAt(IL->getBeginLoc(), "array size must be positive");
-    return static_cast<std::size_t>(Val);
-  }
-  return 0;
+  auto Val = E->evaluateAsInt();
+  if (!Val)
+    Diag.fatalAt(E->getBeginLoc(),
+                 "array size must be an integer constant expression");
+
+  std::int64_t ArrayLen = *Val;
+  if (ArrayLen <= 0)
+    Diag.fatalAt(E->getBeginLoc(), "array size must be positive");
+
+  return static_cast<std::size_t>(ArrayLen);
 }
 
 } // namespace rcc
