@@ -571,6 +571,12 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
   case BinaryOperator::BO_Xor:
     emit("  xor a0, a0, a1");
     return;
+  case BinaryOperator::BO_Shl:
+    emit("  sll a0, a0, a1");
+    return;
+  case BinaryOperator::BO_Shr:
+    emit("  sra a0, a0, a1");
+    return;
   default:
     RCC_UNREACHABLE("emitBinaryArithmeticResult: invalid opcode");
   }
@@ -664,6 +670,8 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_And:
   case BinaryOperator::BO_Or:
   case BinaryOperator::BO_Xor:
+  case BinaryOperator::BO_Shl:
+  case BinaryOperator::BO_Shr:
     emitBinaryArithmeticResult(Op, LType, RType, Suffix);
     return;
   case BinaryOperator::BO_EQ:

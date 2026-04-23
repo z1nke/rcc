@@ -803,6 +803,10 @@ static std::optional<BinaryOperator::Opcode> getAssignOpcode(const Token &Tok) {
     return BinaryOperator::BO_OrAssign;
   case Token::TK_CaretEqual:
     return BinaryOperator::BO_XorAssign;
+  case Token::TK_LessLessEqual:
+    return BinaryOperator::BO_ShlAssign;
+  case Token::TK_GreaterGreaterEqual:
+    return BinaryOperator::BO_ShrAssign;
   default:
     return std::nullopt;
   }
@@ -810,6 +814,7 @@ static std::optional<BinaryOperator::Opcode> getAssignOpcode(const Token &Tok) {
 
 // assign-expr: inclusive-or-expr { assign-op assign-expr }
 // assign-op: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^='
+//          | '<<=' | '>>='
 // TODO: assign-expr: conditional-expr
 //                  | unary-expr assign-op assign-expr
 Expr *Parser::parseAssign() {
@@ -869,11 +874,17 @@ Expr *Parser::parseBitwiseAndExpr() {
   return parseBinaryExpr<&Parser::parseEqualityExpr, Token::TK_Amp>();
 }
 
-// relational-expr: add-expr { ('<' | '<=' | '>' | '>=') add-expr }
+// relational-expr: shift-expr { ('<' | '<=' | '>' | '>=') shift-expr }
 Expr *Parser::parseRelationalExpr() {
-  return parseBinaryExpr<&Parser::parseAddExpr, Token::TK_Less,
+  return parseBinaryExpr<&Parser::parseShiftExpr, Token::TK_Less,
                          Token::TK_LessEqual, Token::TK_Greater,
                          Token::TK_GreaterEqual>();
+}
+
+// shift-expr: add-expr { ('<<' | '>>') add-expr }
+Expr *Parser::parseShiftExpr() {
+  return parseBinaryExpr<&Parser::parseAddExpr, Token::TK_LessLess,
+                         Token::TK_GreaterGreater>();
 }
 
 // add-expr: mul-expr { ('+' | '-') mul-expr }
@@ -1195,6 +1206,10 @@ static BinaryOperator::Opcode getBinaryOpcode(Token::TokenKind Kind) {
     return BinaryOperator::BO_Or;
   case Token::TK_Caret:
     return BinaryOperator::BO_Xor;
+  case Token::TK_LessLess:
+    return BinaryOperator::BO_Shl;
+  case Token::TK_GreaterGreater:
+    return BinaryOperator::BO_Shr;
   case Token::TK_AmpAmp:
     return BinaryOperator::BO_LAnd;
   case Token::TK_PipePipe:

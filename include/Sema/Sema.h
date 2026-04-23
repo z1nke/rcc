@@ -153,6 +153,8 @@ private:
                            bool IsCompAssign = false) const;
   QualType getBitwiseOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
                             bool IsCompAssign = false) const;
+  QualType getShiftOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                          bool IsCompAssign = false) const;
   QualType getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
                                    unsigned Op) const;
 

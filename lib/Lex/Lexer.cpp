@@ -129,13 +129,21 @@ Token *Lexer::tokenize(const char *P) {
       lexPunctuator(Curr, Token::TK_Tilde, P);
       break;
     case '<':
-      if (*(P + 1) == '=')
+      if (*(P + 1) == '<' && *(P + 2) == '=')
+        lexPunctuator(Curr, Token::TK_LessLessEqual, P, 3);
+      else if (*(P + 1) == '<')
+        lexPunctuator(Curr, Token::TK_LessLess, P, 2);
+      else if (*(P + 1) == '=')
         lexPunctuator(Curr, Token::TK_LessEqual, P, 2);
       else
         lexPunctuator(Curr, Token::TK_Less, P);
       break;
     case '>':
-      if (*(P + 1) == '=')
+      if (*(P + 1) == '>' && *(P + 2) == '=')
+        lexPunctuator(Curr, Token::TK_GreaterGreaterEqual, P, 3);
+      else if (*(P + 1) == '>')
+        lexPunctuator(Curr, Token::TK_GreaterGreater, P, 2);
+      else if (*(P + 1) == '=')
         lexPunctuator(Curr, Token::TK_GreaterEqual, P, 2);
       else
         lexPunctuator(Curr, Token::TK_Greater, P);

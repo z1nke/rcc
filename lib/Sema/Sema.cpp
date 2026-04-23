@@ -933,6 +933,10 @@ QualType Sema::getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_XorAssign:
     (void)getBitwiseOpType(OpLoc, LHS, RHS, true);
     break;
+  case BinaryOperator::BO_ShlAssign:
+  case BinaryOperator::BO_ShrAssign:
+    (void)getShiftOpType(OpLoc, LHS, RHS, true);
+    break;
   default:
     Diag.fatalAt(OpLoc, "unknown compound assignment opcode");
   }
@@ -976,6 +980,9 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_Or:
   case BinaryOperator::BO_Xor:
     return getBitwiseOpType(OpLoc, LHS, RHS);
+  case BinaryOperator::BO_Shl:
+  case BinaryOperator::BO_Shr:
+    return getShiftOpType(OpLoc, LHS, RHS);
   case BinaryOperator::BO_LAnd:
   case BinaryOperator::BO_LOr:
     LHS = usualUnaryConv(LHS);
@@ -991,6 +998,8 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_AndAssign:
   case BinaryOperator::BO_OrAssign:
   case BinaryOperator::BO_XorAssign:
+  case BinaryOperator::BO_ShlAssign:
+  case BinaryOperator::BO_ShrAssign:
     return getCompoundAssignOpType(OpLoc, LHS, RHS, Op);
   case BinaryOperator::BO_EQ:
   case BinaryOperator::BO_NE:
@@ -1099,6 +1108,19 @@ QualType Sema::getBitwiseOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
   checkIntType(RHS);
   auto ACK = IsCompAssign ? ACK_CompAssign : ACK_BitwiseOp;
   return usualArithConv(LHS, RHS, ACK);
+}
+
+QualType Sema::getShiftOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
+                              bool IsCompAssign) const {
+  if (!IsCompAssign)
+    LHS = usualUnaryConv(LHS);
+  RHS = usualUnaryConv(RHS);
+
+  checkIntType(LHS);
+  checkIntType(RHS);
+
+  (void)OpLoc;
+  return LHS->getType();
 }
 
 static bool isModifiableLvalue(const Expr *E) {

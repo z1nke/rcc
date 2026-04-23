@@ -84,6 +84,7 @@ private:
   Expr *parseEqualityExpr();
   Expr *parseConstantExpr();
   Expr *parseRelationalExpr();
+  Expr *parseShiftExpr();
   Expr *parseAddExpr();
   Expr *parseMulExpr();
   Expr *parseCastExpr();

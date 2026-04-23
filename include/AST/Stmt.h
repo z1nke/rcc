@@ -429,6 +429,8 @@ public:
     BO_AndAssign,
     BO_OrAssign,
     BO_XorAssign,
+    BO_ShlAssign,
+    BO_ShrAssign,
     BO_Add,
     BO_Sub,
     BO_Mul,
@@ -437,6 +439,8 @@ public:
     BO_And,
     BO_Or,
     BO_Xor,
+    BO_Shl,
+    BO_Shr,
     BO_LAnd,
     BO_LOr,
     BO_EQ,
@@ -463,7 +467,7 @@ public:
   Expr *getLHS() const { return LHS; }
   Expr *getRHS() const { return RHS; }
   bool isCompoundAssign() const {
-    return Kind >= BO_AddAssign && Kind <= BO_XorAssign;
+    return Kind >= BO_AddAssign && Kind <= BO_ShrAssign;
   }
   Opcode getOpForCompoundAssign() const;
 
