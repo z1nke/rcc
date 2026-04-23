@@ -223,6 +223,87 @@ private:
   Stmt *Body;
 };
 
+class CaseStmt;
+class DefaultStmt;
+class SwitchCaseStmt;
+
+class SwitchStmt final : public Stmt {
+public:
+  static SwitchStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                            SourceLocation EndLoc, Expr *Cond, Stmt *Body,
+                            SwitchCaseStmt *FirstCase);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_SwitchStmt; }
+
+  Expr *getCond() const { return Cond; }
+  Stmt *getBody() const { return Body; }
+  SwitchCaseStmt *getSwitchCaseList() const { return FirstCase; }
+
+private:
+  SwitchStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
+             Stmt *Body, SwitchCaseStmt *FirstCase);
+
+private:
+  Expr *Cond;
+  Stmt *Body;
+  SwitchCaseStmt *FirstCase;
+};
+
+class SwitchCaseStmt : public Stmt {
+public:
+  Stmt *getSubStmt() const { return SubStmt; }
+  unsigned getLabelId() const { return LabelId; }
+  SwitchCaseStmt *getNextSwitchCase() const { return NextSwitchCase; }
+  void setNextSwitchCase(SwitchCaseStmt *Next) { NextSwitchCase = Next; }
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_CaseStmt || S->getKind() == SK_DefaultStmt;
+  }
+
+protected:
+  SwitchCaseStmt(StmtKind Kind, SourceLocation BegLoc, SourceLocation EndLoc,
+                 Stmt *SubStmt, unsigned LabelId)
+      : Stmt(Kind, BegLoc, EndLoc), SubStmt(SubStmt), LabelId(LabelId) {}
+
+private:
+  Stmt *SubStmt;
+  unsigned LabelId;
+  SwitchCaseStmt *NextSwitchCase = nullptr;
+};
+
+class CaseStmt final : public SwitchCaseStmt {
+public:
+  static CaseStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                          SourceLocation EndLoc, Expr *LHS, Stmt *SubStmt,
+                          std::int64_t CaseValue, unsigned LabelId);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_CaseStmt; }
+
+  Expr *getLHS() const { return LHS; }
+  std::int64_t getCaseValue() const { return CaseValue; }
+
+private:
+  CaseStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *LHS,
+           Stmt *SubStmt, std::int64_t CaseValue, unsigned LabelId);
+
+private:
+  Expr *LHS;
+  std::int64_t CaseValue;
+};
+
+class DefaultStmt final : public SwitchCaseStmt {
+public:
+  static DefaultStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                             SourceLocation EndLoc, Stmt *SubStmt,
+                             unsigned LabelId);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_DefaultStmt; }
+
+private:
+  DefaultStmt(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *SubStmt,
+              unsigned LabelId);
+};
+
 class BreakStmt final : public Stmt {
 public:
   static BreakStmt *create(ASTContext &Ctx, SourceLocation BegLoc,

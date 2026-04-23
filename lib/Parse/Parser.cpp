@@ -216,7 +216,7 @@ std::vector<EnumConstantDecl *> Parser::parseEnumeratorList(QualType ET) {
 }
 
 // enumerator: enumeration-constant
-//           | enumeration-constant '=' constant-expression
+//           | enumeration-constant '=' constant-expr
 // enumeration-constant: identifier
 EnumConstantDecl *Parser::parseEnumerator(QualType ET, int &Val) {
   auto BegLoc = SM.createBeginLocation(CurTok);
@@ -314,7 +314,7 @@ std::vector<FieldDecl *> Parser::parseFields() {
   return Fields;
 }
 
-// stmt: label-stmt
+// stmt: labeled-stmt
 //     | compound-stmt
 //     | expr-stmt
 //     | selection-stmt
@@ -322,7 +322,11 @@ std::vector<FieldDecl *> Parser::parseFields() {
 //     | jump-stmt
 //     | null-stmt
 //     | decl-stmt
+// labeled-stmt: ident ':' stmt
+//             | 'case' constant-expr ':' stmt
+//             | 'default' ':' stmt
 // selection-stmt: if-stmt
+//               | switch-stmt
 // iteration-stmt: for-stmt
 //               | while-stmt
 // jump-stmt: goto-stmt
@@ -348,6 +352,12 @@ Stmt *Parser::parseStmt() {
     return parseCompoundStmt();
   case Token::TK_If:
     return parseIfStmt();
+  case Token::TK_Switch:
+    return parseSwitchStmt();
+  case Token::TK_Case:
+    return parseCaseStmt();
+  case Token::TK_Default:
+    return parseDefaultStmt();
   case Token::TK_For:
     return parseForStmt();
   case Token::TK_While:
@@ -363,6 +373,42 @@ Stmt *Parser::parseStmt() {
   }
 
   return parseExprStmt();
+}
+
+// switch-stmt: 'switch' '(' expr ')' stmt
+Stmt *Parser::parseSwitchStmt() {
+  assert(CurTok->is(Token::TK_Switch));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
+  skip(Token::TK_LParen);
+  Expr *Cond = parseExpr();
+  skip(Token::TK_RParen);
+  enterScope(Scope::BreakScope | Scope::ControlScope | Scope::SwitchScope);
+  S.actOnSwitchStmtStart();
+  Stmt *Body = parseStmt();
+  exitScope();
+  return S.actOnSwitchStmt(BegLoc, Cond, Body);
+}
+
+// case-stmt: 'case' constant-expr ':' stmt
+Stmt *Parser::parseCaseStmt() {
+  assert(CurTok->is(Token::TK_Case));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
+  Expr *LHS = parseConstantExpr();
+  skip(Token::TK_Colon);
+  Stmt *SubStmt = parseStmt();
+  return S.actOnCaseStmt(BegLoc, LHS, SubStmt);
+}
+
+// default-stmt: 'default' ':' stmt
+Stmt *Parser::parseDefaultStmt() {
+  assert(CurTok->is(Token::TK_Default));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
+  skip(Token::TK_Colon);
+  Stmt *SubStmt = parseStmt();
+  return S.actOnDefaultStmt(BegLoc, SubStmt);
 }
 
 // null-stmt: ';'

@@ -28,6 +28,9 @@ class EnumDecl;
 class FieldDecl;
 class DeclSpec;
 class LabelDecl;
+class CaseStmt;
+class DefaultStmt;
+class SwitchCaseStmt;
 
 class Sema {
 public:
@@ -75,6 +78,10 @@ public:
                      Stmt *Body);
   Stmt *actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                        Stmt *Body);
+  void actOnSwitchStmtStart();
+  Stmt *actOnSwitchStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Body);
+  Stmt *actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt);
+  Stmt *actOnDefaultStmt(SourceLocation BegLoc, Stmt *SubStmt);
   Stmt *actOnBreakStmt(SourceLocation BegLoc, SourceLocation EndLoc);
   Stmt *actOnContinueStmt(SourceLocation BegLoc, SourceLocation EndLoc);
   Stmt *actOnGotoStmt(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -175,6 +182,13 @@ private:
   std::vector<ParamVarDecl *> Params;
   std::vector<FunctionDecl *> Funcs;
   std::unordered_map<std::string, LabelDecl *> Labels;
+
+  struct SwitchInfo {
+    SwitchCaseStmt *FirstCase = nullptr;
+    bool HasDefault = false;
+    unsigned NextLabelId = 0;
+  };
+  std::vector<SwitchInfo> SwitchStack;
 };
 
 } // namespace rcc

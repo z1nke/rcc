@@ -389,6 +389,65 @@ Stmt *Sema::actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
   return WhileStmt::create(Ctx, BegLoc, EndLoc, Cond, Body);
 }
 
+void Sema::actOnSwitchStmtStart() { SwitchStack.push_back({}); }
+
+Stmt *Sema::actOnSwitchStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Body) {
+  if (SwitchStack.empty())
+    Diag.fatalAt(BegLoc, "internal error: missing switch context");
+
+  checkIntType(Cond);
+  SwitchInfo SI = std::move(SwitchStack.back());
+  SwitchStack.pop_back();
+  auto EndLoc = Body->getEndLoc();
+  return SwitchStmt::create(Ctx, BegLoc, EndLoc, Cond, Body, SI.FirstCase);
+}
+
+Stmt *Sema::actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt) {
+  if (SwitchStack.empty())
+    Diag.fatalAt(BegLoc, "'case' statement not in switch statement");
+
+  checkIntType(LHS);
+  auto Val = LHS->evaluateAsInt();
+  if (!Val)
+    Diag.fatalAt(BegLoc, "case label does not reduce to an integer constant");
+
+  std::int64_t CaseValue = 0;
+  std::visit([&CaseValue](auto &&V) { CaseValue = static_cast<std::int64_t>(V); },
+             *Val);
+
+  SwitchInfo &SI = SwitchStack.back();
+  for (const auto *SC = SI.FirstCase; SC; SC = SC->getNextSwitchCase()) {
+    const auto *CS = dynCast<CaseStmt>(SC);
+    if (CS && CS->getCaseValue() == CaseValue)
+      Diag.fatalAt(BegLoc, "duplicate case value");
+  }
+
+  auto EndLoc = SubStmt->getEndLoc();
+  auto LabelId = SI.NextLabelId++;
+  auto *CS = CaseStmt::create(Ctx, BegLoc, EndLoc, LHS, SubStmt, CaseValue,
+                              LabelId);
+  CS->setNextSwitchCase(SI.FirstCase);
+  SI.FirstCase = CS;
+  return CS;
+}
+
+Stmt *Sema::actOnDefaultStmt(SourceLocation BegLoc, Stmt *SubStmt) {
+  if (SwitchStack.empty())
+    Diag.fatalAt(BegLoc, "'default' statement not in switch statement");
+
+  SwitchInfo &SI = SwitchStack.back();
+  if (SI.HasDefault)
+    Diag.fatalAt(BegLoc, "multiple default labels in one switch");
+
+  auto EndLoc = SubStmt->getEndLoc();
+  auto LabelId = SI.NextLabelId++;
+  auto *DS = DefaultStmt::create(Ctx, BegLoc, EndLoc, SubStmt, LabelId);
+  DS->setNextSwitchCase(SI.FirstCase);
+  SI.FirstCase = DS;
+  SI.HasDefault = true;
+  return DS;
+}
+
 Stmt *Sema::actOnBreakStmt(SourceLocation BegLoc, SourceLocation EndLoc) {
   Scope *S = CurrScope;
   while (S && !(S->getFlags() & Scope::BreakScope))

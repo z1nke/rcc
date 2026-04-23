@@ -183,6 +183,15 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     genWhileStmt(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_SwitchStmt:
+    genSwitchStmt(cast<SwitchStmt>(S));
+    break;
+  case Stmt::SK_CaseStmt:
+    genCaseStmt(cast<CaseStmt>(S));
+    break;
+  case Stmt::SK_DefaultStmt:
+    genDefaultStmt(cast<DefaultStmt>(S));
+    break;
   case Stmt::SK_BreakStmt:
     genBreakStmt(cast<BreakStmt>(S));
     break;
@@ -298,6 +307,49 @@ void CodeGen::genWhileStmt(const WhileStmt *While) {
   emit(".L.end.{}:", Count);
   ContinueCounts.pop_back();
   BreakCounts.pop_back();
+}
+
+void CodeGen::genSwitchStmt(const SwitchStmt *Switch) {
+  int Count = getCount();
+  genExpr(Switch->getCond());
+  const DefaultStmt *Default = nullptr;
+  for (const auto *SC = Switch->getSwitchCaseList(); SC;
+       SC = SC->getNextSwitchCase()) {
+    if (const auto *CS = dynCast<CaseStmt>(SC)) {
+      emit("  li t0, {}", CS->getCaseValue());
+      emit("  beq a0, t0, .L.case.{}.{}", Count, CS->getLabelId());
+      continue;
+    }
+    Default = cast<DefaultStmt>(SC);
+  }
+
+  if (Default)
+    emit("  j .L.default.{}.{}", Count, Default->getLabelId());
+  else
+    emit("  j .L.end.{}", Count);
+
+  BreakCounts.push_back(Count);
+  SwitchCounts.push_back(Count);
+  genStmt(Switch->getBody());
+  SwitchCounts.pop_back();
+  BreakCounts.pop_back();
+  emit(".L.end.{}:", Count);
+}
+
+void CodeGen::genCaseStmt(const CaseStmt *Case) {
+  if (SwitchCounts.empty())
+    Diag.fatalAt(Case->getBeginLoc(), "case statement not in switch");
+  int SwitchCount = SwitchCounts.back();
+  emit(".L.case.{}.{}:", SwitchCount, Case->getLabelId());
+  genStmt(Case->getSubStmt());
+}
+
+void CodeGen::genDefaultStmt(const DefaultStmt *Default) {
+  if (SwitchCounts.empty())
+    Diag.fatalAt(Default->getBeginLoc(), "default statement not in switch");
+  int SwitchCount = SwitchCounts.back();
+  emit(".L.default.{}.{}:", SwitchCount, Default->getLabelId());
+  genStmt(Default->getSubStmt());
 }
 
 void CodeGen::genBreakStmt(const BreakStmt *Break) {

@@ -150,6 +150,15 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     visit(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_SwitchStmt:
+    visit(cast<SwitchStmt>(S));
+    break;
+  case Stmt::SK_CaseStmt:
+    visit(cast<CaseStmt>(S));
+    break;
+  case Stmt::SK_DefaultStmt:
+    visit(cast<DefaultStmt>(S));
+    break;
   case Stmt::SK_BreakStmt:
     visit(cast<BreakStmt>(S));
     break;
@@ -282,6 +291,36 @@ void ASTDumper::visit(const WhileStmt *While) {
     ScopedIndent SI(*this, false);
     visit(While->getBody());
   }
+}
+
+void ASTDumper::visit(const SwitchStmt *Switch) {
+  printName("SwitchStmt");
+  {
+    ScopedIndent SI(*this, false);
+    visit(Switch->getCond());
+  }
+  {
+    ScopedIndent SI(*this, true);
+    visit(Switch->getBody());
+  }
+}
+
+void ASTDumper::visit(const CaseStmt *Case) {
+  printName("CaseStmt");
+  {
+    ScopedIndent SI(*this, false);
+    visit(Case->getLHS());
+  }
+  {
+    ScopedIndent SI(*this, true);
+    visit(Case->getSubStmt());
+  }
+}
+
+void ASTDumper::visit(const DefaultStmt *Default) {
+  printName("DefaultStmt");
+  ScopedIndent SI(*this, true);
+  visit(Default->getSubStmt());
 }
 
 void ASTDumper::visit(const BreakStmt *) { printName("BreakStmt"); }

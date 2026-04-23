@@ -91,6 +91,41 @@ WhileStmt *WhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) WhileStmt(BegLoc, EndLoc, Cond, Body);
 }
 
+SwitchStmt::SwitchStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
+                       Stmt *Body, SwitchCaseStmt *FirstCase)
+    : Stmt(SK_SwitchStmt, BegLoc, EndLoc), Cond(Cond), Body(Body),
+      FirstCase(FirstCase) {}
+
+SwitchStmt *SwitchStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                               SourceLocation EndLoc, Expr *Cond, Stmt *Body,
+                               SwitchCaseStmt *FirstCase) {
+  void *Mem = Ctx.allocate(sizeof(SwitchStmt), alignof(SwitchStmt));
+  return new (Mem) SwitchStmt(BegLoc, EndLoc, Cond, Body, FirstCase);
+}
+
+CaseStmt::CaseStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *LHS,
+                   Stmt *SubStmt, std::int64_t CaseValue, unsigned LabelId)
+    : SwitchCaseStmt(SK_CaseStmt, BegLoc, EndLoc, SubStmt, LabelId), LHS(LHS),
+      CaseValue(CaseValue) {}
+
+CaseStmt *CaseStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc, Expr *LHS, Stmt *SubStmt,
+                           std::int64_t CaseValue, unsigned LabelId) {
+  void *Mem = Ctx.allocate(sizeof(CaseStmt), alignof(CaseStmt));
+  return new (Mem) CaseStmt(BegLoc, EndLoc, LHS, SubStmt, CaseValue, LabelId);
+}
+
+DefaultStmt::DefaultStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                         Stmt *SubStmt, unsigned LabelId)
+    : SwitchCaseStmt(SK_DefaultStmt, BegLoc, EndLoc, SubStmt, LabelId) {}
+
+DefaultStmt *DefaultStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                 SourceLocation EndLoc, Stmt *SubStmt,
+                                 unsigned LabelId) {
+  void *Mem = Ctx.allocate(sizeof(DefaultStmt), alignof(DefaultStmt));
+  return new (Mem) DefaultStmt(BegLoc, EndLoc, SubStmt, LabelId);
+}
+
 BreakStmt::BreakStmt(SourceLocation BegLoc, SourceLocation EndLoc)
     : Stmt(SK_BreakStmt, BegLoc, EndLoc) {}
 
