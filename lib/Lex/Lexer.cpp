@@ -154,6 +154,9 @@ Token *Lexer::tokenize(const char *P) {
     case ':':
       lexPunctuator(Curr, Token::TK_Colon, P);
       break;
+    case '?':
+      lexPunctuator(Curr, Token::TK_Question, P);
+      break;
     case '{':
       lexPunctuator(Curr, Token::TK_LBrace, P);
       break;

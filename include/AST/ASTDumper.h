@@ -32,6 +32,7 @@ class GotoStmt;
 class LabelStmt;
 class UnaryOperator;
 class BinaryOperator;
+class ConditionalOperator;
 class IntegerLiteral;
 class ParenExpr;
 class DeclRefExpr;
@@ -69,6 +70,7 @@ public:
   void visit(const LabelStmt *Label);
   void visit(const UnaryOperator *UO);
   void visit(const BinaryOperator *BO);
+  void visit(const ConditionalOperator *CO);
   void visit(const IntegerLiteral *IL);
   void visit(const ParenExpr *Paren);
   void visit(const DeclRefExpr *Ref);

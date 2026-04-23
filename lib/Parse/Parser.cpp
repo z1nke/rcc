@@ -812,13 +812,12 @@ static std::optional<BinaryOperator::Opcode> getAssignOpcode(const Token &Tok) {
   }
 }
 
-// assign-expr: inclusive-or-expr { assign-op assign-expr }
+// assign-expr: conditional-expr
+//            | unary-expr assign-op assign-expr
 // assign-op: '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^='
 //          | '<<=' | '>>='
-// TODO: assign-expr: conditional-expr
-//                  | unary-expr assign-op assign-expr
 Expr *Parser::parseAssign() {
-  Expr *LHS = parseLogicalOrExpr();
+  Expr *LHS = parseConditionalExpr();
   auto OpLoc = SM.createBeginLocation(CurTok);
   auto Opcode = getAssignOpcode(*CurTok);
   if (!Opcode)
@@ -827,6 +826,22 @@ Expr *Parser::parseAssign() {
   skip();
   Expr *RHS = parseAssign();
   return S.actOnBinaryOperator(OpLoc, LHS, RHS, *Opcode);
+}
+
+// conditional-expr: logical-or-expr
+//                 | logical-or-expr ? expr : conditional-expr
+Expr *Parser::parseConditionalExpr() {
+  Expr *Cond = parseLogicalOrExpr();
+  if (CurTok->isNot(Token::TK_Question))
+    return Cond;
+
+  auto QLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Question);
+  Expr *TrueExpr = parseExpr();
+  auto ColonLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Colon);
+  Expr *FalseExpr = parseConditionalExpr();
+  return S.actOnConditionalOperator(QLoc, ColonLoc, Cond, TrueExpr, FalseExpr);
 }
 
 // equality-expr: relational-expr
@@ -840,9 +855,7 @@ Expr *Parser::parseEqualityExpr() {
 }
 
 // constant-expr: conditional-expr
-// conditional-expr: logical-or-expr
-//                 | logical-or-expr ? expr : conditional-expr
-Expr *Parser::parseConstantExpr() { return parseLogicalOrExpr(); }
+Expr *Parser::parseConstantExpr() { return parseConditionalExpr(); }
 
 // logical-or-expr: logical-and-expr
 //                | logical-or-expr '||' logical-and-expr

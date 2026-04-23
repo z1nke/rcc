@@ -482,6 +482,31 @@ private:
   SourceLocation OpLoc;
 };
 
+class ConditionalOperator final : public Expr {
+public:
+  static ConditionalOperator *create(ASTContext &Ctx, SourceLocation BegLoc,
+                                     SourceLocation EndLoc, QualType T,
+                                     Expr *Cond, Expr *TrueExpr,
+                                     Expr *FalseExpr);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_ConditionalOperator;
+  }
+
+  Expr *getCond() const { return Cond; }
+  Expr *getTrueExpr() const { return TrueExpr; }
+  Expr *getFalseExpr() const { return FalseExpr; }
+
+private:
+  ConditionalOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                      Expr *Cond, Expr *TrueExpr, Expr *FalseExpr);
+
+private:
+  Expr *Cond;
+  Expr *TrueExpr;
+  Expr *FalseExpr;
+};
+
 class IntegerLiteral final : public Expr {
 public:
   static IntegerLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,

@@ -76,6 +76,7 @@ private:
   Stmt *parseExprStmt();
   Expr *parseExpr();
   Expr *parseAssign();
+  Expr *parseConditionalExpr();
   Expr *parseLogicalOrExpr();
   Expr *parseLogicalAndExpr();
   Expr *parseBitwiseOrExpr();

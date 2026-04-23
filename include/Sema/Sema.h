@@ -94,6 +94,8 @@ public:
                            QualType T, std::string Str);
   Expr *actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
                             unsigned Op);
+  Expr *actOnConditionalOperator(SourceLocation QLoc, SourceLocation ColonLoc,
+                                 Expr *Cond, Expr *TrueExpr, Expr *FalseExpr);
   Expr *actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr, unsigned Op);
   Expr *actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc, Expr *Ex);
   Expr *actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
@@ -157,6 +159,8 @@ private:
                           bool IsCompAssign = false) const;
   QualType getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
                                    unsigned Op) const;
+  QualType getConditionalOperatorType(SourceLocation OpLoc, Expr *&TrueExpr,
+                                      Expr *&FalseExpr) const;
 
   QualType getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
                                 unsigned Op) const;

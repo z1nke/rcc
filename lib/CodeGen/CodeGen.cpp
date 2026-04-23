@@ -387,6 +387,9 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_BinaryOperator:
     genBinaryOperator(cast<BinaryOperator>(E));
     break;
+  case Stmt::SK_ConditionalOperator:
+    genConditionalOperator(cast<ConditionalOperator>(E));
+    break;
   case Stmt::SK_IntegerLiteral: {
     // li a0, imm
     auto Val = cast<IntegerLiteral>(E)->getVal();
@@ -714,6 +717,17 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     Diag.fatalAt(BO->getOpLocation(), "invalid binary opcode: {}",
                  BO->getOpcodeStr());
   }
+}
+
+void CodeGen::genConditionalOperator(const ConditionalOperator *CO) {
+  int Count = getCount();
+  genExpr(CO->getCond());
+  emit("  beqz a0, .L.else.{}", Count);
+  genExpr(CO->getTrueExpr());
+  emit("  j .L.end.{}", Count);
+  emit(".L.else.{}:", Count);
+  genExpr(CO->getFalseExpr());
+  emit(".L.end.{}:", Count);
 }
 
 void CodeGen::genUnaryOperator(const UnaryOperator *UO) {

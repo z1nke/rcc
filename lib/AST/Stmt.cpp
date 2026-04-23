@@ -341,6 +341,8 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
         cast<UnaryExprOrTypeTraitExpr>(this));
   case Stmt::SK_BinaryOperator:
     return evaluateBinaryOperator(cast<BinaryOperator>(this));
+  case Stmt::SK_ConditionalOperator:
+    return std::nullopt;
   case Stmt::SK_IntegerLiteral: {
     const auto *IL = cast<IntegerLiteral>(this);
     if (T->isSignedIntegerType())
@@ -511,6 +513,25 @@ BinaryOperator::Opcode BinaryOperator::getOpForCompoundAssign() const {
   default:
     RCC_UNREACHABLE("[AST] Unknown compound assignment opcode");
   }
+}
+
+ConditionalOperator::ConditionalOperator(SourceLocation BegLoc,
+                                         SourceLocation EndLoc, QualType T,
+                                         Expr *Cond, Expr *TrueExpr,
+                                         Expr *FalseExpr)
+    : Expr(SK_ConditionalOperator, BegLoc, EndLoc, T), Cond(Cond),
+      TrueExpr(TrueExpr), FalseExpr(FalseExpr) {}
+
+ConditionalOperator *ConditionalOperator::create(ASTContext &Ctx,
+                                                 SourceLocation BegLoc,
+                                                 SourceLocation EndLoc,
+                                                 QualType T, Expr *Cond,
+                                                 Expr *TrueExpr,
+                                                 Expr *FalseExpr) {
+  void *Mem = Ctx.allocate(sizeof(ConditionalOperator),
+                           alignof(ConditionalOperator));
+  return new (Mem)
+      ConditionalOperator(BegLoc, EndLoc, T, Cond, TrueExpr, FalseExpr);
 }
 
 IntegerLiteral::IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,

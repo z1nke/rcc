@@ -513,6 +513,19 @@ Expr *Sema::actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
                                 static_cast<BinaryOperator::Opcode>(Op));
 }
 
+Expr *Sema::actOnConditionalOperator(SourceLocation QLoc, SourceLocation ColonLoc,
+                                     Expr *Cond, Expr *TrueExpr,
+                                     Expr *FalseExpr) {
+  (void)ColonLoc;
+  Cond = usualUnaryConv(Cond);
+  checkScalarType(Cond);
+
+  QualType ResType = getConditionalOperatorType(QLoc, TrueExpr, FalseExpr);
+  return ConditionalOperator::create(Ctx, Cond->getBeginLoc(),
+                                     FalseExpr->getEndLoc(), ResType, Cond,
+                                     TrueExpr, FalseExpr);
+}
+
 Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
                                unsigned Op) {
   QualType ResType = getUnaryOperatorType(OpLoc, SubExpr, Op);
@@ -910,6 +923,13 @@ std::optional<unsigned> Sema::getCastKind(QualType ToType,
   return std::nullopt;
 }
 
+static bool isNullPtrConstExpr(const Expr *E) {
+  E = E->ignoreParenCasts();
+  if (const auto *IL = dynCast<IntegerLiteral>(E))
+    return IL->getVal() == 0;
+  return false;
+}
+
 QualType Sema::getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS,
                                        Expr *&RHS, unsigned Op) const {
   QualType LType = LHS->getType();
@@ -942,6 +962,49 @@ QualType Sema::getCompoundAssignOpType(SourceLocation OpLoc, Expr *&LHS,
   }
 
   return LType;
+}
+
+QualType Sema::getConditionalOperatorType(SourceLocation OpLoc, Expr *&TrueExpr,
+                                          Expr *&FalseExpr) const {
+  TrueExpr = defaultFunctionArrayLvalueConv(TrueExpr);
+  FalseExpr = defaultFunctionArrayLvalueConv(FalseExpr);
+
+  QualType TType = TrueExpr->getType();
+  QualType FType = FalseExpr->getType();
+  if (Ctx.hasSameType(TType, FType))
+    return TType;
+
+  if (TType.isVoidType() || FType.isVoidType()) {
+    if (!TType.isVoidType())
+      TrueExpr = impCastExprToType(TrueExpr, Ctx.VoidTy, CastExpr::CK_ToVoid);
+    if (!FType.isVoidType())
+      FalseExpr = impCastExprToType(FalseExpr, Ctx.VoidTy, CastExpr::CK_ToVoid);
+    return Ctx.VoidTy;
+  }
+
+  if (TType->isArithmeticType() && FType->isArithmeticType())
+    return usualArithConv(TrueExpr, FalseExpr, ACK_Conditional);
+
+  if (TType->isPointerType() && FType->isPointerType()) {
+    auto CK = getCastKind(TType, FType);
+    if (CK && *CK != CastExpr::CK_NoOp)
+      FalseExpr = impCastExprToType(FalseExpr, TType, *CK);
+    return TType;
+  }
+
+  if (TType->isPointerType() && isNullPtrConstExpr(FalseExpr)) {
+    FalseExpr =
+        impCastExprToType(FalseExpr, TType, CastExpr::CK_IntegralToPointer);
+    return TType;
+  }
+
+  if (FType->isPointerType() && isNullPtrConstExpr(TrueExpr)) {
+    TrueExpr =
+        impCastExprToType(TrueExpr, FType, CastExpr::CK_IntegralToPointer);
+    return FType;
+  }
+
+  Diag.fatalAt(OpLoc, "invalid conditional operands");
 }
 
 QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
