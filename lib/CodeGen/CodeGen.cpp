@@ -221,10 +221,13 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       if (!Init)
         continue;
 
-      if (Var->getType()->isArraryType()) {
-        if (const auto *ILE = dynCast<InitListExpr>(Init)) {
-          genInitListExpr(Var, ILE, Var->getType(), 0);
-        } else if (const auto *SL = dynCast<StringLiteral>(Init)) {
+      if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+        if (!Var->getType()->isArraryType() && !Var->getType()->isRecordType())
+          Diag.fatalAt(Init->getBeginLoc(),
+                       "aggregate init requires array or struct type");
+        genInitListExpr(Var, ILE, Var->getType(), 0);
+      } else if (Var->getType()->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(Init)) {
           genStringLiteralInit(Var, SL, Var->getType(), 0);
         } else {
           Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
@@ -249,43 +252,66 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
 }
 
 void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
-                              QualType ArrTy, std::size_t BaseOffset) {
-  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
-  if (!CAT)
-    Diag.fatalAt(List->getBeginLoc(), "expect constant array type");
-
-  QualType ElemTy = CAT->getElementType();
-  std::size_t ElemSize = ElemTy->getSize();
-  for (std::size_t I = 0; I < CAT->getLength(); ++I) {
-    std::size_t Offset = BaseOffset + I * ElemSize;
-    if (I >= List->getNumInits()) {
-      genZeroInit(Var, ElemTy, Offset);
-      continue;
-    }
-
-    const Expr *ElemInit = List->getInit(I);
-    if (const auto *SubList = dynCast<InitListExpr>(ElemInit)) {
-      if (!ElemTy->isArraryType())
-        Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
-      genInitListExpr(Var, SubList, ElemTy, Offset);
-      continue;
-    }
-
-    if (ElemTy->isArraryType()) {
-      if (const auto *SL = dynCast<StringLiteral>(ElemInit)) {
-        genStringLiteralInit(Var, SL, ElemTy, Offset);
+                              QualType AggTy, std::size_t BaseOffset) {
+  if (const auto *CAT = AggTy->getAs<ConstantArrayType>()) {
+    QualType ElemTy = CAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    for (std::size_t I = 0; I < CAT->getLength(); ++I) {
+      std::size_t Offset = BaseOffset + I * ElemSize;
+      if (I >= List->getNumInits()) {
+        genZeroInit(Var, ElemTy, Offset);
         continue;
       }
-      Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
-    }
 
-    genExpr(ElemInit);
-    push();
-    genAddr(Var);
-    emit("  addi a1, a0, {}", Offset);
-    pop("a0");
-    emit("  s{} a0, 0(a1)", getWidthSuffix(ElemSize));
+      genInitListElement(Var, List->getInit(I), ElemTy, Offset);
+    }
+    return;
   }
+
+  if (const auto *RT = AggTy->getAs<RecordType>()) {
+    const auto &Fields = RT->getDecl()->fields();
+    for (std::size_t I = 0; I < Fields.size(); ++I) {
+      const auto *Field = Fields[I];
+      std::size_t Offset = BaseOffset + Field->getOffset();
+      if (I >= List->getNumInits()) {
+        genZeroInit(Var, Field->getType(), Offset);
+        continue;
+      }
+
+      genInitListElement(Var, List->getInit(I), Field->getType(), Offset);
+    }
+    return;
+  }
+
+  Diag.fatalAt(List->getBeginLoc(), "expect aggregate type");
+}
+
+void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,
+                                 QualType ElemTy, std::size_t Offset) {
+  if (const auto *SubList = dynCast<InitListExpr>(ElemInit)) {
+    if (!ElemTy->isArraryType() && !ElemTy->isRecordType())
+      Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
+    genInitListExpr(Var, SubList, ElemTy, Offset);
+    return;
+  }
+
+  if (ElemTy->isArraryType()) {
+    if (const auto *SL = dynCast<StringLiteral>(ElemInit)) {
+      genStringLiteralInit(Var, SL, ElemTy, Offset);
+      return;
+    }
+    Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
+  }
+
+  if (ElemTy->isRecordType())
+    Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
+
+  genExpr(ElemInit);
+  push();
+  genAddr(Var);
+  emit("  addi a1, a0, {}", Offset);
+  pop("a0");
+  emit("  s{} a0, 0(a1)", getWidthSuffix(ElemTy->getSize()));
 }
 
 void CodeGen::genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
@@ -321,6 +347,13 @@ void CodeGen::genZeroInit(const VarDecl *Var, QualType Ty,
     std::size_t ElemSize = ElemTy->getSize();
     for (std::size_t I = 0; I < CAT->getLength(); ++I)
       genZeroInit(Var, ElemTy, BaseOffset + I * ElemSize);
+    return;
+  }
+
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    const auto &Fields = RT->getDecl()->fields();
+    for (const auto *Field : Fields)
+      genZeroInit(Var, Field->getType(), BaseOffset + Field->getOffset());
     return;
   }
 

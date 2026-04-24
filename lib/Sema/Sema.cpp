@@ -316,7 +316,7 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   }
 
   if (const auto *ILE = dynCast<InitListExpr>(Init)) {
-    if (!VarType->isArraryType())
+    if (!VarType->isArraryType() && !VarType->isRecordType())
       Diag.fatalAt(Init->getBeginLoc(), "invalid initializer list for scalar");
     checkInitList(ILE, VarType);
     Var->setInit(Init);
@@ -337,34 +337,51 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   Var->setEndLoc(Init->getEndLoc());
 }
 
-void Sema::checkInitList(const InitListExpr *List, QualType ArrTy) const {
-  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
-  if (!CAT)
-    Diag.fatalAt(List->getBeginLoc(), "expect constant array type");
-
-  QualType ElemTy = CAT->getElementType();
-  unsigned NumToCheck = std::min<unsigned>(List->getNumInits(), CAT->getLength());
-  for (unsigned I = 0; I < NumToCheck; ++I) {
-    const Expr *E = List->getInit(I);
-    if (const auto *SubList = dynCast<InitListExpr>(E)) {
-      if (!ElemTy->isArraryType())
-        Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
-      checkInitList(SubList, ElemTy);
-      continue;
-    }
-
-    if (ElemTy->isArraryType()) {
-      if (const auto *SL = dynCast<StringLiteral>(E)) {
-        checkStringLiteralInit(Ctx, Diag, ElemTy, SL);
-        continue;
-      }
-      Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
-    }
-
-    auto CK = getCastKind(ElemTy, E->getType());
-    if (!CK)
-      Diag.fatalAt(E->getBeginLoc(), "invalid variable init type");
+void Sema::checkInitList(const InitListExpr *List, QualType AggTy) const {
+  if (const auto *CAT = AggTy->getAs<ConstantArrayType>()) {
+    QualType ElemTy = CAT->getElementType();
+    unsigned NumToCheck =
+        std::min<unsigned>(List->getNumInits(), CAT->getLength());
+    for (unsigned I = 0; I < NumToCheck; ++I)
+      checkInitListElement(List->getInit(I), ElemTy);
+    return;
   }
+
+  if (const auto *RT = AggTy->getAs<RecordType>()) {
+    const auto *RD = RT->getDecl();
+    const auto &Fields = RD->fields();
+    unsigned NumToCheck =
+        std::min<unsigned>(List->getNumInits(), Fields.size());
+    for (unsigned I = 0; I < NumToCheck; ++I)
+      checkInitListElement(List->getInit(I), Fields[I]->getType());
+    return;
+  }
+
+  Diag.fatalAt(List->getBeginLoc(), "expect aggregate type");
+}
+
+void Sema::checkInitListElement(const Expr *E, QualType ElemTy) const {
+  if (const auto *SubList = dynCast<InitListExpr>(E)) {
+    if (!ElemTy->isArraryType() && !ElemTy->isRecordType())
+      Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
+    checkInitList(SubList, ElemTy);
+    return;
+  }
+
+  if (ElemTy->isArraryType()) {
+    if (const auto *SL = dynCast<StringLiteral>(E)) {
+      checkStringLiteralInit(Ctx, Diag, ElemTy, SL);
+      return;
+    }
+    Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
+  }
+
+  if (ElemTy->isRecordType())
+    Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
+
+  auto CK = getCastKind(ElemTy, E->getType());
+  if (!CK)
+    Diag.fatalAt(E->getBeginLoc(), "invalid variable init type");
 }
 
 Expr *Sema::actOnCharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc,

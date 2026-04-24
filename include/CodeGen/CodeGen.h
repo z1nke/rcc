@@ -56,7 +56,9 @@ private:
   void genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE);
   void genCastExpr(const CastExpr *Cast);
   void genInitListExpr(const VarDecl *Var, const InitListExpr *List,
-                       QualType ArrTy, std::size_t BaseOffset);
+                       QualType AggTy, std::size_t BaseOffset);
+  void genInitListElement(const VarDecl *Var, const Expr *ElemInit,
+                          QualType ElemTy, std::size_t Offset);
   void genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
                             QualType ArrTy, std::size_t BaseOffset);
   void genZeroInit(const VarDecl *Var, QualType Ty, std::size_t BaseOffset);

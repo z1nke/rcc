@@ -165,7 +165,8 @@ private:
 
   QualType getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
                                 unsigned Op) const;
-  void checkInitList(const InitListExpr *List, QualType ArrTy) const;
+  void checkInitList(const InitListExpr *List, QualType AggTy) const;
+  void checkInitListElement(const Expr *E, QualType ElemTy) const;
 
 public:
   Expr *impCastExprToType(Expr *E, QualType Ty, unsigned CK) const;
