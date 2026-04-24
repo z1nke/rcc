@@ -291,6 +291,21 @@ void Sema::complete(FunctionDecl *FD) {
 void Sema::complete(VarDecl *Var, Expr *Init) {
   QualType InitType = Init->getType();
   QualType VarType = Var->getType();
+  if (const auto *IAT = VarType->getAs<IncompleteArrayType>()) {
+    QualType ElemTy = IAT->getElementType();
+    if (const auto *SL = dynCast<StringLiteral>(Init)) {
+      if (!Ctx.hasSameType(ElemTy, Ctx.CharTy))
+        Diag.fatalAt(Var->getLocation(), "invalid variable init type");
+      VarType = Ctx.getConstantArrayType(ElemTy, SL->getString().size() + 1);
+      Var->setType(VarType);
+    } else if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+      if (ILE->getNumInits() == 0)
+        Diag.fatalAt(Init->getBeginLoc(), "array size must be positive");
+      VarType = Ctx.getConstantArrayType(ElemTy, ILE->getNumInits());
+      Var->setType(VarType);
+    }
+  }
+
   if (const auto *SL = dynCast<StringLiteral>(Init)) {
     if (!isCharArrayType(Ctx, VarType))
       Diag.fatalAt(Var->getLocation(), "invalid variable init type");
