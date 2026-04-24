@@ -237,10 +237,8 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
         push();
         // a0 = init-expr
         genExpr(Init);
-        // a1 = &var
-        pop("a1");
         emit("  # initialize variable '{}'", Var->getName());
-        emit("  s{} a0, 0(a1)", getWidthSuffix(Var->getType()->getSize()));
+        store(Var->getType().getTypePtr());
       }
 
     } else if (isa<TypedefDecl>(D)) {
