@@ -57,6 +57,8 @@ private:
   void genCastExpr(const CastExpr *Cast);
   void genInitListExpr(const VarDecl *Var, const InitListExpr *List,
                        QualType ArrTy, std::size_t BaseOffset);
+  void genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
+                            QualType ArrTy, std::size_t BaseOffset);
   void genZeroInit(const VarDecl *Var, QualType Ty, std::size_t BaseOffset);
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);

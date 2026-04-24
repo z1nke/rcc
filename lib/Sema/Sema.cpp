@@ -13,6 +13,22 @@
 
 namespace rcc {
 
+static bool isCharArrayType(const ASTContext &Ctx, QualType T) {
+  const auto *CAT = T->getAs<ConstantArrayType>();
+  if (!CAT)
+    return false;
+  return Ctx.hasSameType(CAT->getElementType(), Ctx.CharTy);
+}
+
+static void checkStringLiteralInit(const ASTContext &Ctx, Diagnostic &Diag,
+                                   QualType ArrTy, const StringLiteral *SL) {
+  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
+  if (!CAT || !Ctx.hasSameType(CAT->getElementType(), Ctx.CharTy))
+    Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
+  if (SL->getString().size() > CAT->getLength())
+    Diag.fatalAt(SL->getBeginLoc(), "initializer-string for char array is too long");
+}
+
 Decl *Sema::actOnDeclarator(Declarator &D) {
   QualType T = getTypeForDeclarator(D);
 
@@ -275,6 +291,15 @@ void Sema::complete(FunctionDecl *FD) {
 void Sema::complete(VarDecl *Var, Expr *Init) {
   QualType InitType = Init->getType();
   QualType VarType = Var->getType();
+  if (const auto *SL = dynCast<StringLiteral>(Init)) {
+    if (!isCharArrayType(Ctx, VarType))
+      Diag.fatalAt(Var->getLocation(), "invalid variable init type");
+    checkStringLiteralInit(Ctx, Diag, VarType, SL);
+    Var->setInit(Init);
+    Var->setEndLoc(Init->getEndLoc());
+    return;
+  }
+
   if (const auto *ILE = dynCast<InitListExpr>(Init)) {
     if (!VarType->isArraryType())
       Diag.fatalAt(Init->getBeginLoc(), "invalid initializer list for scalar");
@@ -313,8 +338,13 @@ void Sema::checkInitList(const InitListExpr *List, QualType ArrTy) const {
       continue;
     }
 
-    if (ElemTy->isArraryType())
+    if (ElemTy->isArraryType()) {
+      if (const auto *SL = dynCast<StringLiteral>(E)) {
+        checkStringLiteralInit(Ctx, Diag, ElemTy, SL);
+        continue;
+      }
       Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
+    }
 
     auto CK = getCastKind(ElemTy, E->getType());
     if (!CK)

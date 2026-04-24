@@ -7,6 +7,7 @@
 #include "Support/Casting.h"
 #include "Support/Unreachable.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdio>
@@ -221,10 +222,13 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
         continue;
 
       if (Var->getType()->isArraryType()) {
-        const auto *ILE = dynCast<InitListExpr>(Init);
-        if (!ILE)
+        if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+          genInitListExpr(Var, ILE, Var->getType(), 0);
+        } else if (const auto *SL = dynCast<StringLiteral>(Init)) {
+          genStringLiteralInit(Var, SL, Var->getType(), 0);
+        } else {
           Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
-        genInitListExpr(Var, ILE, Var->getType(), 0);
+        }
       } else {
         genAddr(Var);
         push();
@@ -267,8 +271,13 @@ void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
       continue;
     }
 
-    if (ElemTy->isArraryType())
+    if (ElemTy->isArraryType()) {
+      if (const auto *SL = dynCast<StringLiteral>(ElemInit)) {
+        genStringLiteralInit(Var, SL, ElemTy, Offset);
+        continue;
+      }
       Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
+    }
 
     genExpr(ElemInit);
     push();
@@ -277,6 +286,32 @@ void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
     pop("a0");
     emit("  s{} a0, 0(a1)", getWidthSuffix(ElemSize));
   }
+}
+
+void CodeGen::genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
+                                   QualType ArrTy, std::size_t BaseOffset) {
+  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
+  if (!CAT)
+    Diag.fatalAt(SL->getBeginLoc(), "expect constant array type");
+  const auto *ElemBT = CAT->getElementType()->getAs<BuiltinType>();
+  if (!ElemBT || ElemBT->getKind() != BuiltinType::BK_Char) {
+    Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
+  }
+
+  const std::string &Str = SL->getString();
+  const std::size_t Len = CAT->getLength();
+  std::size_t NumInit = std::min<std::size_t>(Len, Str.size() + 1);
+  for (std::size_t I = 0; I < NumInit; ++I) {
+    unsigned char C = I < Str.size() ? static_cast<unsigned char>(Str[I]) : 0;
+    emit("  li a0, {}", static_cast<unsigned>(C));
+    push();
+    genAddr(Var);
+    emit("  addi a1, a0, {}", BaseOffset + I);
+    pop("a0");
+    emit("  sb a0, 0(a1)");
+  }
+  for (std::size_t I = NumInit; I < Len; ++I)
+    genZeroInit(Var, CAT->getElementType(), BaseOffset + I);
 }
 
 void CodeGen::genZeroInit(const VarDecl *Var, QualType Ty,
