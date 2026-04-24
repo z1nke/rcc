@@ -21,6 +21,9 @@ int main() {
   ASSERT(0, ({ int x[2][3]={{1,2}}; x[1][0]; }));
   ASSERT(0, ({ int x[2][3]={{1,2}}; x[1][2]; }));
 
+  // [99] Skip excess initializer elements
+  ASSERT(4, ({ int x[2][3]={{1,2,3,4},{4,5,6}}; x[1][0]; }));
+
   printf("OK\n");
   return 0;
 }

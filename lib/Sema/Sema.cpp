@@ -302,11 +302,10 @@ void Sema::checkInitList(const InitListExpr *List, QualType ArrTy) const {
   if (!CAT)
     Diag.fatalAt(List->getBeginLoc(), "expect constant array type");
 
-  if (List->getNumInits() > CAT->getLength())
-    Diag.fatalAt(List->getBeginLoc(), "too many initializers");
-
   QualType ElemTy = CAT->getElementType();
-  for (const Expr *E : List->getInits()) {
+  unsigned NumToCheck = std::min<unsigned>(List->getNumInits(), CAT->getLength());
+  for (unsigned I = 0; I < NumToCheck; ++I) {
+    const Expr *E = List->getInit(I);
     if (const auto *SubList = dynCast<InitListExpr>(E)) {
       if (!ElemTy->isArraryType())
         Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
