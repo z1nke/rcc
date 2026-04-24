@@ -666,9 +666,27 @@ void Parser::tryParseVarInit(VarDecl *Var) {
 }
 
 // initializer: assign-expr
-// TODO:      | { initializer-list }
-// TODO:      | { initializer-list ',' }
-Expr *Parser::parseInitExpr() { return parseAssign(); }
+//            | { initializer-list }
+//            | { initializer-list ',' }
+Expr *Parser::parseInitExpr() {
+  if (CurTok->isNot(Token::TK_LBrace))
+    return parseAssign();
+
+  SourceLocation BegLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_LBrace);
+  std::vector<Expr *> Inits;
+  while (CurTok->isNot(Token::TK_RBrace)) {
+    Inits.push_back(parseInitExpr());
+    if (!tryConsume(Token::TK_Comma)) {
+      if (CurTok->is(Token::TK_RBrace))
+        break;
+      Diag.fatalAt(SM.createBeginLocation(CurTok), "expect ',' or '}}'");
+    }
+  }
+  SourceLocation EndLoc = SM.createEndLocation(CurTok);
+  skip(Token::TK_RBrace);
+  return InitListExpr::create(Ctx, BegLoc, EndLoc, QualType(), std::move(Inits));
+}
 
 // declarator: '*'* direct-declarator
 void Parser::parseDeclarator(Declarator &D) {

@@ -11,6 +11,7 @@ namespace rcc {
 class Decl;
 class TranslationUnitDecl;
 class FunctionDecl;
+class VarDecl;
 class Type;
 class Diagnostic;
 
@@ -54,6 +55,9 @@ private:
   void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);
   void genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE);
   void genCastExpr(const CastExpr *Cast);
+  void genInitListExpr(const VarDecl *Var, const InitListExpr *List,
+                       QualType ArrTy, std::size_t BaseOffset);
+  void genZeroInit(const VarDecl *Var, QualType Ty, std::size_t BaseOffset);
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
   void genAddr(const ArraySubscriptExpr *ASE);

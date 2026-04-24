@@ -37,6 +37,7 @@ class IntegerLiteral;
 class ParenExpr;
 class DeclRefExpr;
 class CallExpr;
+class InitListExpr;
 
 class ASTDumper {
 public:
@@ -81,6 +82,7 @@ public:
   void visit(const UnaryExprOrTypeTraitExpr *UE);
   void visit(const MemberExpr *ME);
   void visit(const CastExpr *Cast);
+  void visit(const InitListExpr *ILE);
   void visit(const StmtExpr *SE);
 
 private:

@@ -220,15 +220,21 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       if (!Init)
         continue;
 
-      genAddr(Var);
-      push();
-      // a0 = init-expr
-      genExpr(Init);
-      // a1 = &var
-      pop("a1");
-      emit("  # initialize variable '{}'", Var->getName());
-      // emit("  sd a0, 0(a1)"); // *a1 = a0
-      emit("  s{} a0, 0(a1)", getWidthSuffix(Var->getType()->getSize()));
+      if (Var->getType()->isArraryType()) {
+        const auto *ILE = dynCast<InitListExpr>(Init);
+        if (!ILE)
+          Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
+        genInitListExpr(Var, ILE, Var->getType(), 0);
+      } else {
+        genAddr(Var);
+        push();
+        // a0 = init-expr
+        genExpr(Init);
+        // a1 = &var
+        pop("a1");
+        emit("  # initialize variable '{}'", Var->getName());
+        emit("  s{} a0, 0(a1)", getWidthSuffix(Var->getType()->getSize()));
+      }
 
     } else if (isa<TypedefDecl>(D)) {
       continue;
@@ -236,6 +242,59 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       Diag.fatalAt(D->getBeginLoc(), "invalid declaration in decl-stmt");
     }
   }
+}
+
+void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
+                              QualType ArrTy, std::size_t BaseOffset) {
+  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
+  if (!CAT)
+    Diag.fatalAt(List->getBeginLoc(), "expect constant array type");
+
+  QualType ElemTy = CAT->getElementType();
+  std::size_t ElemSize = ElemTy->getSize();
+  for (std::size_t I = 0; I < CAT->getLength(); ++I) {
+    std::size_t Offset = BaseOffset + I * ElemSize;
+    if (I >= List->getNumInits()) {
+      genZeroInit(Var, ElemTy, Offset);
+      continue;
+    }
+
+    const Expr *ElemInit = List->getInit(I);
+    if (const auto *SubList = dynCast<InitListExpr>(ElemInit)) {
+      if (!ElemTy->isArraryType())
+        Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
+      genInitListExpr(Var, SubList, ElemTy, Offset);
+      continue;
+    }
+
+    if (ElemTy->isArraryType())
+      Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
+
+    genExpr(ElemInit);
+    push();
+    genAddr(Var);
+    emit("  addi a1, a0, {}", Offset);
+    pop("a0");
+    emit("  s{} a0, 0(a1)", getWidthSuffix(ElemSize));
+  }
+}
+
+void CodeGen::genZeroInit(const VarDecl *Var, QualType Ty,
+                          std::size_t BaseOffset) {
+  if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+    QualType ElemTy = CAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    for (std::size_t I = 0; I < CAT->getLength(); ++I)
+      genZeroInit(Var, ElemTy, BaseOffset + I * ElemSize);
+    return;
+  }
+
+  emit("  li a0, 0");
+  push();
+  genAddr(Var);
+  emit("  addi a1, a0, {}", BaseOffset);
+  pop("a0");
+  emit("  s{} a0, 0(a1)", getWidthSuffix(Ty->getSize()));
 }
 
 void CodeGen::genIfStmt(const IfStmt *If) {
@@ -429,6 +488,9 @@ void CodeGen::genExpr(const Expr *E) {
     break;
   case Stmt::SK_CastExpr:
     genCastExpr(cast<CastExpr>(E));
+    break;
+  case Stmt::SK_InitListExpr:
+    Diag.fatalAt(E->getBeginLoc(), "init-list expression is not evaluatable");
     break;
   case Stmt::SK_StmtExpr:
     for (const Stmt *Child : cast<StmtExpr>(E)->getSubStmt()->getBody())

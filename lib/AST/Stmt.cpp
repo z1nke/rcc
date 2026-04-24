@@ -482,6 +482,8 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
     return std::nullopt;
   case Stmt::SK_CastExpr:
     return evaluateCastExpr(cast<CastExpr>(this));
+  case Stmt::SK_InitListExpr:
+    return std::nullopt;
   case Stmt::SK_StmtExpr:
     return std::nullopt;
   default:
@@ -813,6 +815,17 @@ const char *CastExpr::getCastKindStr() const {
   }
 #undef CASE_CASTKIND
 }
+
+InitListExpr *InitListExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                   SourceLocation EndLoc, QualType T,
+                                   std::vector<Expr *> Inits) {
+  void *Mem = Ctx.allocate(sizeof(InitListExpr), alignof(InitListExpr));
+  return new (Mem) InitListExpr(BegLoc, EndLoc, T, std::move(Inits));
+}
+
+InitListExpr::InitListExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                           QualType T, std::vector<Expr *> Inits)
+    : Expr(SK_InitListExpr, BegLoc, EndLoc, T), Inits(std::move(Inits)) {}
 
 StmtExpr *StmtExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, QualType T,

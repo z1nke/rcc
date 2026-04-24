@@ -38,6 +38,7 @@ EXPR(ArraySubscriptExpr)
 EXPR(CallExpr)
 EXPR(MemberExpr)
 EXPR(CastExpr)
+EXPR(InitListExpr)
 EXPR(StmtExpr)
 
 STMT_RANGE(Expr, UnaryOperator, StmtExpr)

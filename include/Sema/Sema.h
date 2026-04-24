@@ -31,6 +31,7 @@ class LabelDecl;
 class CaseStmt;
 class DefaultStmt;
 class SwitchCaseStmt;
+class InitListExpr;
 
 class Sema {
 public:
@@ -164,6 +165,7 @@ private:
 
   QualType getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
                                 unsigned Op) const;
+  void checkInitList(const InitListExpr *List, QualType ArrTy) const;
 
 public:
   Expr *impCastExprToType(Expr *E, QualType Ty, unsigned CK) const;

@@ -210,6 +210,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_CastExpr:
     visit(cast<CastExpr>(S));
     break;
+  case Stmt::SK_InitListExpr:
+    visit(cast<InitListExpr>(S));
+    break;
   case Stmt::SK_StmtExpr:
     visit(cast<StmtExpr>(S));
     break;
@@ -450,6 +453,15 @@ void ASTDumper::visit(const CastExpr *Cast) {
                Cast->getType().getAsString(), Cast->getCastKindStr());
   ScopedIndent SI(*this, true);
   visit(Cast->getSubExpr());
+}
+
+void ASTDumper::visit(const InitListExpr *ILE) {
+  printName("InitListExpr");
+  bool IsSingle = ILE->getNumInits() == 1;
+  for (const Expr *Init : ILE->getInits()) {
+    ScopedIndent SI(*this, IsSingle);
+    visit(Init);
+  }
 }
 
 void ASTDumper::visit(const StmtExpr *SE) {

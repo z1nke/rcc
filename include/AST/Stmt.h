@@ -764,6 +764,26 @@ private:
   bool IsImplicit;
 };
 
+class InitListExpr final : public Expr {
+public:
+  static InitListExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                              SourceLocation EndLoc, QualType T,
+                              std::vector<Expr *> Inits);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_InitListExpr; }
+
+  const std::vector<Expr *> &getInits() const { return Inits; }
+  unsigned getNumInits() const { return Inits.size(); }
+  const Expr *getInit(unsigned Idx) const { return Inits[Idx]; }
+
+private:
+  InitListExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+               std::vector<Expr *> Inits);
+
+private:
+  std::vector<Expr *> Inits;
+};
+
 class StmtExpr final : public Expr {
 public:
   static StmtExpr *create(ASTContext &Ctx, SourceLocation BegLoc,

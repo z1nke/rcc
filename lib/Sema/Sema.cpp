@@ -275,6 +275,15 @@ void Sema::complete(FunctionDecl *FD) {
 void Sema::complete(VarDecl *Var, Expr *Init) {
   QualType InitType = Init->getType();
   QualType VarType = Var->getType();
+  if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+    if (!VarType->isArraryType())
+      Diag.fatalAt(Init->getBeginLoc(), "invalid initializer list for scalar");
+    checkInitList(ILE, VarType);
+    Var->setInit(Init);
+    Var->setEndLoc(Init->getEndLoc());
+    return;
+  }
+
   if (!Ctx.hasSameType(VarType, InitType)) {
     auto CK = getCastKind(VarType, InitType);
     if (!CK)
@@ -286,6 +295,32 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
 
   Var->setInit(Init);
   Var->setEndLoc(Init->getEndLoc());
+}
+
+void Sema::checkInitList(const InitListExpr *List, QualType ArrTy) const {
+  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
+  if (!CAT)
+    Diag.fatalAt(List->getBeginLoc(), "expect constant array type");
+
+  if (List->getNumInits() > CAT->getLength())
+    Diag.fatalAt(List->getBeginLoc(), "too many initializers");
+
+  QualType ElemTy = CAT->getElementType();
+  for (const Expr *E : List->getInits()) {
+    if (const auto *SubList = dynCast<InitListExpr>(E)) {
+      if (!ElemTy->isArraryType())
+        Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
+      checkInitList(SubList, ElemTy);
+      continue;
+    }
+
+    if (ElemTy->isArraryType())
+      Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
+
+    auto CK = getCastKind(ElemTy, E->getType());
+    if (!CK)
+      Diag.fatalAt(E->getBeginLoc(), "invalid variable init type");
+  }
 }
 
 Expr *Sema::actOnCharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
