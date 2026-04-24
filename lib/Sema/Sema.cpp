@@ -349,6 +349,14 @@ void Sema::checkInitList(const InitListExpr *List, QualType AggTy) const {
 
   if (const auto *RT = AggTy->getAs<RecordType>()) {
     const auto *RD = RT->getDecl();
+    if (RD->isUnion()) {
+      const auto &Fields = RD->fields();
+      if (List->getNumInits() == 0 || Fields.empty())
+        return;
+      checkInitListElement(List->getInit(0), Fields[0]->getType());
+      return;
+    }
+
     const auto &Fields = RD->fields();
     unsigned NumToCheck =
         std::min<unsigned>(List->getNumInits(), Fields.size());

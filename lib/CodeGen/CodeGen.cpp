@@ -267,7 +267,19 @@ void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
   }
 
   if (const auto *RT = AggTy->getAs<RecordType>()) {
-    const auto &Fields = RT->getDecl()->fields();
+    const auto *RD = RT->getDecl();
+    const auto &Fields = RD->fields();
+    if (RD->isUnion()) {
+      if (List->getNumInits() == 0 || Fields.empty()) {
+        genZeroInit(Var, AggTy, BaseOffset);
+      } else {
+        const auto *Field = Fields[0];
+        genInitListElement(Var, List->getInit(0), Field->getType(),
+                           BaseOffset + Field->getOffset());
+      }
+      return;
+    }
+
     for (std::size_t I = 0; I < Fields.size(); ++I) {
       const auto *Field = Fields[I];
       std::size_t Offset = BaseOffset + Field->getOffset();

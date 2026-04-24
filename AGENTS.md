@@ -48,6 +48,8 @@ Each stage must have clear data structures and responsibilities.
 
 Run make run-test -j8 in build directory.
 
+Don't modify, delete, or bypass any existing unit test code.
+
 ---
 
 ## Guidelines:
