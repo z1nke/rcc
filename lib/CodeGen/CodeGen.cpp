@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <format>
 #include <print>
@@ -49,21 +50,7 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
     if (const auto *Var = dynCast<VarDecl>(D)) {
       emit("  .globl {}", Var->getName());
       emit("  .data");
-      const auto *Init = Var->getInit();
-      if (Init) {
-        if (const auto *SL = dynCast<StringLiteral>(Init)) {
-          emit("{}:", Var->getName());
-          // emit("  .asciz \"{}\"", SL->getString());
-          for (char C : SL->getString())
-            emit("  .byte {}", static_cast<int>(C));
-        } else {
-          Diag.fatalAt(Var->getBeginLoc(),
-                       "only string literal is supported in global var init");
-        }
-      } else {
-        emit("{}:", Var->getName());
-        emit("  .zero {}", Var->getType()->getSize());
-      }
+      emitGlobalVarInit(Var, Var->getInit());
     }
   }
 
@@ -75,6 +62,178 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
     for (char C : SL->getString())
       emit("  .byte {}", static_cast<int>(C));
     emit("  .byte 0");
+  }
+}
+
+void CodeGen::emitGlobalVarInit(const VarDecl *Var, const Expr *Init) {
+  emit("{}:", Var->getName());
+  if (!Init) {
+    emit("  .zero {}", Var->getType()->getSize());
+    return;
+  }
+
+  emitGlobalInit(Init, Var->getType(), 0);
+}
+
+void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
+                             std::size_t BaseOffset) {
+  if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+    QualType ElemTy = CAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    if (const auto *SL = dynCast<StringLiteral>(Init)) {
+      emitGlobalStringLiteralInit(SL, Ty, BaseOffset);
+      return;
+    }
+
+    const auto *ILE = dynCast<InitListExpr>(Init);
+    if (!ILE)
+      Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
+    for (std::size_t I = 0; I < CAT->getLength(); ++I) {
+      std::size_t Offset = BaseOffset + I * ElemSize;
+      if (I >= ILE->getNumInits()) {
+        emitGlobalZeroInit(ElemTy, Offset);
+        continue;
+      }
+      emitGlobalInit(ILE->getInit(I), ElemTy, Offset);
+    }
+    return;
+  }
+
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    const auto *RD = RT->getDecl();
+    const auto &Fields = RD->fields();
+    if (RD->isUnion()) {
+      if (Fields.empty()) {
+        emit("  .zero {}", Ty->getSize());
+        return;
+      }
+
+      if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+        if (ILE->getNumInits() > 0)
+          emitGlobalInit(ILE->getInit(0), Fields[0]->getType(), BaseOffset);
+        else
+          emitGlobalZeroInit(Fields[0]->getType(), BaseOffset);
+      } else {
+        emitGlobalInit(Init, Fields[0]->getType(), BaseOffset);
+      }
+
+      std::size_t InitSize = Fields[0]->getType()->getSize();
+      if (InitSize < Ty->getSize())
+        emit("  .zero {}", Ty->getSize() - InitSize);
+      return;
+    }
+
+    const auto *ILE = dynCast<InitListExpr>(Init);
+    if (!ILE)
+      Diag.fatalAt(Init->getBeginLoc(), "expect nested initializer list");
+
+    std::size_t CurrOffset = BaseOffset;
+    for (std::size_t I = 0; I < Fields.size(); ++I) {
+      const auto *Field = Fields[I];
+      std::size_t FieldOffset = BaseOffset + Field->getOffset();
+      if (FieldOffset > CurrOffset)
+        emit("  .zero {}", FieldOffset - CurrOffset);
+
+      if (I < ILE->getNumInits())
+        emitGlobalInit(ILE->getInit(I), Field->getType(), FieldOffset);
+      else
+        emitGlobalZeroInit(Field->getType(), FieldOffset);
+
+      CurrOffset = FieldOffset + Field->getType()->getSize();
+    }
+
+    std::size_t EndOffset = BaseOffset + Ty->getSize();
+    if (CurrOffset < EndOffset)
+      emit("  .zero {}", EndOffset - CurrOffset);
+    return;
+  }
+
+  auto Eval = Init->evaluateAsInt();
+  if (!Eval)
+    Diag.fatalAt(Init->getBeginLoc(),
+                 "global variable initializer is not a constant expression");
+  emitScalarData(BaseOffset, Ty->getSize(), *Eval);
+}
+
+void CodeGen::emitGlobalStringLiteralInit(const StringLiteral *SL, QualType ArrTy,
+                                          std::size_t BaseOffset) {
+  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
+  if (!CAT)
+    Diag.fatalAt(SL->getBeginLoc(), "expect constant array type");
+  const auto *ElemBT = CAT->getElementType()->getAs<BuiltinType>();
+  if (!ElemBT || ElemBT->getKind() != BuiltinType::BK_Char)
+    Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
+
+  const std::string &Str = SL->getString();
+  std::size_t Len = CAT->getLength();
+  std::size_t NumInit = std::min<std::size_t>(Len, Str.size() + 1);
+  for (std::size_t I = 0; I < NumInit; ++I) {
+    unsigned char C = I < Str.size() ? static_cast<unsigned char>(Str[I]) : 0;
+    emitScalarData(BaseOffset + I, 1, C);
+  }
+  if (NumInit < Len)
+    emit("  .zero {}", Len - NumInit);
+}
+
+void CodeGen::emitGlobalZeroInit(QualType Ty, std::size_t BaseOffset) {
+  if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+    QualType ElemTy = CAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    for (std::size_t I = 0; I < CAT->getLength(); ++I)
+      emitGlobalZeroInit(ElemTy, BaseOffset + I * ElemSize);
+    return;
+  }
+
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    const auto *RD = RT->getDecl();
+    const auto &Fields = RD->fields();
+    if (RD->isUnion()) {
+      emit("  .zero {}", Ty->getSize());
+      return;
+    }
+
+    std::size_t CurrOffset = BaseOffset;
+    for (const auto *Field : Fields) {
+      std::size_t FieldOffset = BaseOffset + Field->getOffset();
+      if (FieldOffset > CurrOffset)
+        emit("  .zero {}", FieldOffset - CurrOffset);
+      emitGlobalZeroInit(Field->getType(), FieldOffset);
+      CurrOffset = FieldOffset + Field->getType()->getSize();
+    }
+
+    std::size_t EndOffset = BaseOffset + Ty->getSize();
+    if (CurrOffset < EndOffset)
+      emit("  .zero {}", EndOffset - CurrOffset);
+    return;
+  }
+
+  emitScalarData(BaseOffset, Ty->getSize(), 0);
+}
+
+void CodeGen::emitScalarData(std::size_t Offset, std::size_t Size,
+                             std::int64_t Val) {
+  (void)Offset;
+
+  std::uint64_t Mask = ~std::uint64_t(0);
+  if (Size < sizeof(std::uint64_t))
+    Mask = (std::uint64_t(1) << (Size * 8)) - 1;
+  std::uint64_t UVal = static_cast<std::uint64_t>(Val) & Mask;
+
+  switch (Size) {
+  case 1:
+    emit("  .byte {}", UVal);
+    break;
+  case 2:
+    emit("  .2byte {}", UVal);
+    break;
+  case 4:
+    emit("  .4byte {}", UVal);
+    break;
+  case 8:
+    emit("  .8byte {}", UVal);
+    break;
+  default:
+    Diag.fatalAt(SourceLocation(), "unsupported scalar size '{}'", Size);
   }
 }
 

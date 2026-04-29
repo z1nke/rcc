@@ -62,6 +62,12 @@ private:
   void genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
                             QualType ArrTy, std::size_t BaseOffset);
   void genZeroInit(const VarDecl *Var, QualType Ty, std::size_t BaseOffset);
+  void emitGlobalVarInit(const VarDecl *Var, const Expr *Init);
+  void emitGlobalInit(const Expr *Init, QualType Ty, std::size_t BaseOffset);
+  void emitGlobalStringLiteralInit(const StringLiteral *SL, QualType ArrTy,
+                                   std::size_t BaseOffset);
+  void emitGlobalZeroInit(QualType Ty, std::size_t BaseOffset);
+  void emitScalarData(std::size_t Offset, std::size_t Size, std::int64_t Val);
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
   void genAddr(const ArraySubscriptExpr *ASE);
