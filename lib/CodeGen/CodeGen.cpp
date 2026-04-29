@@ -20,6 +20,12 @@ namespace rcc {
 
 CodeGen::CodeGen(Diagnostic &Diag, FILE *Fp) : Diag(Diag), Fp(Fp) {}
 
+namespace {
+
+static bool shouldEmitInBss(const VarDecl *Var) { return !Var->getInit(); }
+
+} // namespace
+
 // Returns stack size.
 static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   int Offset = 0;
@@ -50,11 +56,13 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
   for (const auto *D : TU->decls()) {
     if (const auto *Var = dynCast<VarDecl>(D)) {
       emit("  .globl {}", Var->getName());
-      emit("  .data");
+      emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
       emitGlobalVarInit(Var, Var->getInit());
     }
   }
 
+  if (!StringLiterals.empty())
+    emit("  .data");
   for (std::size_t Idx = 0; Idx < StringLiterals.size(); ++Idx) {
     const auto *SL = StringLiterals[Idx];
     std::string Label = getStringLabel(SL);
