@@ -194,6 +194,12 @@ int main() {
   // [109] Allow extraneous braces for scalar initializer
   ASSERT(0, strcmp(g44, "foo"));
 
+  // [110] Allow extraneous comma at the end of enum or initializer list
+  ASSERT(3, ({ int a[]={1,2,3,}; a[2]; }));
+  ASSERT(1, ({ struct {int a,b,c;} x={1,2,3,}; x.a; }));
+  ASSERT(1, ({ union {int a; char b;} x={1,}; x.a; }));
+  ASSERT(2, ({ enum {x,y,z,}; z; }));
+
   printf("OK\n");
   return 0;
 }
