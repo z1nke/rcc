@@ -339,30 +339,107 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
 }
 
 void Sema::checkInitList(const InitListExpr *List, QualType AggTy) const {
+  unsigned Index = 0;
+  checkInitListFrom(List, AggTy, Index);
+}
+
+void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
+                             unsigned &Idx) const {
   if (const auto *CAT = AggTy->getAs<ConstantArrayType>()) {
     QualType ElemTy = CAT->getElementType();
-    unsigned NumToCheck =
-        std::min<unsigned>(List->getNumInits(), CAT->getLength());
-    for (unsigned I = 0; I < NumToCheck; ++I)
-      checkInitListElement(List->getInit(I), ElemTy);
+    for (unsigned I = 0; I < CAT->getLength(); ++I) {
+      if (Idx >= List->getNumInits())
+        return;
+
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        checkInitList(SubList, ElemTy);
+        continue;
+      }
+
+      if (ElemTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          checkStringLiteralInit(Ctx, Diag, ElemTy, SL);
+          ++Idx;
+          continue;
+        }
+        checkInitListFrom(List, ElemTy, Idx);
+        continue;
+      }
+
+      if (ElemTy->isRecordType()) {
+        checkInitListFrom(List, ElemTy, Idx);
+        continue;
+      }
+
+      checkInitListElement(E, ElemTy);
+      ++Idx;
+    }
     return;
   }
 
   if (const auto *RT = AggTy->getAs<RecordType>()) {
     const auto *RD = RT->getDecl();
+    const auto &Fields = RD->fields();
+    if (Fields.empty())
+      return;
+
     if (RD->isUnion()) {
-      const auto &Fields = RD->fields();
-      if (List->getNumInits() == 0 || Fields.empty())
+      if (Idx >= List->getNumInits())
         return;
-      checkInitListElement(List->getInit(0), Fields[0]->getType());
+
+      QualType FieldTy = Fields[0]->getType();
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        checkInitList(SubList, FieldTy);
+      } else if (FieldTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          checkStringLiteralInit(Ctx, Diag, FieldTy, SL);
+          ++Idx;
+        } else {
+          checkInitListFrom(List, FieldTy, Idx);
+        }
+      } else if (FieldTy->isRecordType()) {
+        checkInitListFrom(List, FieldTy, Idx);
+      } else {
+        checkInitListElement(E, FieldTy);
+        ++Idx;
+      }
       return;
     }
 
-    const auto &Fields = RD->fields();
-    unsigned NumToCheck =
-        std::min<unsigned>(List->getNumInits(), Fields.size());
-    for (unsigned I = 0; I < NumToCheck; ++I)
-      checkInitListElement(List->getInit(I), Fields[I]->getType());
+    for (const auto *Field : Fields) {
+      if (Idx >= List->getNumInits())
+        return;
+
+      QualType FieldTy = Field->getType();
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        checkInitList(SubList, FieldTy);
+        continue;
+      }
+
+      if (FieldTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          checkStringLiteralInit(Ctx, Diag, FieldTy, SL);
+          ++Idx;
+          continue;
+        }
+        checkInitListFrom(List, FieldTy, Idx);
+        continue;
+      }
+
+      if (FieldTy->isRecordType()) {
+        checkInitListFrom(List, FieldTy, Idx);
+        continue;
+      }
+
+      checkInitListElement(E, FieldTy);
+      ++Idx;
+    }
     return;
   }
 

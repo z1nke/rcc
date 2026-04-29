@@ -209,8 +209,6 @@ static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E) {
 void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
                              std::size_t BaseOffset) {
   if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
-    QualType ElemTy = CAT->getElementType();
-    std::size_t ElemSize = ElemTy->getSize();
     if (const auto *SL = dynCast<StringLiteral>(Init)) {
       emitGlobalStringLiteralInit(SL, Ty, BaseOffset);
       return;
@@ -219,14 +217,8 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
     const auto *ILE = dynCast<InitListExpr>(Init);
     if (!ILE)
       Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
-    for (std::size_t I = 0; I < CAT->getLength(); ++I) {
-      std::size_t Offset = BaseOffset + I * ElemSize;
-      if (I >= ILE->getNumInits()) {
-        emitGlobalZeroInit(ElemTy, Offset);
-        continue;
-      }
-      emitGlobalInit(ILE->getInit(I), ElemTy, Offset);
-    }
+    std::size_t Index = 0;
+    emitGlobalInitFromFlat(ILE, Ty, BaseOffset, Index);
     return;
   }
 
@@ -257,25 +249,8 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
     const auto *ILE = dynCast<InitListExpr>(Init);
     if (!ILE)
       Diag.fatalAt(Init->getBeginLoc(), "expect nested initializer list");
-
-    std::size_t CurrOffset = BaseOffset;
-    for (std::size_t I = 0; I < Fields.size(); ++I) {
-      const auto *Field = Fields[I];
-      std::size_t FieldOffset = BaseOffset + Field->getOffset();
-      if (FieldOffset > CurrOffset)
-        emit("  .zero {}", FieldOffset - CurrOffset);
-
-      if (I < ILE->getNumInits())
-        emitGlobalInit(ILE->getInit(I), Field->getType(), FieldOffset);
-      else
-        emitGlobalZeroInit(Field->getType(), FieldOffset);
-
-      CurrOffset = FieldOffset + Field->getType()->getSize();
-    }
-
-    std::size_t EndOffset = BaseOffset + Ty->getSize();
-    if (CurrOffset < EndOffset)
-      emit("  .zero {}", EndOffset - CurrOffset);
+    std::size_t Index = 0;
+    emitGlobalInitFromFlat(ILE, Ty, BaseOffset, Index);
     return;
   }
 
@@ -296,6 +271,117 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
   }
 
   emitScalarData(BaseOffset, Ty->getSize(), *Eval);
+}
+
+void CodeGen::emitGlobalInitFromFlat(const InitListExpr *List, QualType Ty,
+                                     std::size_t BaseOffset,
+                                     std::size_t &Idx) {
+  if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+    QualType ElemTy = CAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    for (std::size_t I = 0; I < CAT->getLength(); ++I) {
+      std::size_t Offset = BaseOffset + I * ElemSize;
+      if (Idx >= List->getNumInits()) {
+        emitGlobalZeroInit(ElemTy, Offset);
+        continue;
+      }
+
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        emitGlobalInit(SubList, ElemTy, Offset);
+        continue;
+      }
+      if (ElemTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          ++Idx;
+          emitGlobalStringLiteralInit(SL, ElemTy, Offset);
+        } else {
+          emitGlobalInitFromFlat(List, ElemTy, Offset, Idx);
+        }
+        continue;
+      }
+      if (ElemTy->isRecordType()) {
+        emitGlobalInitFromFlat(List, ElemTy, Offset, Idx);
+        continue;
+      }
+      ++Idx;
+      emitGlobalInit(E, ElemTy, Offset);
+    }
+    return;
+  }
+
+  const auto *RT = Ty->getAs<RecordType>();
+  if (!RT)
+    Diag.fatalAt(List->getBeginLoc(), "expect aggregate type");
+  const auto *RD = RT->getDecl();
+  const auto &Fields = RD->fields();
+  if (RD->isUnion()) {
+    if (Fields.empty() || Idx >= List->getNumInits()) {
+      emitGlobalZeroInit(Ty, BaseOffset);
+      return;
+    }
+    const auto *Field = Fields[0];
+    QualType FieldTy = Field->getType();
+    std::size_t FieldOffset = BaseOffset + Field->getOffset();
+    const Expr *E = List->getInit(Idx);
+    if (const auto *SubList = dynCast<InitListExpr>(E)) {
+      ++Idx;
+      emitGlobalInit(SubList, FieldTy, FieldOffset);
+    } else if (FieldTy->isArraryType()) {
+      if (const auto *SL = dynCast<StringLiteral>(E)) {
+        ++Idx;
+        emitGlobalStringLiteralInit(SL, FieldTy, FieldOffset);
+      } else {
+        emitGlobalInitFromFlat(List, FieldTy, FieldOffset, Idx);
+      }
+    } else if (FieldTy->isRecordType()) {
+      emitGlobalInitFromFlat(List, FieldTy, FieldOffset, Idx);
+    } else {
+      ++Idx;
+      emitGlobalInit(E, FieldTy, FieldOffset);
+    }
+
+    std::size_t InitSize = FieldTy->getSize();
+    if (InitSize < Ty->getSize())
+      emit("  .zero {}", Ty->getSize() - InitSize);
+    return;
+  }
+
+  std::size_t CurrOffset = BaseOffset;
+  for (const auto *Field : Fields) {
+    std::size_t FieldOffset = BaseOffset + Field->getOffset();
+    if (CurrOffset < FieldOffset)
+      emit("  .zero {}", FieldOffset - CurrOffset);
+
+    if (Idx < List->getNumInits()) {
+      const Expr *E = List->getInit(Idx);
+      QualType FieldTy = Field->getType();
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        emitGlobalInit(SubList, FieldTy, FieldOffset);
+      } else if (FieldTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          ++Idx;
+          emitGlobalStringLiteralInit(SL, FieldTy, FieldOffset);
+        } else {
+          emitGlobalInitFromFlat(List, FieldTy, FieldOffset, Idx);
+        }
+      } else if (FieldTy->isRecordType()) {
+        emitGlobalInitFromFlat(List, FieldTy, FieldOffset, Idx);
+      } else {
+        ++Idx;
+        emitGlobalInit(E, FieldTy, FieldOffset);
+      }
+    } else {
+      emitGlobalZeroInit(Field->getType(), FieldOffset);
+    }
+    CurrOffset = FieldOffset + Field->getType()->getSize();
+  }
+
+  std::size_t EndOffset = BaseOffset + Ty->getSize();
+  if (CurrOffset < EndOffset)
+    emit("  .zero {}", EndOffset - CurrOffset);
 }
 
 void CodeGen::emitGlobalStringLiteralInit(const StringLiteral *SL, QualType ArrTy,
@@ -553,49 +639,110 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
 
 void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
                               QualType AggTy, std::size_t BaseOffset) {
+  std::size_t Index = 0;
+  genInitListExprFromFlat(Var, List, AggTy, BaseOffset, Index);
+}
+
+void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
+                                      const InitListExpr *List, QualType AggTy,
+                                      std::size_t BaseOffset,
+                                      std::size_t &Idx) {
   if (const auto *CAT = AggTy->getAs<ConstantArrayType>()) {
     QualType ElemTy = CAT->getElementType();
     std::size_t ElemSize = ElemTy->getSize();
     for (std::size_t I = 0; I < CAT->getLength(); ++I) {
       std::size_t Offset = BaseOffset + I * ElemSize;
-      if (I >= List->getNumInits()) {
+      if (Idx >= List->getNumInits()) {
         genZeroInit(Var, ElemTy, Offset);
         continue;
       }
 
-      genInitListElement(Var, List->getInit(I), ElemTy, Offset);
-    }
-    return;
-  }
-
-  if (const auto *RT = AggTy->getAs<RecordType>()) {
-    const auto *RD = RT->getDecl();
-    const auto &Fields = RD->fields();
-    if (RD->isUnion()) {
-      if (List->getNumInits() == 0 || Fields.empty()) {
-        genZeroInit(Var, AggTy, BaseOffset);
-      } else {
-        const auto *Field = Fields[0];
-        genInitListElement(Var, List->getInit(0), Field->getType(),
-                           BaseOffset + Field->getOffset());
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        genInitListExpr(Var, SubList, ElemTy, Offset);
+        continue;
       }
-      return;
-    }
-
-    for (std::size_t I = 0; I < Fields.size(); ++I) {
-      const auto *Field = Fields[I];
-      std::size_t Offset = BaseOffset + Field->getOffset();
-      if (I >= List->getNumInits()) {
-        genZeroInit(Var, Field->getType(), Offset);
+      if (ElemTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          ++Idx;
+          genStringLiteralInit(Var, SL, ElemTy, Offset);
+        } else {
+          genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
+        }
+        continue;
+      }
+      if (ElemTy->isRecordType()) {
+        genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
         continue;
       }
 
-      genInitListElement(Var, List->getInit(I), Field->getType(), Offset);
+      ++Idx;
+      genInitListElement(Var, E, ElemTy, Offset);
     }
     return;
   }
 
-  Diag.fatalAt(List->getBeginLoc(), "expect aggregate type");
+  const auto *RT = AggTy->getAs<RecordType>();
+  if (!RT)
+    Diag.fatalAt(List->getBeginLoc(), "expect aggregate type");
+  const auto *RD = RT->getDecl();
+  const auto &Fields = RD->fields();
+  if (RD->isUnion()) {
+    if (Fields.empty() || Idx >= List->getNumInits()) {
+      genZeroInit(Var, AggTy, BaseOffset);
+      return;
+    }
+
+    const auto *Field = Fields[0];
+    QualType FieldTy = Field->getType();
+    std::size_t Offset = BaseOffset + Field->getOffset();
+    const Expr *E = List->getInit(Idx);
+    if (const auto *SubList = dynCast<InitListExpr>(E)) {
+      ++Idx;
+      genInitListExpr(Var, SubList, FieldTy, Offset);
+    } else if (FieldTy->isArraryType()) {
+      if (const auto *SL = dynCast<StringLiteral>(E)) {
+        ++Idx;
+        genStringLiteralInit(Var, SL, FieldTy, Offset);
+      } else {
+        genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+      }
+    } else if (FieldTy->isRecordType()) {
+      genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+    } else {
+      ++Idx;
+      genInitListElement(Var, E, FieldTy, Offset);
+    }
+    return;
+  }
+
+  for (const auto *Field : Fields) {
+    std::size_t Offset = BaseOffset + Field->getOffset();
+    if (Idx >= List->getNumInits()) {
+      genZeroInit(Var, Field->getType(), Offset);
+      continue;
+    }
+
+    const Expr *E = List->getInit(Idx);
+    QualType FieldTy = Field->getType();
+    if (const auto *SubList = dynCast<InitListExpr>(E)) {
+      ++Idx;
+      genInitListExpr(Var, SubList, FieldTy, Offset);
+    } else if (FieldTy->isArraryType()) {
+      if (const auto *SL = dynCast<StringLiteral>(E)) {
+        ++Idx;
+        genStringLiteralInit(Var, SL, FieldTy, Offset);
+      } else {
+        genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+      }
+    } else if (FieldTy->isRecordType()) {
+      genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+    } else {
+      ++Idx;
+      genInitListElement(Var, E, FieldTy, Offset);
+    }
+  }
 }
 
 void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,

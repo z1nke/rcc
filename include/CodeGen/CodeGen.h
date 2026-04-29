@@ -57,6 +57,9 @@ private:
   void genCastExpr(const CastExpr *Cast);
   void genInitListExpr(const VarDecl *Var, const InitListExpr *List,
                        QualType AggTy, std::size_t BaseOffset);
+  void genInitListExprFromFlat(const VarDecl *Var, const InitListExpr *List,
+                               QualType AggTy, std::size_t BaseOffset,
+                               std::size_t &Idx);
   void genInitListElement(const VarDecl *Var, const Expr *ElemInit,
                           QualType ElemTy, std::size_t Offset);
   void genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
@@ -64,6 +67,8 @@ private:
   void genZeroInit(const VarDecl *Var, QualType Ty, std::size_t BaseOffset);
   void emitGlobalVarInit(const VarDecl *Var, const Expr *Init);
   void emitGlobalInit(const Expr *Init, QualType Ty, std::size_t BaseOffset);
+  void emitGlobalInitFromFlat(const InitListExpr *List, QualType Ty,
+                              std::size_t BaseOffset, std::size_t &Idx);
   void emitGlobalStringLiteralInit(const StringLiteral *SL, QualType ArrTy,
                                    std::size_t BaseOffset);
   void emitGlobalZeroInit(QualType Ty, std::size_t BaseOffset);
