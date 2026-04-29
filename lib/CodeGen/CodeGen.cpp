@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <format>
+#include <optional>
 #include <print>
 
 namespace rcc {
@@ -74,6 +75,136 @@ void CodeGen::emitGlobalVarInit(const VarDecl *Var, const Expr *Init) {
 
   emitGlobalInit(Init, Var->getType(), 0);
 }
+
+namespace {
+
+struct GlobalInitValue {
+  std::string Label;
+  std::int64_t Addend = 0;
+
+  bool hasLabel() const { return !Label.empty(); }
+};
+
+static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E);
+
+static std::optional<GlobalInitValue> evalGlobalAddress(const Expr *E) {
+  E = E->ignoreParens();
+
+  switch (E->getKind()) {
+  case Stmt::SK_DeclRefExpr: {
+    const auto *Ref = cast<DeclRefExpr>(E);
+    const auto *Var = dynCast<VarDecl>(Ref->getDecl());
+    if (!Var || !Var->hasGlobalStorage())
+      return std::nullopt;
+    return GlobalInitValue{Var->getName(), 0};
+  }
+  case Stmt::SK_UnaryOperator: {
+    const auto *UO = cast<UnaryOperator>(E);
+    if (UO->getOpcode() == UnaryOperator::UO_Deref)
+      return evalGlobalInitValue(UO->getSubExpr());
+    return std::nullopt;
+  }
+  case Stmt::SK_CastExpr:
+    return evalGlobalAddress(cast<CastExpr>(E)->getSubExpr());
+  case Stmt::SK_ArraySubscriptExpr: {
+    const auto *ASE = cast<ArraySubscriptExpr>(E);
+    auto Base = evalGlobalInitValue(ASE->getBase());
+    auto Idx = ASE->getIdx()->evaluateAsInt();
+    QualType ElemTy = ASE->getBase()->getType()->getPointeeOrArrayElementType();
+    if (!Base || !Idx || ElemTy.isNull())
+      return std::nullopt;
+    Base->Addend += *Idx * static_cast<std::int64_t>(ElemTy->getSize());
+    return Base;
+  }
+  case Stmt::SK_MemberExpr: {
+    const auto *ME = cast<MemberExpr>(E);
+    auto Base = evalGlobalAddress(ME->getBase());
+    if (!Base)
+      return std::nullopt;
+    Base->Addend += ME->getMemberDecl()->getOffset();
+    return Base;
+  }
+  default:
+    return std::nullopt;
+  }
+}
+
+static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E) {
+  E = E->ignoreParens();
+
+  if (auto Val = E->evaluateAsInt())
+    return GlobalInitValue{"", *Val};
+
+  switch (E->getKind()) {
+  case Stmt::SK_DeclRefExpr:
+  case Stmt::SK_ArraySubscriptExpr:
+  case Stmt::SK_MemberExpr:
+    return evalGlobalAddress(E);
+  case Stmt::SK_UnaryOperator: {
+    const auto *UO = cast<UnaryOperator>(E);
+    switch (UO->getOpcode()) {
+    case UnaryOperator::UO_Addrof:
+      return evalGlobalAddress(UO->getSubExpr());
+    case UnaryOperator::UO_Deref:
+      return evalGlobalInitValue(UO->getSubExpr());
+    case UnaryOperator::UO_Plus:
+      return evalGlobalInitValue(UO->getSubExpr());
+    case UnaryOperator::UO_Minus: {
+      auto Val = evalGlobalInitValue(UO->getSubExpr());
+      if (!Val || Val->hasLabel())
+        return std::nullopt;
+      Val->Addend = -Val->Addend;
+      return Val;
+    }
+    default:
+      return std::nullopt;
+    }
+  }
+  case Stmt::SK_CastExpr: {
+    const auto *Cast = cast<CastExpr>(E);
+    if (Cast->getCastKind() == CastExpr::CK_ToVoid)
+      return std::nullopt;
+    return evalGlobalInitValue(Cast->getSubExpr());
+  }
+  case Stmt::SK_BinaryOperator: {
+    const auto *BO = cast<BinaryOperator>(E);
+    if (BO->getOpcode() != BinaryOperator::BO_Add &&
+        BO->getOpcode() != BinaryOperator::BO_Sub)
+      return std::nullopt;
+
+    auto LHS = evalGlobalInitValue(BO->getLHS());
+    auto RHS = evalGlobalInitValue(BO->getRHS());
+    if (!LHS || !RHS || (LHS->hasLabel() && RHS->hasLabel()))
+      return std::nullopt;
+
+    auto scaleAddend = [](std::int64_t Addend, QualType PtrTy) {
+      if (PtrTy->isPointerType())
+        return Addend * static_cast<std::int64_t>(
+                            PtrTy->getPointeeType()->getSize());
+      return Addend;
+    };
+
+    if (BO->getOpcode() == BinaryOperator::BO_Add) {
+      if (LHS->hasLabel()) {
+        LHS->Addend += scaleAddend(RHS->Addend, BO->getLHS()->getType());
+        return LHS;
+      }
+      RHS->Addend += scaleAddend(LHS->Addend, BO->getRHS()->getType());
+      return RHS;
+    }
+
+    if (!LHS->hasLabel())
+      return GlobalInitValue{"", LHS->Addend - RHS->Addend};
+
+    LHS->Addend -= scaleAddend(RHS->Addend, BO->getLHS()->getType());
+    return LHS;
+  }
+  default:
+    return std::nullopt;
+  }
+}
+
+} // namespace
 
 void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
                              std::size_t BaseOffset) {
@@ -149,9 +280,21 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
   }
 
   auto Eval = Init->evaluateAsInt();
-  if (!Eval)
-    Diag.fatalAt(Init->getBeginLoc(),
-                 "global variable initializer is not a constant expression");
+  if (!Eval) {
+    auto GlobalVal = evalGlobalInitValue(Init);
+    if (!GlobalVal || !GlobalVal->hasLabel() || Ty->getSize() != 8)
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "global variable initializer is not a constant expression");
+
+    if (GlobalVal->Addend == 0)
+      emit("  .8byte {}", GlobalVal->Label);
+    else if (GlobalVal->Addend > 0)
+      emit("  .8byte {}+{}", GlobalVal->Label, GlobalVal->Addend);
+    else
+      emit("  .8byte {}{}", GlobalVal->Label, GlobalVal->Addend);
+    return;
+  }
+
   emitScalarData(BaseOffset, Ty->getSize(), *Eval);
 }
 

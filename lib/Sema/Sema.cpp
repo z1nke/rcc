@@ -25,8 +25,9 @@ static void checkStringLiteralInit(const ASTContext &Ctx, Diagnostic &Diag,
   const auto *CAT = ArrTy->getAs<ConstantArrayType>();
   if (!CAT || !Ctx.hasSameType(CAT->getElementType(), Ctx.CharTy))
     Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
-  if (SL->getString().size() > CAT->getLength())
-    Diag.fatalAt(SL->getBeginLoc(), "initializer-string for char array is too long");
+  if (CAT->getLength() == 0)
+    Diag.fatalAt(SL->getBeginLoc(),
+                 "initializer-string for char array is too long");
 }
 
 Decl *Sema::actOnDeclarator(Declarator &D) {

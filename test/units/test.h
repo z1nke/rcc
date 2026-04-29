@@ -5,3 +5,7 @@ int printf();
 
 // [69] Report an error on undefined/undeclared functions
 void assert(int expected, int actual, char *code, int line);
+
+// [107] Handle union initializers for global variable
+int strcmp(char *p, char *q);
+int memcmp(char *p, char *q, long n);
