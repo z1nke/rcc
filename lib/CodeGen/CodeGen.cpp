@@ -87,6 +87,16 @@ struct GlobalInitValue {
 
 static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E);
 
+static const StringLiteral *extractStringLiteral(const Expr *E) {
+  if (const auto *SL = dynCast<StringLiteral>(E))
+    return SL;
+  if (const auto *PE = dynCast<ParenExpr>(E))
+    return extractStringLiteral(PE->getSubExpr());
+  if (const auto *CE = dynCast<CastExpr>(E))
+    return extractStringLiteral(CE->getSubExpr());
+  return nullptr;
+}
+
 static std::optional<GlobalInitValue> evalGlobalAddress(const Expr *E) {
   E = E->ignoreParens();
 
@@ -251,6 +261,13 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
       Diag.fatalAt(Init->getBeginLoc(), "expect nested initializer list");
     std::size_t Index = 0;
     emitGlobalInitFromFlat(ILE, Ty, BaseOffset, Index);
+    return;
+  }
+
+  if (const auto *SL = extractStringLiteral(Init)) {
+    if (Ty->getSize() != 8)
+      Diag.fatalAt(Init->getBeginLoc(), "invalid variable init type");
+    emit("  .8byte {}", getStringLabel(SL));
     return;
   }
 

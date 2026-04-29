@@ -290,7 +290,6 @@ void Sema::complete(FunctionDecl *FD) {
 }
 
 void Sema::complete(VarDecl *Var, Expr *Init) {
-  QualType InitType = Init->getType();
   QualType VarType = Var->getType();
   if (const auto *IAT = VarType->getAs<IncompleteArrayType>()) {
     QualType ElemTy = IAT->getElementType();
@@ -317,14 +316,21 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   }
 
   if (const auto *ILE = dynCast<InitListExpr>(Init)) {
-    if (!VarType->isArraryType() && !VarType->isRecordType())
-      Diag.fatalAt(Init->getBeginLoc(), "invalid initializer list for scalar");
-    checkInitList(ILE, VarType);
-    Var->setInit(Init);
-    Var->setEndLoc(Init->getEndLoc());
-    return;
+    if (!VarType->isArraryType() && !VarType->isRecordType()) {
+      while (const auto *ScalarILE = dynCast<InitListExpr>(Init)) {
+        if (ScalarILE->getNumInits() != 1)
+          Diag.fatalAt(Init->getBeginLoc(), "invalid initializer list for scalar");
+        Init = const_cast<Expr *>(ScalarILE->getInit(0));
+      }
+    } else {
+      checkInitList(ILE, VarType);
+      Var->setInit(Init);
+      Var->setEndLoc(Init->getEndLoc());
+      return;
+    }
   }
 
+  QualType InitType = Init->getType();
   if (!Ctx.hasSameType(VarType, InitType)) {
     auto CK = getCastKind(VarType, InitType);
     if (!CK)
