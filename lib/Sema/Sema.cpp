@@ -184,11 +184,33 @@ void Sema::actOnTagStartDefinition(SourceLocation Loc, TagDecl *Tag) {
 
 void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
   if (auto *Record = dynCast<RecordDecl>(Tag)) {
+    const auto &Fields = Record->fields();
+    for (std::size_t I = 0; I < Fields.size(); ++I) {
+      const auto *Field = Fields[I];
+      if (!Field->getType()->getAs<IncompleteArrayType>())
+        continue;
+
+      if (Record->isUnion()) {
+        Diag.fatalAt(Field->getLocation(),
+                     "flexible array member in a union");
+      }
+
+      if (I + 1 != Fields.size()) {
+        Diag.fatalAt(Field->getLocation(),
+                     "flexible array member not at end of struct");
+      }
+
+      if (I == 0) {
+        Diag.fatalAt(Field->getLocation(),
+                     "flexible array member in otherwise empty struct");
+      }
+    }
+
     std::size_t Size = 0;
     std::size_t Align = 1;
     if (Record->isStruct()) {
       std::size_t Offset = 0;
-      for (auto *Field : Record->fields()) {
+      for (auto *Field : Fields) {
         std::size_t FieldAlign = Field->getType()->getAlign();
         Offset = alignTo(Offset, FieldAlign);
         Field->setOffset(Offset);
@@ -198,7 +220,7 @@ void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
       }
       Size = alignTo(Offset, Align);
     } else {
-      for (auto *Field : Record->fields()) {
+      for (auto *Field : Fields) {
         std::size_t FieldAlign = Field->getType()->getAlign();
         std::size_t FieldSize = Field->getType()->getSize();
         if (Align < FieldAlign)
@@ -421,6 +443,11 @@ void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
         return;
 
       QualType FieldTy = Field->getType();
+      if (FieldTy->getAs<IncompleteArrayType>()) {
+        Diag.fatalAt(List->getInit(Idx)->getBeginLoc(),
+                     "flexible array member cannot be initialized");
+      }
+
       const Expr *E = List->getInit(Idx);
       if (const auto *SubList = dynCast<InitListExpr>(E)) {
         ++Idx;

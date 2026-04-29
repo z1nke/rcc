@@ -42,6 +42,9 @@ int main() {
   ASSERT(8, sizeof(int(*)[10]));
   ASSERT(8, sizeof(int(*)[][10]));
 
+  // [112] Add flexible array member
+  ASSERT(4, sizeof(struct { int x, y[]; }));
+
   printf("OK\n");
   return 0;
 }
