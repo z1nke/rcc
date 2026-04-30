@@ -2,7 +2,7 @@
 
 #include "test.h"
 
-int ret3() {
+int ret3(void) { // [114] Accept `void` as a parameter list
   return 3;
   return 5;
 }
@@ -71,7 +71,7 @@ int sub_short(short a, short b, short c) {
 // [70] Handle return type conversion
 int g1;
 
-int *g1_ptr() { return &g1; }
+int *g1_ptr(void) { return &g1; } // [114] Accept `void` as a parameter list
 char int_to_char(int x) { return x; }
 
 // {71] Handle function argument type conversion
@@ -84,7 +84,8 @@ _Bool bool_fn_add(_Bool x) { return x + 1; }
 _Bool bool_fn_sub(_Bool x) { return x - 1; }
 
 // [75] Support file-scope functions
-static int static_fn() { return 3; }
+// [114] Accept `void` as a parameter list
+static int static_fn(void) { return 3; }
 
 // [87] Decay an array to a pointer in the func param context
 int param_decay(int x[]) { return x[0]; }
