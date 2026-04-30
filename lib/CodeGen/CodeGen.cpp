@@ -301,6 +301,34 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
 void CodeGen::emitGlobalInitFromFlat(const InitListExpr *List, QualType Ty,
                                      std::size_t BaseOffset,
                                      std::size_t &Idx) {
+  if (const auto *IAT = Ty->getAs<IncompleteArrayType>()) {
+    QualType ElemTy = IAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    std::size_t I = 0;
+    while (Idx < List->getNumInits()) {
+      std::size_t Offset = BaseOffset + I * ElemSize;
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        emitGlobalInit(SubList, ElemTy, Offset);
+      } else if (ElemTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          ++Idx;
+          emitGlobalStringLiteralInit(SL, ElemTy, Offset);
+        } else {
+          emitGlobalInitFromFlat(List, ElemTy, Offset, Idx);
+        }
+      } else if (ElemTy->isRecordType()) {
+        emitGlobalInitFromFlat(List, ElemTy, Offset, Idx);
+      } else {
+        ++Idx;
+        emitGlobalInit(E, ElemTy, Offset);
+      }
+      ++I;
+    }
+    return;
+  }
+
   if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
     QualType ElemTy = CAT->getElementType();
     std::size_t ElemSize = ElemTy->getSize();
@@ -672,6 +700,34 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
                                       const InitListExpr *List, QualType AggTy,
                                       std::size_t BaseOffset,
                                       std::size_t &Idx) {
+  if (const auto *IAT = AggTy->getAs<IncompleteArrayType>()) {
+    QualType ElemTy = IAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    std::size_t I = 0;
+    while (Idx < List->getNumInits()) {
+      std::size_t Offset = BaseOffset + I * ElemSize;
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        genInitListExpr(Var, SubList, ElemTy, Offset);
+      } else if (ElemTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          ++Idx;
+          genStringLiteralInit(Var, SL, ElemTy, Offset);
+        } else {
+          genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
+        }
+      } else if (ElemTy->isRecordType()) {
+        genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
+      } else {
+        ++Idx;
+        genInitListElement(Var, E, ElemTy, Offset);
+      }
+      ++I;
+    }
+    return;
+  }
+
   if (const auto *CAT = AggTy->getAs<ConstantArrayType>()) {
     QualType ElemTy = CAT->getElementType();
     std::size_t ElemSize = ElemTy->getSize();

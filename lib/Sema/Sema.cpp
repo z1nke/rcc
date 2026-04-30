@@ -30,6 +30,115 @@ static void checkStringLiteralInit(const ASTContext &Ctx, Diagnostic &Diag,
                  "initializer-string for char array is too long");
 }
 
+static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
+                                  unsigned &Idx);
+
+static void consumeInitListForSize(const InitListExpr *List, QualType AggTy,
+                                   unsigned &Idx) {
+  if (const auto *CAT = AggTy->getAs<ConstantArrayType>()) {
+    for (std::size_t I = 0; I < CAT->getLength(); ++I) {
+      if (Idx >= List->getNumInits())
+        return;
+      consumeOneInitElement(List, CAT->getElementType(), Idx);
+    }
+    return;
+  }
+
+  if (const auto *IAT = AggTy->getAs<IncompleteArrayType>()) {
+    while (Idx < List->getNumInits())
+      consumeOneInitElement(List, IAT->getElementType(), Idx);
+    return;
+  }
+
+  if (const auto *RT = AggTy->getAs<RecordType>()) {
+    const auto *RD = RT->getDecl();
+    const auto &Fields = RD->fields();
+    if (Fields.empty())
+      return;
+
+    if (RD->isUnion()) {
+      if (Idx >= List->getNumInits())
+        return;
+      consumeOneInitElement(List, Fields[0]->getType(), Idx);
+      return;
+    }
+
+    for (const auto *Field : Fields) {
+      if (Idx >= List->getNumInits())
+        return;
+      consumeOneInitElement(List, Field->getType(), Idx);
+    }
+  }
+}
+
+static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
+                                  unsigned &Idx) {
+  if (Idx >= List->getNumInits())
+    return;
+
+  const Expr *E = List->getInit(Idx);
+  if (const auto *SubList = dynCast<InitListExpr>(E)) {
+    ++Idx;
+    (void)SubList;
+    return;
+  }
+
+  if (ElemTy->isArraryType() || ElemTy->isRecordType()) {
+    if (isa<StringLiteral>(E)) {
+      ++Idx;
+      return;
+    }
+    consumeInitListForSize(List, ElemTy, Idx);
+    return;
+  }
+
+  ++Idx;
+}
+
+static QualType materializeFlexibleArrayRecordType(ASTContext &Ctx,
+                                                   const RecordType *RT,
+                                                   std::size_t NumFamElems) {
+  const auto *RD = RT->getDecl();
+  const auto &Fields = RD->fields();
+  if (Fields.empty())
+    return QualType();
+
+  const auto *LastField = Fields.back();
+  const auto *IAT = LastField->getType()->getAs<IncompleteArrayType>();
+  if (!IAT)
+    return QualType();
+
+  auto *NewRD = RecordDecl::create(Ctx, RD->getLocation(), RD->getBeginLoc(),
+                                   RD->getEndLoc(), "", TagDecl::TK_Struct);
+  NewRD->setCanonicalDecl(NewRD);
+  NewRD->setDefinition(NewRD);
+
+  std::vector<FieldDecl *> NewFields;
+  NewFields.reserve(Fields.size());
+  for (std::size_t I = 0; I < Fields.size(); ++I) {
+    const auto *OldField = Fields[I];
+    QualType FieldTy = OldField->getType();
+    if (I + 1 == Fields.size()) {
+      FieldTy = Ctx.getConstantArrayType(IAT->getElementType(), NumFamElems);
+    }
+    auto *NewField =
+        FieldDecl::create(Ctx, OldField->getLocation(), OldField->getBeginLoc(),
+                          OldField->getEndLoc(), FieldTy, OldField->getName(),
+                          NewRD);
+    NewField->setOffset(OldField->getOffset());
+    NewFields.push_back(NewField);
+  }
+  NewRD->setFields(std::move(NewFields));
+
+  std::size_t Align = RT->getAlign();
+  std::size_t Size = LastField->getOffset() +
+                     NumFamElems * IAT->getElementType()->getSize();
+  Size = alignTo(Size, Align);
+  QualType NewTy = Ctx.getRecordType(NewRD, Size, Align);
+  NewRD->setTypeForDecl(NewTy.getTypePtr());
+  return NewTy;
+}
+
 Decl *Sema::actOnDeclarator(Declarator &D) {
   QualType T = getTypeForDeclarator(D);
 
@@ -346,6 +455,29 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
       }
     } else {
       checkInitList(ILE, VarType);
+      if (const auto *RT = VarType->getAs<RecordType>()) {
+        const auto &Fields = RT->getDecl()->fields();
+        if (!Fields.empty()) {
+          const auto *LastField = Fields.back();
+          if (const auto *IAT =
+                  LastField->getType()->getAs<IncompleteArrayType>()) {
+            unsigned Idx = 0;
+            for (std::size_t I = 0; I + 1 < Fields.size(); ++I) {
+              if (Idx >= ILE->getNumInits())
+                break;
+              consumeOneInitElement(ILE, Fields[I]->getType(), Idx);
+            }
+            std::size_t NumFamElems = ILE->getNumInits() > Idx
+                                          ? static_cast<std::size_t>(
+                                                ILE->getNumInits() - Idx)
+                                          : 0;
+            QualType ConcreteTy =
+                materializeFlexibleArrayRecordType(Ctx, RT, NumFamElems);
+            if (ConcreteTy)
+              Var->setType(ConcreteTy);
+          }
+        }
+      }
       Var->setInit(Init);
       Var->setEndLoc(Init->getEndLoc());
       return;
@@ -373,6 +505,37 @@ void Sema::checkInitList(const InitListExpr *List, QualType AggTy) const {
 
 void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
                              unsigned &Idx) const {
+  if (const auto *IAT = AggTy->getAs<IncompleteArrayType>()) {
+    QualType ElemTy = IAT->getElementType();
+    while (Idx < List->getNumInits()) {
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        checkInitList(SubList, ElemTy);
+        continue;
+      }
+
+      if (ElemTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          checkStringLiteralInit(Ctx, Diag, ElemTy, SL);
+          ++Idx;
+          continue;
+        }
+        checkInitListFrom(List, ElemTy, Idx);
+        continue;
+      }
+
+      if (ElemTy->isRecordType()) {
+        checkInitListFrom(List, ElemTy, Idx);
+        continue;
+      }
+
+      checkInitListElement(E, ElemTy);
+      ++Idx;
+    }
+    return;
+  }
+
   if (const auto *CAT = AggTy->getAs<ConstantArrayType>()) {
     QualType ElemTy = CAT->getElementType();
     for (unsigned I = 0; I < CAT->getLength(); ++I) {
@@ -443,10 +606,6 @@ void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
         return;
 
       QualType FieldTy = Field->getType();
-      if (FieldTy->getAs<IncompleteArrayType>()) {
-        Diag.fatalAt(List->getInit(Idx)->getBeginLoc(),
-                     "flexible array member cannot be initialized");
-      }
 
       const Expr *E = List->getInit(Idx);
       if (const auto *SubList = dynCast<InitListExpr>(E)) {
