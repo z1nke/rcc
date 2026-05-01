@@ -95,6 +95,9 @@ std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
   std::vector<VarDecl *> Vars;
   tryParseVarInit(FirstVar);
   FirstVar->setGlobalStorage(true);
+  // Non-static file-scope variables have external linkage.
+  if (FirstVar->getLinkage() == Linkage::NoLinkage)
+    FirstVar->setLinkage(Linkage::ExternalLinkage);
   Vars.push_back(FirstVar);
   while (tryConsume(Token::TK_Comma)) {
     auto *Var = dynCast<VarDecl>(parseInitDeclarator(DS));
@@ -102,6 +105,8 @@ std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
       Diag.fatalAt(BegLoc, "expect variable declaration");
 
     Var->setGlobalStorage(true);
+    if (Var->getLinkage() == Linkage::NoLinkage)
+      Var->setLinkage(Linkage::ExternalLinkage);
     Vars.push_back(Var);
   }
 

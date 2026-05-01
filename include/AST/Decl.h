@@ -2,6 +2,7 @@
 #define RCC_AST_DECL_H
 
 #include "AST/Type.h"
+#include "Basic/Linkage.h"
 #include "Basic/SourceLocation.h"
 
 #include <string>
@@ -104,8 +105,12 @@ public:
   const std::string &getName() const { return Name; }
   void setName(std::string Name) { this->Name = std::move(Name); }
 
+  Linkage getLinkage() const { return Lnk; }
+  void setLinkage(Linkage L) { Lnk = L; }
+
 private:
   std::string Name;
+  Linkage Lnk = Linkage::NoLinkage;
 };
 
 class ValueDecl : public NamedDecl {
@@ -211,9 +216,6 @@ public:
   unsigned getNumParams() const { return Params.size(); }
   const ParamVarDecl *getParam(unsigned Index) const { return Params[Index]; }
 
-  bool isStatic() const { return IsStatic; }
-  void setIsStatic(bool IsStatic = true) { this->IsStatic = IsStatic; }
-
 protected:
   FunctionDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                SourceLocation EndLoc, QualType T, std::string Name, Stmt *Body);
@@ -222,7 +224,6 @@ private:
   Stmt *Body = nullptr;
   std::vector<ParamVarDecl *> Params;
   std::vector<VarDecl *> LocalVars; // Temporary handling.
-  bool IsStatic = false;
 };
 
 class RecordDecl;

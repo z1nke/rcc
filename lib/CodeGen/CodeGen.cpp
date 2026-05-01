@@ -71,7 +71,10 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
       if (!Var->isDefinition())
         continue;
 
-      emit("  .globl {}", getVarSymbol(Var));
+      if (Var->getLinkage() == Linkage::ExternalLinkage)
+        emit("  .globl {}", getVarSymbol(Var));
+      else
+        emit("  .local {}", getVarSymbol(Var));
       // Align global variables.
       assert(Var->getAlign() != 0);
       emit("  .align {}", simpleLog2(Var->getAlign()));
@@ -560,10 +563,10 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   CurrFunc = FD;
   std::size_t StackSize = assignLVarOffsets(FD);
   const char *Name = FD->getName().c_str();
-  if (FD->isStatic())
-    emit("  .local {}", Name);
-  else
+  if (FD->getLinkage() == Linkage::ExternalLinkage)
     emit("  .globl {}", Name);
+  else
+    emit("  .local {}", Name);
 
   emit("  .text");
   emit("{}:", Name);

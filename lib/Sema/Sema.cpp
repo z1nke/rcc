@@ -169,6 +169,7 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Extern) {
     Var->setIsDefinition(false);
     Var->setGlobalStorage(true);
+    Var->setLinkage(Linkage::ExternalLinkage);
     addDecl(Var);
     return Var;
   }
@@ -182,6 +183,10 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
     TU->addDecl(Var);
     return Var;
   }
+
+  // File-scope static variables have internal linkage.
+  if (DS.getStorageClassSpec() == DeclSpec::SCS_Static)
+    Var->setLinkage(Linkage::InternalLinkage);
 
   LocalVars.push_back(Var);
   addDecl(Var);
@@ -263,7 +268,7 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
   assert(CurrScope->isFunctionScope());
   addDecl(Func);
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Static)
-    Func->setIsStatic();
+    Func->setLinkage(Linkage::InternalLinkage);
   Funcs.push_back(Func);
   return Func;
 }
@@ -1081,16 +1086,17 @@ Expr *Sema::actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc,
 
 Expr *Sema::actOnCompoundLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
                                  QualType T, Expr *Init) {
-  bool IsFileScope = !CurrScopeDecl || !isa<FunctionDecl>(CurrScopeDecl);
+  bool IsInternalLinkage = !CurrScopeDecl || !isa<FunctionDecl>(CurrScopeDecl);
 
   std::string Name;
-  if (IsFileScope)
+  if (IsInternalLinkage)
     Name = std::format(".L.complit.{}", AnonGVarId++);
 
   auto *Var = VarDecl::create(Ctx, BegLoc, BegLoc, EndLoc, T, std::move(Name));
 
-  if (IsFileScope) {
+  if (IsInternalLinkage) {
     Var->setGlobalStorage(true);
+    Var->setLinkage(Linkage::InternalLinkage);
     complete(Var, Init);
     TU->addDecl(Var);
   } else {

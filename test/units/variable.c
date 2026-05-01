@@ -4,6 +4,9 @@
 
 int g1, g2[4];
 
+// [123] Add static global variables
+static int g3 = 3;
+
 int sub_char(char a, char b, char c) {
   return a - b - c;
 }
@@ -83,6 +86,9 @@ int main() {
 
   // [61] Add void type
   { void *x; }
+
+  // [123] Add static global variables
+  ASSERT(3, g3);
 
   printf("OK\n");
   return 0;

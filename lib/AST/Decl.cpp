@@ -79,7 +79,10 @@ FunctionDecl::FunctionDecl(ASTContext &Ctx, SourceLocation Loc,
                            SourceLocation BegLoc, SourceLocation EndLoc,
                            QualType T, std::string Name, Stmt *Body)
     : ValueDecl(Ctx, DK_Function, Loc, BegLoc, EndLoc, T, std::move(Name)),
-      Body(Body) {}
+      Body(Body) {
+  // Functions have external linkage by default.
+  setLinkage(Linkage::ExternalLinkage);
+}
 
 void FunctionDecl::setLocalVars(std::vector<VarDecl *> Vars) {
   LocalVars = std::move(Vars);
