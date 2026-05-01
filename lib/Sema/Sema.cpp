@@ -459,8 +459,7 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
         const auto &Fields = RT->getDecl()->fields();
         if (!Fields.empty()) {
           const auto *LastField = Fields.back();
-          if (const auto *IAT =
-                  LastField->getType()->getAs<IncompleteArrayType>()) {
+          if (LastField->getType()->getAs<IncompleteArrayType>()) {
             unsigned Idx = 0;
             for (std::size_t I = 0; I + 1 < Fields.size(); ++I) {
               if (Idx >= ILE->getNumInits())

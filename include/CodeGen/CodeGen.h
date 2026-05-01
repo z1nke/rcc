@@ -17,7 +17,7 @@ class Diagnostic;
 
 class CodeGen {
 public:
-  CodeGen(Diagnostic &Diag,  FILE *Fp);
+  CodeGen(Diagnostic &Diag, FILE *Fp);
 
   void codegen(const TranslationUnitDecl *TU, const char *Input);
 
@@ -49,7 +49,7 @@ private:
 
   /// Emits a0 = (lhs op rhs) given a0 = lhs and a1 = rhs.
   void emitBinaryArithmeticResult(BinaryOperator::Opcode Op, QualType LType,
-                          QualType RType, const char *Suffix);
+                                  QualType RType, const char *Suffix);
   void genUnaryOperator(const UnaryOperator *UO);
   void genCallExpr(const CallExpr *CE);
   void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);
@@ -90,6 +90,7 @@ private:
   char getWidthSuffix(std::size_t Size) const;
 
   int getCount() const;
+  int simpleLog2(int Num);
   const std::string &getStringLabel(const StringLiteral *SL);
 
   void genIntCast(const Type *From, const Type *To);

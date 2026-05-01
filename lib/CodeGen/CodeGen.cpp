@@ -14,7 +14,6 @@
 #include <cstdio>
 #include <format>
 #include <optional>
-#include <print>
 
 namespace rcc {
 
@@ -52,10 +51,26 @@ void CodeGen::codegen(const TranslationUnitDecl *TU, const char *Input) {
   emitData(TU);
 }
 
+int CodeGen::simpleLog2(int Num) {
+  int N = Num;
+  int E = 0;
+  while (N > 1) {
+    if (N % 2 == 1) {
+      Diag.fatal("Wrong value %d", Num);
+    }
+    N /= 2;
+    ++E;
+  }
+  return E;
+}
+
 void CodeGen::emitData(const TranslationUnitDecl *TU) {
   for (const auto *D : TU->decls()) {
     if (const auto *Var = dynCast<VarDecl>(D)) {
       emit("  .globl {}", Var->getName());
+      // Align global variables.
+      assert(Var->getType()->getAlign() != 0);
+      emit("  .align {}", simpleLog2(Var->getType()->getAlign()));
       emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
       emitGlobalVarInit(Var, Var->getInit());
     }
@@ -195,26 +210,26 @@ static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E) {
     if (!LHS || !RHS || (LHS->hasLabel() && RHS->hasLabel()))
       return std::nullopt;
 
-    auto scaleAddend = [](std::int64_t Addend, QualType PtrTy) {
+    auto ScaleAddend = [](std::int64_t Addend, QualType PtrTy) {
       if (PtrTy->isPointerType())
-        return Addend * static_cast<std::int64_t>(
-                            PtrTy->getPointeeType()->getSize());
+        return Addend *
+               static_cast<std::int64_t>(PtrTy->getPointeeType()->getSize());
       return Addend;
     };
 
     if (BO->getOpcode() == BinaryOperator::BO_Add) {
       if (LHS->hasLabel()) {
-        LHS->Addend += scaleAddend(RHS->Addend, BO->getLHS()->getType());
+        LHS->Addend += ScaleAddend(RHS->Addend, BO->getLHS()->getType());
         return LHS;
       }
-      RHS->Addend += scaleAddend(LHS->Addend, BO->getRHS()->getType());
+      RHS->Addend += ScaleAddend(LHS->Addend, BO->getRHS()->getType());
       return RHS;
     }
 
     if (!LHS->hasLabel())
       return GlobalInitValue{"", LHS->Addend - RHS->Addend};
 
-    LHS->Addend -= scaleAddend(RHS->Addend, BO->getLHS()->getType());
+    LHS->Addend -= ScaleAddend(RHS->Addend, BO->getLHS()->getType());
     return LHS;
   }
   default:
@@ -226,7 +241,7 @@ static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E) {
 
 void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
                              std::size_t BaseOffset) {
-  if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+  if (Ty->getAs<ConstantArrayType>()) {
     if (const auto *SL = dynCast<StringLiteral>(Init)) {
       emitGlobalStringLiteralInit(SL, Ty, BaseOffset);
       return;
@@ -299,8 +314,7 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
 }
 
 void CodeGen::emitGlobalInitFromFlat(const InitListExpr *List, QualType Ty,
-                                     std::size_t BaseOffset,
-                                     std::size_t &Idx) {
+                                     std::size_t BaseOffset, std::size_t &Idx) {
   if (const auto *IAT = Ty->getAs<IncompleteArrayType>()) {
     QualType ElemTy = IAT->getElementType();
     std::size_t ElemSize = ElemTy->getSize();
@@ -437,7 +451,8 @@ void CodeGen::emitGlobalInitFromFlat(const InitListExpr *List, QualType Ty,
     emit("  .zero {}", EndOffset - CurrOffset);
 }
 
-void CodeGen::emitGlobalStringLiteralInit(const StringLiteral *SL, QualType ArrTy,
+void CodeGen::emitGlobalStringLiteralInit(const StringLiteral *SL,
+                                          QualType ArrTy,
                                           std::size_t BaseOffset) {
   const auto *CAT = ArrTy->getAs<ConstantArrayType>();
   if (!CAT)
