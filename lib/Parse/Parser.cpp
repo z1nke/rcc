@@ -1027,6 +1027,7 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
 //           | sizeof unary-expr
 //           | sizeof '(' type-name ')'
 //           | '_Alignof' '(' type-name ')'
+//           | '_Alignof' unary-expr
 Expr *Parser::parseUnaryExpr() {
   if (CurTok->isOneOf(Token::TK_PlusPlus, Token::TK_MinusMinus)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
@@ -1062,14 +1063,22 @@ Expr *Parser::parseUnaryExpr() {
   }
 
   // "_Alignof" "(" type-name ")"
+  // "_Alignof" unary-expr
   if (CurTok->is(Token::TK_Alignof)) {
     auto BegLoc = SM.createBeginLocation(CurTok);
     skip();
-    skip(Token::TK_LParen);
-    QualType T = parseTypeName();
-    SourceLocation EndLoc = SM.createBeginLocation(CurTok);
-    skip(Token::TK_RParen);
-    return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, T->getAlign());
+    if (CurTok->is(Token::TK_LParen) && isTypeName(CurTok->getNext())) {
+      skip(Token::TK_LParen);
+      QualType T = parseTypeName();
+      SourceLocation EndLoc = SM.createBeginLocation(CurTok);
+      skip(Token::TK_RParen);
+      return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy,
+                                    T->getAlign());
+    }
+
+    Expr *Ex = parseUnaryExpr();
+    return IntegerLiteral::create(Ctx, BegLoc, Ex->getEndLoc(), Ctx.IntTy,
+                                  Ex->getType()->getAlign());
   }
 
   return parsePostfixExpr();
