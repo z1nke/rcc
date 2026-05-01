@@ -161,8 +161,12 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
                                  D.getEndLoc(), T, D.getIdent());
   // Extern declarations are not definitions.
-  if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_Extern)
+  if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_Extern) {
     Var->setIsDefinition(false);
+    Var->setGlobal(true);
+    addDecl(Var);
+    return Var;
+  }
   LocalVars.push_back(Var);
   addDecl(Var);
   return Var;
@@ -389,6 +393,24 @@ void Sema::actOnDuplicateDefinition(SourceLocation Loc, std::string_view Name,
   RCC_UNREACHABLE("Unknown tag kind");
 }
 
+void Sema::enterParamList() {
+  ParamLists.push_back(std::move(Params));
+  Params.clear();
+}
+
+void Sema::leaveParamList() {
+  Params.clear();
+  if (ParamLists.empty())
+    return;
+  Params = std::move(ParamLists.back());
+  ParamLists.pop_back();
+}
+
+void Sema::finishParamListsTo(unsigned Depth) {
+  while (ParamLists.size() > Depth)
+    leaveParamList();
+}
+
 void Sema::complete(FunctionDecl *FD) {
   std::vector<QualType> ParamTypes;
   for (const auto *Param : Params)
@@ -397,6 +419,13 @@ void Sema::complete(FunctionDecl *FD) {
   std::vector<ParamVarDecl *> PVars;
   std::swap(PVars, Params);
   FD->setParams(std::move(PVars));
+
+  // Restore enclosing function's parameters.
+  if (!ParamLists.empty()) {
+    Params = std::move(ParamLists.back());
+    ParamLists.pop_back();
+  }
+
   QualType FT = FD->getType();
   const auto *FuncTy = dynCast<FunctionType>(FT);
   if (!FuncTy)
@@ -407,7 +436,9 @@ void Sema::complete(FunctionDecl *FD) {
   FD->setType(NewFT);
 
   if (!FD->getBody()) {
-    Labels.clear();
+    // Nested declarations must not clear the enclosing function's labels.
+    if (!CurrScopeDecl || !isa<FunctionDecl>(CurrScopeDecl))
+      Labels.clear();
     return;
   }
 

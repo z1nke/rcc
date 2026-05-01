@@ -112,6 +112,7 @@ private:
   void parseAbstractDeclarator(Declarator &D);
   void parseDirectAbstractDeclarator(Declarator &D);
   QualType parseTypeName();
+  bool isStorageClassSpec(const Token *Tok);
   bool isTypeName(const Token *Tok);
   void parseTypeSuffix(Declarator &D);
   Expr *parseInitExpr();

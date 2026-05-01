@@ -16,7 +16,7 @@ def main():
   suite = sys.argv[3]    # %S
 
   tmp_s = tmp + '.s'
-  tmp2_o = 'tmp2.o'
+  tmp2_o = tmp + '.tmp2.o'
 
   run(f'riscv64-unknown-linux-gnu-gcc -c -xc {suite}/common -o {tmp2_o}')
   run(f'gcc -o- -E -P -C {src} | rcc -o {tmp_s} -')

@@ -40,6 +40,7 @@ void Parser::parseExternalDecl(TranslationUnitDecl *TU) {
   DeclSpec DS(Diag);
   parseDeclSpecs(DS);
   Declarator D(DS);
+  unsigned Depth = S.getParamListDepth();
   parseDeclarator(D);
   Decl *FirstDecl = S.actOnDeclarator(D);
   // function-decl: function-definition
@@ -48,6 +49,10 @@ void Parser::parseExternalDecl(TranslationUnitDecl *TU) {
     TU->addDecl(parseFunctionDecl(Func));
     return;
   }
+
+  // Globals / typedefs are not completed as functions; drop ParamLists pushed
+  // by function-pointer (or similar) declarators.
+  S.finishParamListsTo(Depth);
 
   if (auto *Var = dynCast<VarDecl>(FirstDecl)) {
     std::vector<VarDecl *> Vars = parseRestVarDecl(BegLoc, DS, Var);
@@ -123,6 +128,8 @@ Parser::parseRestTypedefDecl(SourceLocation BegLoc, DeclSpec &DS,
 FunctionDecl *Parser::parseFunctionDecl(FunctionDecl *Func) {
   if (tryConsume(Token::TK_Semicolon)) {
     S.complete(Func);
+    if (getCurrScope()->getFlags() & Scope::FnScope)
+      exitScope();
     return Func;
   }
 
@@ -340,7 +347,7 @@ Stmt *Parser::parseStmt() {
       return parseLabelStmt();
   }
 
-  if (isTypeName(CurTok))
+  if (isStorageClassSpec(CurTok) || isTypeName(CurTok))
     return parseDeclStmt();
 
   switch (CurTok->getKind()) {
@@ -437,8 +444,10 @@ Stmt *Parser::parseCompoundStmt() {
   enterScope(Scope::CompoundScope);
   skip();
   std::vector<Stmt *> Stmts;
-  while (CurTok->isNot(Token::TK_RBrace))
-    Stmts.push_back(parseStmt());
+  while (CurTok->isNot(Token::TK_RBrace)) {
+    if (Stmt *S = parseStmt())
+      Stmts.push_back(S);
+  }
 
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RBrace);
@@ -470,7 +479,7 @@ Stmt *Parser::parseForStmt() {
   skip();
   skip(Token::TK_LParen);
   Stmt *Init = parseStmt();
-  if (isa<NullStmt>(Init))
+  if (Init && isa<NullStmt>(Init))
     Init = nullptr;
 
   Expr *Cond = nullptr;
@@ -554,6 +563,11 @@ Stmt *Parser::parseDeclStmt() {
   std::vector<Decl *> Decls = parseInitDeclaratorList(DS);
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Semicolon);
+
+  if (DS.getStorageClassSpec() == DeclSpec::SCS_Extern ||
+      (!Decls.empty() && isa<FunctionDecl>(Decls.front())))
+    return nullptr;
+
   return S.actOnDeclStmt(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
@@ -644,16 +658,28 @@ std::vector<Decl *> Parser::parseInitDeclaratorList(DeclSpec &DS) {
 // init-declarator: declarator { '=' expr }
 Decl *Parser::parseInitDeclarator(DeclSpec &DS) {
   Declarator D(DS);
+  unsigned Depth = S.getParamListDepth();
   parseDeclarator(D);
   Decl *DR = S.actOnDeclarator(D);
 
   if (auto *Var = dynCast<VarDecl>(DR)) {
+    // Function-pointer declarators push Params but are not completed as
+    // functions; restore the enclosing parameter frame.
+    S.finishParamListsTo(Depth);
     tryParseVarInit(Var);
     return Var;
   }
 
   if (auto *Typedef = dynCast<TypedefDecl>(DR)) {
+    S.finishParamListsTo(Depth);
     return Typedef;
+  }
+
+  if (auto *Func = dynCast<FunctionDecl>(DR)) {
+    S.complete(Func);
+    if (getCurrScope()->getFlags() & Scope::FnScope)
+      exitScope();
+    return Func;
   }
 
   Diag.fatalAt(D.getLocation(), "expect variable or typedef declarator");
@@ -730,6 +756,7 @@ void Parser::parseTypeSuffix(Declarator &D) {
       // Record function information in DeclaratorChunk.
       // params: param { ',' param }*
       // param: declspec declarator
+      S.enterParamList();
       enterScope(Scope::FnScope);
       unsigned Idx = 0;
       while (CurTok->isNot(Token::TK_RParen)) {
@@ -772,8 +799,10 @@ void Parser::parseTypeSuffix(Declarator &D) {
 
 FieldDecl *Parser::parseField(DeclSpec &DS) {
   Declarator D(DS);
+  unsigned Depth = S.getParamListDepth();
   parseDeclarator(D);
   Decl *DR = S.actOnDeclarator(D);
+  S.finishParamListsTo(Depth);
   auto *Field = dynCast<FieldDecl>(DR);
   if (!Field)
     Diag.fatalAt(D.getLocation(), "expect field declarator");
@@ -1040,9 +1069,24 @@ QualType Parser::parseTypeName() {
   DeclSpec DS(Diag);
   parseDeclSpecs(DS);
   Declarator D(DS);
+  // Only discard ParamLists pushed for this type-name (e.g. function types in
+  // casts/sizeof). Do not pop the enclosing function's parameter frame.
+  unsigned Depth = S.getParamListDepth();
   parseAbstractDeclarator(D);
   QualType T = S.getTypeForDeclarator(D);
+  S.finishParamListsTo(Depth);
   return T;
+}
+
+bool Parser::isStorageClassSpec(const Token *Tok) {
+  switch (Tok->getKind()) {
+  case Token::TK_Typedef:
+  case Token::TK_Static:
+  case Token::TK_Extern:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool Parser::isTypeName(const Token *Tok) {
@@ -1055,7 +1099,6 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Long:
   case Token::TK_Struct:
   case Token::TK_Union:
-  case Token::TK_Typedef:
   case Token::TK_Enum:
     return true;
   case Token::TK_Ident:

@@ -179,6 +179,10 @@ private:
   QualType tryDecayArrayType(QualType T) const;
   std::size_t getArrayLength(const Expr *E) const;
   void addDecl(Decl *D);
+  void enterParamList();
+  void leaveParamList();
+  unsigned getParamListDepth() const { return ParamLists.size(); }
+  void finishParamListsTo(unsigned Depth);
   [[noreturn]] void actOnDuplicateDefinition(SourceLocation Loc,
                                              std::string_view Name,
                                              unsigned TagKind) const;
@@ -191,6 +195,8 @@ private:
 
   std::vector<VarDecl *> LocalVars;
   std::vector<ParamVarDecl *> Params;
+  // Saved Params from enclosing function declarators (parseTypeSuffix push/pop).
+  std::vector<std::vector<ParamVarDecl *>> ParamLists;
   std::vector<FunctionDecl *> Funcs;
   std::unordered_map<std::string, LabelDecl *> Labels;
 
