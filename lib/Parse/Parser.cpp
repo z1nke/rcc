@@ -25,6 +25,7 @@ Parser::~Parser() { exitScope(); }
 //                 | translation-unit external-decl
 TranslationUnitDecl *Parser::parse() {
   auto *TU = TranslationUnitDecl::create(Ctx);
+  S.TU = TU;
   while (CurTok->isNot(Token::TK_EOF))
     parseExternalDecl(TU);
 
@@ -93,14 +94,14 @@ std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
                                                 VarDecl *FirstVar) {
   std::vector<VarDecl *> Vars;
   tryParseVarInit(FirstVar);
-  FirstVar->setGlobal(true);
+  FirstVar->setGlobalStorage(true);
   Vars.push_back(FirstVar);
   while (tryConsume(Token::TK_Comma)) {
     auto *Var = dynCast<VarDecl>(parseInitDeclarator(DS));
     if (!Var)
       Diag.fatalAt(BegLoc, "expect variable declaration");
 
-    Var->setGlobal(true);
+    Var->setGlobalStorage(true);
     Vars.push_back(Var);
   }
 

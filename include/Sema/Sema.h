@@ -32,6 +32,7 @@ class CaseStmt;
 class DefaultStmt;
 class SwitchCaseStmt;
 class InitListExpr;
+class TranslationUnitDecl;
 
 class Sema {
 public:
@@ -192,6 +193,7 @@ private:
   Diagnostic &Diag;
   Scope *CurrScope = nullptr;
   Decl *CurrScopeDecl = nullptr;
+  TranslationUnitDecl *TU = nullptr;
 
   std::vector<VarDecl *> LocalVars;
   std::vector<ParamVarDecl *> Params;

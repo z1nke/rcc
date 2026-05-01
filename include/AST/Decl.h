@@ -142,8 +142,14 @@ public:
   const Expr *getInit() const { return Init; }
   Expr *getInit() { return Init; }
   void setInit(Expr *E) { Init = E; }
-  void setGlobal(bool IsGlobal) { this->IsGlobal = IsGlobal; }
-  bool hasGlobalStorage() const { return IsGlobal; }
+  void setGlobalStorage(bool IsGlobalStorage) {
+    this->IsGlobalStorage = IsGlobalStorage;
+  }
+  bool hasGlobalStorage() const { return IsGlobalStorage; }
+  bool isStaticLocal() const { return IsStaticLocal; }
+  void setStaticLocal(bool IsStaticLocal = true) {
+    this->IsStaticLocal = IsStaticLocal;
+  }
 
   bool isDefinition() const { return IsDefinition; }
   void setIsDefinition(bool IsDefinition = true) {
@@ -158,11 +164,11 @@ protected:
           SourceLocation EndLoc, QualType T, std::string Name);
 
 private:
-  std::string Name;
   Expr *Init = nullptr;
   // Temporary handling.
   int Offset = 0;
-  bool IsGlobal = false;
+  bool IsGlobalStorage = false;
+  bool IsStaticLocal = false;
   bool IsDefinition = true;
   std::size_t Align = 0;
 };

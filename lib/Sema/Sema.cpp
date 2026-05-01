@@ -163,13 +163,26 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
                                  D.getEndLoc(), T, D.getIdent());
   if (std::size_t Align = D.getDeclSpec().getAlign())
     Var->setAlign(Align);
+
+  const DeclSpec &DS = D.getDeclSpec();
   // Extern declarations are not definitions.
-  if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_Extern) {
+  if (DS.getStorageClassSpec() == DeclSpec::SCS_Extern) {
     Var->setIsDefinition(false);
-    Var->setGlobal(true);
+    Var->setGlobalStorage(true);
     addDecl(Var);
     return Var;
   }
+
+  // Static local variables have global storage.
+  if (DS.getStorageClassSpec() == DeclSpec::SCS_Static && CurrScopeDecl &&
+      isa<FunctionDecl>(CurrScopeDecl)) {
+    Var->setGlobalStorage(true);
+    Var->setStaticLocal();
+    addDecl(Var);
+    TU->addDecl(Var);
+    return Var;
+  }
+
   LocalVars.push_back(Var);
   addDecl(Var);
   return Var;

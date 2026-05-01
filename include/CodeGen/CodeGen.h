@@ -92,6 +92,7 @@ private:
   int getCount() const;
   int simpleLog2(int Num);
   const std::string &getStringLabel(const StringLiteral *SL);
+  const std::string &getVarSymbol(const VarDecl *Var);
 
   void genIntCast(const Type *From, const Type *To);
 
@@ -110,6 +111,8 @@ private:
   std::vector<int> SwitchCounts;
   std::vector<const StringLiteral *> StringLiterals;
   std::unordered_map<const StringLiteral *, std::string> SLCache;
+  std::unordered_map<const VarDecl *, std::string> StaticLocalNames;
+  unsigned AnonGVarId = 0;
   FILE *Fp;
 };
 

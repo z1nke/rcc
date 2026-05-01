@@ -71,7 +71,7 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
       if (!Var->isDefinition())
         continue;
 
-      emit("  .globl {}", Var->getName());
+      emit("  .globl {}", getVarSymbol(Var));
       // Align global variables.
       assert(Var->getAlign() != 0);
       emit("  .align {}", simpleLog2(Var->getAlign()));
@@ -94,7 +94,7 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
 }
 
 void CodeGen::emitGlobalVarInit(const VarDecl *Var, const Expr *Init) {
-  emit("{}:", Var->getName());
+  emit("{}:", getVarSymbol(Var));
   if (!Init) {
     emit("  .zero {}", Var->getType()->getSize());
     return;
@@ -677,6 +677,10 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
   emit("  # decl-stmt");
   for (auto *D : DS->getDecls()) {
     if (const auto *Var = dynCast<VarDecl>(D)) {
+      // Static locals are initialized in .data/.bss, not at runtime.
+      if (Var->hasGlobalStorage())
+        continue;
+
       const auto *Init = Var->getInit();
       if (!Init)
         continue;
@@ -1141,6 +1145,16 @@ const std::string &CodeGen::getStringLabel(const StringLiteral *SL) {
   StringLiterals.push_back(SL);
   SLCache[SL] = Label;
   return Label;
+}
+
+const std::string &CodeGen::getVarSymbol(const VarDecl *Var) {
+  if (!Var->isStaticLocal())
+    return Var->getName();
+
+  std::string &Name = StaticLocalNames[Var];
+  if (Name.empty())
+    Name = std::format(".L..{}", AnonGVarId++);
+  return Name;
 }
 
 void CodeGen::genIntCast(const Type *From, const Type *To) {
@@ -1623,8 +1637,8 @@ void CodeGen::genAddr(const Decl *D) {
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
 
   if (Var->hasGlobalStorage()) {
-    emit("  # genAddr gvar {}", Var->getName());
-    emit("  la a0, {}", Var->getName());
+    emit("  # genAddr gvar {}", getVarSymbol(Var));
+    emit("  la a0, {}", getVarSymbol(Var));
   } else {
     emit("  # genAddr lvar {}, offset={}", Var->getName(), Var->getOffset());
     emit("  addi a0, fp, {}", Var->getOffset());
