@@ -67,6 +67,10 @@ int CodeGen::simpleLog2(int Num) {
 void CodeGen::emitData(const TranslationUnitDecl *TU) {
   for (const auto *D : TU->decls()) {
     if (const auto *Var = dynCast<VarDecl>(D)) {
+      // Skip extern declarations.
+      if (!Var->isDefinition())
+        continue;
+
       emit("  .globl {}", Var->getName());
       // Align global variables.
       assert(Var->getType()->getAlign() != 0);

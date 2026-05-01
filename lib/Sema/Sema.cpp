@@ -160,6 +160,9 @@ Decl *Sema::actOnDeclarator(Declarator &D) {
 VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
                                  D.getEndLoc(), T, D.getIdent());
+  // Extern declarations are not definitions.
+  if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_Extern)
+    Var->setIsDefinition(false);
   LocalVars.push_back(Var);
   addDecl(Var);
   return Var;

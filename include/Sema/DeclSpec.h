@@ -18,7 +18,7 @@ public:
   enum StorageClassSpec {
     SCS_Unspecified,
     SCS_Typedef,
-    // SCS_Extern,
+    SCS_Extern,
     SCS_Static,
     // SCS_Auto,
     // SCS_Register,

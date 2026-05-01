@@ -585,6 +585,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
     switch (CurTok->getKind()) {
       STORAGE_CLASS_SPEC_CASE(Typedef);
       STORAGE_CLASS_SPEC_CASE(Static);
+      STORAGE_CLASS_SPEC_CASE(Extern);
       TYPE_SPEC_TYPE_CASE(Void);
       TYPE_SPEC_TYPE_CASE(UnderlineBool);
       TYPE_SPEC_TYPE_CASE(Char);

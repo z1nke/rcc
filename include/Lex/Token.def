@@ -79,6 +79,7 @@ KEYWORD(Union, "union")
 KEYWORD(Enum, "enum")
 KEYWORD(Typedef, "typedef")
 KEYWORD(Static, "static")
+KEYWORD(Extern, "extern")
 
 #undef KEYWORD
 #undef TOKEN

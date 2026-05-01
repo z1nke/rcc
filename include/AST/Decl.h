@@ -145,6 +145,11 @@ public:
   void setGlobal(bool IsGlobal) { this->IsGlobal = IsGlobal; }
   bool hasGlobalStorage() const { return IsGlobal; }
 
+  bool isDefinition() const { return IsDefinition; }
+  void setIsDefinition(bool IsDefinition = true) {
+    this->IsDefinition = IsDefinition;
+  }
+
 protected:
   VarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
           SourceLocation EndLoc, QualType T, std::string Name);
@@ -155,6 +160,7 @@ private:
   // Temporary handling.
   int Offset = 0;
   bool IsGlobal = false;
+  bool IsDefinition = true;
 };
 
 class ParamVarDecl final : public VarDecl {

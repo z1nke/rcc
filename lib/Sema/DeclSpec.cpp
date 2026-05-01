@@ -70,6 +70,10 @@ const char *DeclSpec::getSpecifierName(StorageClassSpec S) {
   switch (S) {
   case SCS_Typedef:
     return "typedef";
+  case SCS_Extern:
+    return "extern";
+  case SCS_Static:
+    return "static";
   default:
     RCC_UNREACHABLE("Unknown storage class specifier");
   }

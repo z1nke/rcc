@@ -12,3 +12,7 @@ void assert(int expected, int actual, char *code, int line) {
 
 // [75] Support file-scope functions
 static int static_fn() { return 5; }
+
+// [116] Add extern
+int ext1 = 5;
+int *ext2 = &ext1;
