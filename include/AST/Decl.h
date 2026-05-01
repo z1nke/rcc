@@ -150,6 +150,9 @@ public:
     this->IsDefinition = IsDefinition;
   }
 
+  std::size_t getAlign() const { return Align; }
+  void setAlign(std::size_t Align) { this->Align = Align; }
+
 protected:
   VarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
           SourceLocation EndLoc, QualType T, std::string Name);
@@ -161,6 +164,7 @@ private:
   int Offset = 0;
   bool IsGlobal = false;
   bool IsDefinition = true;
+  std::size_t Align = 0;
 };
 
 class ParamVarDecl final : public VarDecl {
@@ -228,6 +232,9 @@ public:
   int getOffset() const { return Offset; }
   void setOffset(int Offset) { this->Offset = Offset; }
 
+  std::size_t getAlign() const { return Align; }
+  void setAlign(std::size_t Align) { this->Align = Align; }
+
   RecordDecl *getParent() const { return Parent; }
 
 private:
@@ -237,6 +244,7 @@ private:
 
 private:
   int Offset = 0;
+  std::size_t Align = 0;
   RecordDecl *Parent = nullptr; // Temporary handling.
 };
 

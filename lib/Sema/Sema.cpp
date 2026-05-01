@@ -126,6 +126,7 @@ static QualType materializeFlexibleArrayRecordType(ASTContext &Ctx,
                           OldField->getEndLoc(), FieldTy, OldField->getName(),
                           NewRD);
     NewField->setOffset(OldField->getOffset());
+    NewField->setAlign(OldField->getAlign());
     NewFields.push_back(NewField);
   }
   NewRD->setFields(std::move(NewFields));
@@ -160,6 +161,8 @@ Decl *Sema::actOnDeclarator(Declarator &D) {
 VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
                                  D.getEndLoc(), T, D.getIdent());
+  if (std::size_t Align = D.getDeclSpec().getAlign())
+    Var->setAlign(Align);
   // Extern declarations are not definitions.
   if (D.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_Extern) {
     Var->setIsDefinition(false);
@@ -184,6 +187,8 @@ TypedefDecl *Sema::actOnTypedefDecl(Declarator &D, QualType T) {
 FieldDecl *Sema::actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent) {
   FieldDecl *Field = FieldDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
                                        D.getEndLoc(), T, D.getIdent(), Parent);
+  if (std::size_t Align = D.getDeclSpec().getAlign())
+    Field->setAlign(Align);
   addDecl(Field);
   return Field;
 }
@@ -327,7 +332,7 @@ void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
     if (Record->isStruct()) {
       std::size_t Offset = 0;
       for (auto *Field : Fields) {
-        std::size_t FieldAlign = Field->getType()->getAlign();
+        std::size_t FieldAlign = Field->getAlign();
         Offset = alignTo(Offset, FieldAlign);
         Field->setOffset(Offset);
         Offset += Field->getType()->getSize();
@@ -337,7 +342,7 @@ void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
       Size = alignTo(Offset, Align);
     } else {
       for (auto *Field : Fields) {
-        std::size_t FieldAlign = Field->getType()->getAlign();
+        std::size_t FieldAlign = Field->getAlign();
         std::size_t FieldSize = Field->getType()->getSize();
         if (Align < FieldAlign)
           Align = FieldAlign;

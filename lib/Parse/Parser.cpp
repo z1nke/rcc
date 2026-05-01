@@ -38,6 +38,7 @@ TranslationUnitDecl *Parser::parse() {
 void Parser::parseExternalDecl(TranslationUnitDecl *TU) {
   auto BegLoc = SM.createBeginLocation(CurTok);
   DeclSpec DS(Diag);
+  DS.setAlignasAllowed();
   parseDeclSpecs(DS);
   Declarator D(DS);
   unsigned Depth = S.getParamListDepth();
@@ -312,6 +313,7 @@ std::vector<FieldDecl *> Parser::parseFields() {
   std::vector<FieldDecl *> Fields;
   while (CurTok->isNot(Token::TK_RBrace)) {
     DeclSpec DS(Diag);
+    DS.setAlignasAllowed();
     parseDeclSpecs(DS);
     Fields.push_back(parseField(DS));
     while (tryConsume(Token::TK_Comma))
@@ -558,6 +560,7 @@ Stmt *Parser::parseLabelStmt() {
 // decl-stmt: declspecs init-declarator-list? ';'
 Stmt *Parser::parseDeclStmt() {
   DeclSpec DS(Diag);
+  DS.setAlignasAllowed();
   auto BegLoc = SM.createBeginLocation(CurTok);
   parseDeclSpecs(DS);
   std::vector<Decl *> Decls = parseInitDeclaratorList(DS);
@@ -573,6 +576,7 @@ Stmt *Parser::parseDeclStmt() {
 
 // declspecs: storage-class-spec declspecs?
 //          | type-spec declspecs?
+//          | '_Alignas' '(' type-name | constant-expr ')' declspecs?
 // storage-class-spec: typedef | extern | static | auto | register
 // typespec: void | _Bool | char | short | int | long | struct-or-union-spec
 //         | enum-spec | typedef-name
@@ -606,6 +610,25 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       TYPE_SPEC_TYPE_CASE(Int);
       TYPE_SPEC_WIDTH_CASE(Short);
       TYPE_SPEC_WIDTH_CASE(Long);
+    case Token::TK_Alignas: {
+      if (!DS.isAlignasAllowed())
+        Diag.fatalAt(TyLoc, "_Alignas is not allowed in this context");
+      skip();
+      skip(Token::TK_LParen);
+      if (isTypeName(CurTok)) {
+        QualType T = parseTypeName();
+        DS.setAlign(T->getAlign());
+      } else {
+        Expr *E = parseConstantExpr();
+        auto Val = E->evaluateAsInt();
+        if (!Val)
+          Diag.fatalAt(E->getBeginLoc(),
+                       "_Alignas argument must be a constant expression");
+        DS.setAlign(static_cast<std::size_t>(*Val));
+      }
+      skip(Token::TK_RParen);
+      break;
+    }
     case Token::TK_Struct:
       DS.setTypeSpecType(DeclSpec::TST_Struct, TyLoc);
       DS.setRepDecl(parseStructDecl());
@@ -1003,6 +1026,7 @@ static UnaryOperator::Opcode getUnaryOpcode(Token::TokenKind Kind) {
 //           | unary-operator cast-expr
 //           | sizeof unary-expr
 //           | sizeof '(' type-name ')'
+//           | '_Alignof' '(' type-name ')'
 Expr *Parser::parseUnaryExpr() {
   if (CurTok->isOneOf(Token::TK_PlusPlus, Token::TK_MinusMinus)) {
     auto Op = getUnaryOpcode(CurTok->getKind());
@@ -1035,6 +1059,17 @@ Expr *Parser::parseUnaryExpr() {
 
     Expr *Ex = parseUnaryExpr();
     return S.actOnUnaryExprOrTypeTraitExpr(BegLoc, Ex);
+  }
+
+  // "_Alignof" "(" type-name ")"
+  if (CurTok->is(Token::TK_Alignof)) {
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    skip();
+    skip(Token::TK_LParen);
+    QualType T = parseTypeName();
+    SourceLocation EndLoc = SM.createBeginLocation(CurTok);
+    skip(Token::TK_RParen);
+    return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, T->getAlign());
   }
 
   return parsePostfixExpr();
@@ -1100,6 +1135,10 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Struct:
   case Token::TK_Union:
   case Token::TK_Enum:
+  case Token::TK_Alignas:
+  case Token::TK_Typedef:
+  case Token::TK_Static:
+  case Token::TK_Extern:
     return true;
   case Token::TK_Ident:
     return S.findTypedef(Tok->getIdentifer());

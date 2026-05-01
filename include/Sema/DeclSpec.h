@@ -3,6 +3,7 @@
 
 #include "Basic/SourceLocation.h"
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -61,6 +62,12 @@ public:
   Decl *getRepDecl() const { return RepDecl; }
   void setRepDecl(Decl *D) { RepDecl = D; }
 
+  bool isAlignasAllowed() const { return AlignasAllowed; }
+  void setAlignasAllowed(bool Allowed = true) { AlignasAllowed = Allowed; }
+
+  std::size_t getAlign() const { return Align; }
+  void setAlign(std::size_t Align) { this->Align = Align; }
+
   static const char *getSpecifierName(StorageClassSpec S);
   static const char *getSpecifierName(TypeSpecType T);
   static const char *getSpecifierName(TypeSpecWidth T);
@@ -76,6 +83,8 @@ private:
   SourceLocation SCSLoc;
   SourceLocation TSLoc;
   Decl *RepDecl = nullptr;
+  bool AlignasAllowed = false;
+  std::size_t Align = 0;
   Diagnostic &Diag;
 };
 

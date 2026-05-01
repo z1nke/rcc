@@ -30,13 +30,13 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   int Offset = 0;
   for (auto *Var : FD->getLocalVars()) {
     Offset += Var->getType()->getSize();
-    Offset = alignTo(Offset, Var->getType()->getAlign());
+    Offset = alignTo(Offset, Var->getAlign());
     Var->setOffset(-Offset);
   }
 
   for (auto *Param : FD->getParams()) {
     Offset += Param->getType()->getSize();
-    Offset = alignTo(Offset, Param->getType()->getAlign());
+    Offset = alignTo(Offset, Param->getAlign());
     Param->setOffset(-Offset);
   }
 
@@ -73,8 +73,8 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
 
       emit("  .globl {}", Var->getName());
       // Align global variables.
-      assert(Var->getType()->getAlign() != 0);
-      emit("  .align {}", simpleLog2(Var->getType()->getAlign()));
+      assert(Var->getAlign() != 0);
+      emit("  .align {}", simpleLog2(Var->getAlign()));
       emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
       emitGlobalVarInit(Var, Var->getInit());
     }

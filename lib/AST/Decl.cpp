@@ -50,7 +50,8 @@ VarDecl *VarDecl::create(ASTContext &Ctx, SourceLocation Loc,
 
 VarDecl::VarDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                  SourceLocation EndLoc, QualType T, std::string Name)
-    : ValueDecl(Ctx, DK_Var, Loc, BegLoc, EndLoc, T, std::move(Name)) {}
+    : ValueDecl(Ctx, DK_Var, Loc, BegLoc, EndLoc, T, std::move(Name)),
+      Align(T->getAlign()) {}
 
 ParamVarDecl::ParamVarDecl(ASTContext &Ctx, SourceLocation Loc,
                            SourceLocation BegLoc, SourceLocation EndLoc,
@@ -88,7 +89,7 @@ FieldDecl::FieldDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                      SourceLocation EndLoc, QualType T, std::string Name,
                      RecordDecl *Parent)
     : ValueDecl(Ctx, DK_Field, Loc, BegLoc, EndLoc, T, std::move(Name)),
-      Parent(Parent) {}
+      Align(T->getAlign()), Parent(Parent) {}
 
 FieldDecl *FieldDecl::create(ASTContext &Ctx, SourceLocation Loc,
                              SourceLocation BegLoc, SourceLocation EndLoc,
