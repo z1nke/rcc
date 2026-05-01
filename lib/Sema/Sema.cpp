@@ -766,11 +766,14 @@ Stmt *Sema::actOnReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
     Diag.fatalAt(BegLoc, "return statement is not within a function");
 
   if (RetType.isVoidType()) {
-    if (!RetVal->getType().isVoidType())
+    if (RetVal && !RetVal->getType().isVoidType())
       RetVal = actOnCastExpr(RetVal->getBeginLoc(), RetVal->getEndLoc(),
                              RetType, RetVal, /*IsImplicit=*/true);
     return ReturnStmt::create(Ctx, BegLoc, EndLoc, RetVal);
   }
+
+  if (!RetVal)
+    Diag.fatalAt(BegLoc, "non-void function must return a value");
 
   RetVal = usualUnaryConv(RetVal);
   assert(RetVal);

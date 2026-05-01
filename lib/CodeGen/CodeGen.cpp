@@ -637,7 +637,8 @@ void CodeGen::genStmt(const Stmt *S) {
   }
   case Stmt::SK_ReturnStmt:
     emit("  # return stmt");
-    genExpr(cast<ReturnStmt>(S)->getRetValue());
+    if (const Expr *RetVal = cast<ReturnStmt>(S)->getRetValue())
+      genExpr(RetVal);
     emit("  j .L.return.{}", CurrFunc->getName());
     break;
   case Stmt::SK_NullStmt:

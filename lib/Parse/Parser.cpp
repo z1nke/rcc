@@ -429,12 +429,16 @@ Stmt *Parser::parseNullStmt() {
   return S.actOnNullStmt(SemiLoc);
 }
 
-// return-stmt: 'return' expr ';'
+// return-stmt: 'return' expr? ';'
 Stmt *Parser::parseReturnStmt() {
   auto BegLoc = SM.createBeginLocation(CurTok);
   assert(CurTok->is(Token::TK_Return));
   skip();
-  Expr *E = parseExpr();
+
+  Expr *E = nullptr;
+  if (CurTok->isNot(Token::TK_Semicolon))
+    E = parseExpr();
+
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Semicolon);
   return S.actOnReturnStmt(BegLoc, EndLoc, E);

@@ -97,6 +97,9 @@ int counter() {
   return i++ + j++;
 }
 
+// [122] Add return that doesn't take any value
+void ret_none() { return; }
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -160,6 +163,9 @@ int main() {
   ASSERT(2, counter());
   ASSERT(4, counter());
   ASSERT(6, counter());
+
+  // [122] Add return that doesn't take any value
+  ret_none();
 
   printf("OK\n");
   return 0;
