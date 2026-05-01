@@ -475,17 +475,8 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
     return std::nullopt;
   case Stmt::SK_ParenExpr:
     return cast<ParenExpr>(this)->getSubExpr()->evaluate();
-  case Stmt::SK_DeclRefExpr:
-  case Stmt::SK_ArraySubscriptExpr:
-  case Stmt::SK_CallExpr:
-  case Stmt::SK_MemberExpr:
-    return std::nullopt;
   case Stmt::SK_CastExpr:
     return evaluateCastExpr(cast<CastExpr>(this));
-  case Stmt::SK_InitListExpr:
-    return std::nullopt;
-  case Stmt::SK_StmtExpr:
-    return std::nullopt;
   default:
     return std::nullopt;
   }
@@ -508,8 +499,8 @@ std::optional<std::int64_t> Expr::evaluateAsInt() const {
 
 std::optional<bool> Expr::evaluateAsBool() const {
   QualType QT = getType();
-  if (QT.isNull() || (!QT->isBooleanType() && !QT->isIntegerType() &&
-                      !QT->isPointerType()))
+  if (QT.isNull() ||
+      (!QT->isBooleanType() && !QT->isIntegerType() && !QT->isPointerType()))
     return std::nullopt;
 
   auto IntVal = evaluateAsInt();
@@ -826,6 +817,20 @@ InitListExpr *InitListExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
 InitListExpr::InitListExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                            QualType T, std::vector<Expr *> Inits)
     : Expr(SK_InitListExpr, BegLoc, EndLoc, T), Inits(std::move(Inits)) {}
+
+CompoundLiteralExpr *CompoundLiteralExpr::create(ASTContext &Ctx,
+                                                 SourceLocation BegLoc,
+                                                 SourceLocation EndLoc,
+                                                 QualType T, VarDecl *Var) {
+  void *Mem =
+      Ctx.allocate(sizeof(CompoundLiteralExpr), alignof(CompoundLiteralExpr));
+  return new (Mem) CompoundLiteralExpr(BegLoc, EndLoc, T, Var);
+}
+
+CompoundLiteralExpr::CompoundLiteralExpr(SourceLocation BegLoc,
+                                         SourceLocation EndLoc, QualType T,
+                                         VarDecl *Var)
+    : Expr(SK_CompoundLiteralExpr, BegLoc, EndLoc, T), Var(Var) {}
 
 StmtExpr *StmtExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc, QualType T,

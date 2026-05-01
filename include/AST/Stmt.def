@@ -39,6 +39,7 @@ EXPR(CallExpr)
 EXPR(MemberExpr)
 EXPR(CastExpr)
 EXPR(InitListExpr)
+EXPR(CompoundLiteralExpr)
 EXPR(StmtExpr)
 
 STMT_RANGE(Expr, UnaryOperator, StmtExpr)

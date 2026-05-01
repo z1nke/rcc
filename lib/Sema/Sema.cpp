@@ -9,6 +9,7 @@
 #include "Support/Unreachable.h"
 
 #include <algorithm>
+#include <format>
 #include <ranges>
 
 namespace rcc {
@@ -121,10 +122,9 @@ static QualType materializeFlexibleArrayRecordType(ASTContext &Ctx,
     if (I + 1 == Fields.size()) {
       FieldTy = Ctx.getConstantArrayType(IAT->getElementType(), NumFamElems);
     }
-    auto *NewField =
-        FieldDecl::create(Ctx, OldField->getLocation(), OldField->getBeginLoc(),
-                          OldField->getEndLoc(), FieldTy, OldField->getName(),
-                          NewRD);
+    auto *NewField = FieldDecl::create(
+        Ctx, OldField->getLocation(), OldField->getBeginLoc(),
+        OldField->getEndLoc(), FieldTy, OldField->getName(), NewRD);
     NewField->setOffset(OldField->getOffset());
     NewField->setAlign(OldField->getAlign());
     NewFields.push_back(NewField);
@@ -132,8 +132,8 @@ static QualType materializeFlexibleArrayRecordType(ASTContext &Ctx,
   NewRD->setFields(std::move(NewFields));
 
   std::size_t Align = RT->getAlign();
-  std::size_t Size = LastField->getOffset() +
-                     NumFamElems * IAT->getElementType()->getSize();
+  std::size_t Size =
+      LastField->getOffset() + NumFamElems * IAT->getElementType()->getSize();
   Size = alignTo(Size, Align);
   QualType NewTy = Ctx.getRecordType(NewRD, Size, Align);
   NewRD->setTypeForDecl(NewTy.getTypePtr());
@@ -325,8 +325,7 @@ void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
         continue;
 
       if (Record->isUnion()) {
-        Diag.fatalAt(Field->getLocation(),
-                     "flexible array member in a union");
+        Diag.fatalAt(Field->getLocation(), "flexible array member in a union");
       }
 
       if (I + 1 != Fields.size()) {
@@ -502,7 +501,8 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
     if (!VarType->isArraryType() && !VarType->isRecordType()) {
       while (const auto *ScalarILE = dynCast<InitListExpr>(Init)) {
         if (ScalarILE->getNumInits() != 1)
-          Diag.fatalAt(Init->getBeginLoc(), "invalid initializer list for scalar");
+          Diag.fatalAt(Init->getBeginLoc(),
+                       "invalid initializer list for scalar");
         Init = const_cast<Expr *>(ScalarILE->getInit(0));
       }
     } else {
@@ -518,10 +518,10 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
                 break;
               consumeOneInitElement(ILE, Fields[I]->getType(), Idx);
             }
-            std::size_t NumFamElems = ILE->getNumInits() > Idx
-                                          ? static_cast<std::size_t>(
-                                                ILE->getNumInits() - Idx)
-                                          : 0;
+            std::size_t NumFamElems =
+                ILE->getNumInits() > Idx
+                    ? static_cast<std::size_t>(ILE->getNumInits() - Idx)
+                    : 0;
             QualType ConcreteTy =
                 materializeFlexibleArrayRecordType(Ctx, RT, NumFamElems);
             if (ConcreteTy)
@@ -847,8 +847,8 @@ Stmt *Sema::actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt) {
 
   auto EndLoc = SubStmt->getEndLoc();
   auto LabelId = SI.NextLabelId++;
-  auto *CS = CaseStmt::create(Ctx, BegLoc, EndLoc, LHS, SubStmt, CaseValue,
-                              LabelId);
+  auto *CS =
+      CaseStmt::create(Ctx, BegLoc, EndLoc, LHS, SubStmt, CaseValue, LabelId);
   CS->setNextSwitchCase(SI.FirstCase);
   SI.FirstCase = CS;
   return CS;
@@ -936,9 +936,9 @@ Expr *Sema::actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
                                 static_cast<BinaryOperator::Opcode>(Op));
 }
 
-Expr *Sema::actOnConditionalOperator(SourceLocation QLoc, SourceLocation ColonLoc,
-                                     Expr *Cond, Expr *TrueExpr,
-                                     Expr *FalseExpr) {
+Expr *Sema::actOnConditionalOperator(SourceLocation QLoc,
+                                     SourceLocation ColonLoc, Expr *Cond,
+                                     Expr *TrueExpr, Expr *FalseExpr) {
   (void)ColonLoc;
   Cond = usualUnaryConv(Cond);
   checkScalarType(Cond);
@@ -1074,6 +1074,28 @@ Expr *Sema::actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc,
   } while (false);
 
   return CastExpr::create(Ctx, BegLoc, EndLoc, T, SubExpr, CK, IsImplicit);
+}
+
+Expr *Sema::actOnCompoundLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                                 QualType T, Expr *Init) {
+  bool IsFileScope = !CurrScopeDecl || !isa<FunctionDecl>(CurrScopeDecl);
+
+  std::string Name;
+  if (IsFileScope)
+    Name = std::format(".L.complit.{}", AnonGVarId++);
+
+  auto *Var = VarDecl::create(Ctx, BegLoc, BegLoc, EndLoc, T, std::move(Name));
+
+  if (IsFileScope) {
+    Var->setGlobalStorage(true);
+    complete(Var, Init);
+    TU->addDecl(Var);
+  } else {
+    LocalVars.push_back(Var);
+    complete(Var, Init);
+  }
+
+  return CompoundLiteralExpr::create(Ctx, BegLoc, EndLoc, Var->getType(), Var);
 }
 
 Expr *Sema::actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -1615,6 +1637,7 @@ static bool isModifiableLvalue(const Expr *E) {
   case Stmt::SK_DeclRefExpr:
   case Stmt::SK_ArraySubscriptExpr:
   case Stmt::SK_MemberExpr:
+  case Stmt::SK_CompoundLiteralExpr:
     return true;
   case Stmt::SK_UnaryOperator:
     return cast<UnaryOperator>(E)->getOpcode() == UnaryOperator::UO_Deref;

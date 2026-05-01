@@ -14,6 +14,7 @@ class Token;
 class ASTContext;
 class Decl;
 class ValueDecl;
+class VarDecl;
 class FunctionDecl;
 class LabelDecl;
 
@@ -782,6 +783,26 @@ private:
 
 private:
   std::vector<Expr *> Inits;
+};
+
+class CompoundLiteralExpr final : public Expr {
+public:
+  static CompoundLiteralExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                                     SourceLocation EndLoc, QualType T,
+                                     VarDecl *Var);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_CompoundLiteralExpr;
+  }
+
+  VarDecl *getVarDecl() const { return Var; }
+
+private:
+  CompoundLiteralExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                      VarDecl *Var);
+
+private:
+  VarDecl *Var;
 };
 
 class StmtExpr final : public Expr {

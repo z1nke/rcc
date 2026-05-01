@@ -38,6 +38,7 @@ class ParenExpr;
 class DeclRefExpr;
 class CallExpr;
 class InitListExpr;
+class CompoundLiteralExpr;
 
 class ASTDumper {
 public:
@@ -83,6 +84,7 @@ public:
   void visit(const MemberExpr *ME);
   void visit(const CastExpr *Cast);
   void visit(const InitListExpr *ILE);
+  void visit(const CompoundLiteralExpr *CLE);
   void visit(const StmtExpr *SE);
 
 private:

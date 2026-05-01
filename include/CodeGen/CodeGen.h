@@ -55,6 +55,8 @@ private:
   void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);
   void genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE);
   void genCastExpr(const CastExpr *Cast);
+  void genCompoundLiteralExpr(const CompoundLiteralExpr *CLE);
+  void emitLocalVarInit(const VarDecl *Var);
   void genInitListExpr(const VarDecl *Var, const InitListExpr *List,
                        QualType AggTy, std::size_t BaseOffset);
   void genInitListExprFromFlat(const VarDecl *Var, const InitListExpr *List,

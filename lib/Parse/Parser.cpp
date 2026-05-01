@@ -987,10 +987,18 @@ Expr *Parser::parseMulExpr() {
 // cast-expr: unary-expr | '(' type-name ')' cast-expr
 Expr *Parser::parseCastExpr() {
   if (CurTok->is(Token::TK_LParen) && isTypeName(CurTok->getNext())) {
+    Token *Start = CurTok;
     auto BegLoc = SM.createBeginLocation(CurTok);
     skip();
     QualType T = parseTypeName();
     skip(Token::TK_RParen);
+
+    // Compound literal: ( type-name ) { initializer-list }
+    if (CurTok->is(Token::TK_LBrace)) {
+      CurTok = Start;
+      return parseUnaryExpr();
+    }
+
     auto *SubExpr = parseCastExpr();
     return S.actOnCastExpr(BegLoc, SubExpr->getEndLoc(), T, SubExpr, false);
   }
@@ -1157,13 +1165,24 @@ bool Parser::isTypeName(const Token *Tok) {
   }
 }
 
-// postfix-expr: primary-expr
+// postfix-expr: '(' type-name ')' '{' initializer-list '}'
+//             | primary-expr
 //             | postfix-expr '[' expr ']'
 //             | postfix-expr '.' identifier
 //             | postfix-expr '->' identifier
 //             | postfix-expr '++'
 //             | postfix-expr '--'
 Expr *Parser::parsePostfixExpr() {
+  // Compound literal: ( type-name ) { initializer-list }
+  if (CurTok->is(Token::TK_LParen) && isTypeName(CurTok->getNext())) {
+    auto BegLoc = SM.createBeginLocation(CurTok);
+    skip();
+    QualType T = parseTypeName();
+    skip(Token::TK_RParen);
+    Expr *Init = parseInitExpr();
+    return S.actOnCompoundLiteral(BegLoc, Init->getEndLoc(), T, Init);
+  }
+
   Expr *LHS = parsePrimaryExpr();
   while (true) {
     if (tryConsume(Token::TK_LSquare)) {

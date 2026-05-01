@@ -114,6 +114,8 @@ public:
                               Expr *Base, std::string_view Ident, bool IsArrow);
   Expr *actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                       Expr *SubExpr, bool IsImplicit);
+  Expr *actOnCompoundLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                             QualType T, Expr *Init);
   Expr *actOnStmtExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                       Stmt *SubStmt);
 
@@ -201,6 +203,7 @@ private:
   std::vector<std::vector<ParamVarDecl *>> ParamLists;
   std::vector<FunctionDecl *> Funcs;
   std::unordered_map<std::string, LabelDecl *> Labels;
+  unsigned AnonGVarId = 0;
 
   struct SwitchInfo {
     SwitchCaseStmt *FirstCase = nullptr;

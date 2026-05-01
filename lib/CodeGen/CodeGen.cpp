@@ -135,6 +135,12 @@ static std::optional<GlobalInitValue> evalGlobalAddress(const Expr *E) {
       return std::nullopt;
     return GlobalInitValue{Var->getName(), 0};
   }
+  case Stmt::SK_CompoundLiteralExpr: {
+    const auto *Var = cast<CompoundLiteralExpr>(E)->getVarDecl();
+    if (!Var->hasGlobalStorage())
+      return std::nullopt;
+    return GlobalInitValue{Var->getName(), 0};
+  }
   case Stmt::SK_UnaryOperator: {
     const auto *UO = cast<UnaryOperator>(E);
     if (UO->getOpcode() == UnaryOperator::UO_Deref)
@@ -174,6 +180,7 @@ static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E) {
 
   switch (E->getKind()) {
   case Stmt::SK_DeclRefExpr:
+  case Stmt::SK_CompoundLiteralExpr:
   case Stmt::SK_ArraySubscriptExpr:
   case Stmt::SK_MemberExpr:
     return evalGlobalAddress(E);
@@ -680,36 +687,38 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       // Static locals are initialized in .data/.bss, not at runtime.
       if (Var->hasGlobalStorage())
         continue;
-
-      const auto *Init = Var->getInit();
-      if (!Init)
-        continue;
-
-      if (const auto *ILE = dynCast<InitListExpr>(Init)) {
-        if (!Var->getType()->isArraryType() && !Var->getType()->isRecordType())
-          Diag.fatalAt(Init->getBeginLoc(),
-                       "aggregate init requires array or struct type");
-        genInitListExpr(Var, ILE, Var->getType(), 0);
-      } else if (Var->getType()->isArraryType()) {
-        if (const auto *SL = dynCast<StringLiteral>(Init)) {
-          genStringLiteralInit(Var, SL, Var->getType(), 0);
-        } else {
-          Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
-        }
-      } else {
-        genAddr(Var);
-        push();
-        // a0 = init-expr
-        genExpr(Init);
-        emit("  # initialize variable '{}'", Var->getName());
-        store(Var->getType().getTypePtr());
-      }
-
+      emitLocalVarInit(Var);
     } else if (isa<TypedefDecl>(D)) {
       continue;
     } else {
       Diag.fatalAt(D->getBeginLoc(), "invalid declaration in decl-stmt");
     }
+  }
+}
+
+void CodeGen::emitLocalVarInit(const VarDecl *Var) {
+  const auto *Init = Var->getInit();
+  if (!Init)
+    return;
+
+  if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+    if (!Var->getType()->isArraryType() && !Var->getType()->isRecordType())
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "aggregate init requires array or struct type");
+    genInitListExpr(Var, ILE, Var->getType(), 0);
+  } else if (Var->getType()->isArraryType()) {
+    if (const auto *SL = dynCast<StringLiteral>(Init)) {
+      genStringLiteralInit(Var, SL, Var->getType(), 0);
+    } else {
+      Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
+    }
+  } else {
+    genAddr(Var);
+    push();
+    // a0 = init-expr
+    genExpr(Init);
+    emit("  # initialize variable '{}'", Var->getName());
+    store(Var->getType().getTypePtr());
   }
 }
 
@@ -1119,6 +1128,9 @@ void CodeGen::genExpr(const Expr *E) {
     break;
   case Stmt::SK_CastExpr:
     genCastExpr(cast<CastExpr>(E));
+    break;
+  case Stmt::SK_CompoundLiteralExpr:
+    genCompoundLiteralExpr(cast<CompoundLiteralExpr>(E));
     break;
   case Stmt::SK_InitListExpr:
     Diag.fatalAt(E->getBeginLoc(), "init-list expression is not evaluatable");
@@ -1564,11 +1576,29 @@ void CodeGen::genCastExpr(const CastExpr *Cast) {
   }
 }
 
+void CodeGen::genCompoundLiteralExpr(const CompoundLiteralExpr *CLE) {
+  const VarDecl *Var = CLE->getVarDecl();
+  if (!Var->hasGlobalStorage())
+    emitLocalVarInit(Var);
+  genAddr(Var);
+
+  if (!CLE->getType()->isArraryType() && !CLE->getType()->isRecordType())
+    load(CLE->getTypePtr());
+}
+
 void CodeGen::genAddr(const Expr *E) {
   switch (E->getKind()) {
   case Stmt::SK_DeclRefExpr: {
     const auto *Ref = cast<DeclRefExpr>(E);
     genAddr(Ref->getDecl());
+    return;
+  }
+  case Stmt::SK_CompoundLiteralExpr: {
+    const auto *CLE = cast<CompoundLiteralExpr>(E);
+    const VarDecl *Var = CLE->getVarDecl();
+    if (!Var->hasGlobalStorage())
+      emitLocalVarInit(Var);
+    genAddr(Var);
     return;
   }
   case Stmt::SK_UnaryOperator: {
