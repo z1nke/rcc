@@ -1226,40 +1226,70 @@ void CodeGen::genIntCast(const Type *From, const Type *To) {
     I16,
     I32,
     I64,
+    U8,
+    U16,
+    U32,
+    U64,
   };
 
-  auto GetTypeID = [](const Type *T) {
+  auto GetTypeID = [](const Type *T) -> unsigned {
     if (const auto *BT = dynCast<BuiltinType>(T)) {
       switch (BT->getKind()) {
-      case BuiltinType::BK_Char:
+      case BuiltinType::BK_SignedChar:
         return I8;
+      case BuiltinType::BK_Char:
+      case BuiltinType::BK_UnsignedChar:
+      case BuiltinType::BK_Bool:
+        return U8;
       case BuiltinType::BK_Short:
         return I16;
+      case BuiltinType::BK_UnsignedShort:
+        return U16;
       case BuiltinType::BK_Int:
         return I32;
+      case BuiltinType::BK_UnsignedInt:
+        return U32;
+      case BuiltinType::BK_Long:
+      case BuiltinType::BK_LongLong:
+        return I64;
+      case BuiltinType::BK_UnsignedLong:
+      case BuiltinType::BK_UnsignedLongLong:
+        return U64;
       default:
         return I64;
       }
     }
-
     return I64;
   };
 
-#define INT_CAST(FROM, TO, SHIFT)                                              \
-  static constexpr std::string_view I##FROM##To##I##TO =                       \
-      "slli a0, a0, " #SHIFT "\nsrai a0, a0, " #SHIFT;
+  static constexpr std::string_view I64ToI8 =
+      "slli a0, a0, 56\nsrai a0, a0, 56";
+  static constexpr std::string_view I64ToI16 =
+      "slli a0, a0, 48\nsrai a0, a0, 48";
+  static constexpr std::string_view I64ToI32 =
+      "slli a0, a0, 32\nsrai a0, a0, 32";
+  static constexpr std::string_view I64ToU8 =
+      "slli a0, a0, 56\nsrli a0, a0, 56";
+  static constexpr std::string_view I64ToU16 =
+      "slli a0, a0, 48\nsrli a0, a0, 48";
+  static constexpr std::string_view I64ToU32 =
+      "slli a0, a0, 32\nsrli a0, a0, 32";
+  static constexpr std::string_view U32ToI64 =
+      "slli a0, a0, 32\nsrli a0, a0, 32";
 
-  INT_CAST(64, 8, 56);
-  INT_CAST(64, 16, 48);
-  INT_CAST(64, 32, 32);
-
-  constexpr std::array<std::array<std::string_view, 10>, 10> IntCastTable = {{
-      // To: i8   i16   i32  i64    | From:
-      {},                            // | i8
-      {I64ToI8},                     // | i16
-      {I64ToI8, I64ToI16},           // | i32
-      {I64ToI8, I64ToI16, I64ToI32}, // | i64
+  // clang-format off
+  // To:   i8       i16      i32      i64      u8       u16      u32      u64
+  constexpr std::array<std::array<std::string_view, 8>, 8> IntCastTable = {{
+      {{ {},       {},       {},       {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i8
+      {{ I64ToI8,  {},       {},       {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i16
+      {{ I64ToI8,  I64ToI16, {},       {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i32
+      {{ I64ToI8,  I64ToI16, I64ToI32, {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i64
+      {{ I64ToI8,  {},       {},       {},       {},       {},       {},       {} }},       // u8
+      {{ I64ToI8,  I64ToI16, {},       {},       I64ToU8,  {},       {},       {} }},       // u16
+      {{ I64ToI8,  I64ToI16, I64ToI32, U32ToI64, I64ToU8,  I64ToU16, {},       U32ToI64 }}, // u32
+      {{ I64ToI8,  I64ToI16, I64ToI32, {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // u64
   }};
+  // clang-format on
 
   unsigned ID1 = GetTypeID(From);
   unsigned ID2 = GetTypeID(To);
@@ -1288,6 +1318,7 @@ void CodeGen::genDeclRefExpr(const DeclRefExpr *Ref) {
 void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
                                          QualType LType, QualType RType,
                                          const char *Suffix) {
+  bool IsUnsigned = LType->isUnsignedIntegerType();
   switch (Op) {
   case BinaryOperator::BO_Add:
     if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
@@ -1321,10 +1352,10 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
     emit("  mul{} a0, a0, a1", Suffix);
     return;
   case BinaryOperator::BO_Div:
-    emit("  div{} a0, a0, a1", Suffix);
+    emit("  div{}{} a0, a0, a1", IsUnsigned ? "u" : "", Suffix);
     return;
   case BinaryOperator::BO_Rem:
-    emit("  rem{} a0, a0, a1", Suffix);
+    emit("  rem{}{} a0, a0, a1", IsUnsigned ? "u" : "", Suffix);
     return;
   case BinaryOperator::BO_And:
     emit("  and a0, a0, a1");
@@ -1336,10 +1367,10 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
     emit("  xor a0, a0, a1");
     return;
   case BinaryOperator::BO_Shl:
-    emit("  sll a0, a0, a1");
+    emit("  sll{} a0, a0, a1", Suffix);
     return;
   case BinaryOperator::BO_Shr:
-    emit("  sra a0, a0, a1");
+    emit("  sr{}{} a0, a0, a1", IsUnsigned ? "l" : "a", Suffix);
     return;
   default:
     RCC_UNREACHABLE("emitBinaryArithmeticResult: invalid opcode");
@@ -1439,39 +1470,38 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     emitBinaryArithmeticResult(Op, LType, RType, Suffix);
     return;
   case BinaryOperator::BO_EQ:
+  case BinaryOperator::BO_NE: {
+    // Clear high bits before comparing U32.
+    auto TruncU32 = [this](const char *Reg, QualType Ty) {
+      if (Ty->isUnsignedIntegerType() && Ty->getSize() == 4) {
+        emit("  slli {}, {}, 32", Reg, Reg);
+        emit("  srli {}, {}, 32", Reg, Reg);
+      }
+    };
+    TruncU32("a0", LType);
+    TruncU32("a1", RType);
     // a0 = a0 ^ a1
     // a0 = (a0 == 0) ? 1 : 0
     emit("  xor a0, a0, a1");
-    emit("  seqz a0, a0");
+    emit("  {} a0, a0", Op == BinaryOperator::BO_EQ ? "seqz" : "snez");
     break;
-  case BinaryOperator::BO_NE:
-    // a0 = a0 ^ a1
-    // a0 = (a0 != 0) ? 1 : 0
-    emit("  xor a0, a0, a1");
-    emit("  snez a0, a0");
-    break;
+  }
   case BinaryOperator::BO_LT:
-    // a0 = a0 < a1.
-    // TODO: In the future, we will need to handle unsigned comparisons.
-    //
-    emit("  slt a0, a0, a1");
+    // a0 = a0 < a1
+    emit("  slt{} a0, a0, a1", LType->isUnsignedIntegerType() ? "u" : "");
     break;
   case BinaryOperator::BO_LE:
     // a0 <= a1  <=>  !(a1 < a0)
-    // a0 = a1 < a0
-    // a0 = !a0
-    emit("  slt a0, a1, a0");
+    emit("  slt{} a0, a1, a0", LType->isUnsignedIntegerType() ? "u" : "");
     emit("  xori a0, a0, 1");
     break;
   case BinaryOperator::BO_GT:
     // a0 > a1  <=>  a1 < a0
-    emit("  slt a0, a1, a0");
+    emit("  slt{} a0, a1, a0", LType->isUnsignedIntegerType() ? "u" : "");
     break;
   case BinaryOperator::BO_GE:
     // a0 >= a1  <=>  !(a0 < a1)
-    // a0 = a0 < a1
-    // a0 = !a0
-    emit("  slt a0, a0, a1");
+    emit("  slt{} a0, a0, a1", LType->isUnsignedIntegerType() ? "u" : "");
     emit("  xori a0, a0, 1");
     break;
   default:
@@ -1600,15 +1630,27 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
       emit("  # clear high bits for bool return");
       emit("  slli a0, a0, 63");
       emit("  srli a0, a0, 63");
-    case BuiltinType::BK_Char:
-      emit("  # sign-extend char return");
+      break;
+    case BuiltinType::BK_SignedChar:
+      emit("  # sign-extend signed char return");
       emit("  slli a0, a0, 56");
       emit("  srai a0, a0, 56");
+      break;
+    case BuiltinType::BK_Char:
+    case BuiltinType::BK_UnsignedChar:
+      emit("  # zero-extend unsigned char return");
+      emit("  slli a0, a0, 56");
+      emit("  srli a0, a0, 56");
       break;
     case BuiltinType::BK_Short:
       emit("  # sign-extend short return");
       emit("  slli a0, a0, 48");
       emit("  srai a0, a0, 48");
+      break;
+    case BuiltinType::BK_UnsignedShort:
+      emit("  # zero-extend unsigned short return");
+      emit("  slli a0, a0, 48");
+      emit("  srli a0, a0, 48");
       break;
     default:
       break;
@@ -1621,9 +1663,7 @@ void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
   // addr = base + idx
   genAddr(ASE);
   // a0 = *(addr)
-  QualType AT = ASE->getType();
-  std::size_t Size = AT->getSize();
-  emit("  l{} a0, 0(a0)", getWidthSuffix(Size));
+  load(ASE->getTypePtr());
 }
 
 void CodeGen::genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
@@ -1790,8 +1830,9 @@ void CodeGen::load(const Type *Ty) {
   if (Ty->isArraryType() || Ty->isRecordType())
     return;
 
+  bool IsUnsigned = Ty->isUnsignedIntegerType();
   emit("  # load");
-  emit("  l{} a0, 0(a0)", getWidthSuffix(Ty->getSize()));
+  emit("  l{} a0, 0(a0)", getWidthSuffix(Ty->getSize(), IsUnsigned));
 }
 
 // store a0 to *a1.
@@ -1822,16 +1863,16 @@ void CodeGen::storeGenReg(int Reg, int Offset, int Size) {
   emit("  s{} {}, {}(fp)", getWidthSuffix(Size), ArgReg[Reg], Offset);
 }
 
-char CodeGen::getWidthSuffix(std::size_t Size) const {
+const char *CodeGen::getWidthSuffix(std::size_t Size, bool IsUnsigned) const {
   switch (Size) {
   case 1:
-    return 'b';
+    return IsUnsigned ? "bu" : "b";
   case 2:
-    return 'h';
+    return IsUnsigned ? "hu" : "h";
   case 4:
-    return 'w';
+    return IsUnsigned ? "wu" : "w";
   case 8:
-    return 'd';
+    return "d";
   default:
     RCC_UNREACHABLE("unknown type size");
   }

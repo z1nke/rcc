@@ -326,6 +326,9 @@ evaluateBinaryOperator(const BinaryOperator *BO) {
 
   const QualType LHSTy = BO->getLHS()->getType();
   const QualType RHSTy = BO->getRHS()->getType();
+  const QualType ResTy = BO->getType();
+  bool IsUnsigned = ResTy->isUnsignedIntegerType() ||
+                    LHSTy->isUnsignedIntegerType();
   switch (BO->getOpcode()) {
   case BinaryOperator::BO_Add: {
     if (LHSTy->isPointerType() && RHSTy->isIntegerType()) {
@@ -364,8 +367,12 @@ evaluateBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_Mul:
     return Expr::EvalResult((*LHSVal) * (*RHSVal));
   case BinaryOperator::BO_Div:
+    if (IsUnsigned)
+      return Expr::EvalResult(AsU64(*LHSVal) / AsU64(*RHSVal));
     return Expr::EvalResult((*LHSVal) / (*RHSVal));
   case BinaryOperator::BO_Rem:
+    if (IsUnsigned)
+      return Expr::EvalResult(AsU64(*LHSVal) % AsU64(*RHSVal));
     return Expr::EvalResult((*LHSVal) % (*RHSVal));
   case BinaryOperator::BO_And:
     return Expr::EvalResult((*LHSVal) & (*RHSVal));
@@ -376,18 +383,28 @@ evaluateBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_Shl:
     return Expr::EvalResult((*LHSVal) << (*RHSVal));
   case BinaryOperator::BO_Shr:
+    if (IsUnsigned)
+      return Expr::EvalResult(AsU64(*LHSVal) >> AsU64(*RHSVal));
     return Expr::EvalResult((*LHSVal) >> (*RHSVal));
   case BinaryOperator::BO_EQ:
     return Expr::EvalResult((*LHSVal) == (*RHSVal));
   case BinaryOperator::BO_NE:
     return Expr::EvalResult((*LHSVal) != (*RHSVal));
   case BinaryOperator::BO_LT:
+    if (LHSTy->isUnsignedIntegerType())
+      return Expr::EvalResult(AsU64(*LHSVal) < AsU64(*RHSVal));
     return Expr::EvalResult((*LHSVal) < (*RHSVal));
   case BinaryOperator::BO_GT:
+    if (LHSTy->isUnsignedIntegerType())
+      return Expr::EvalResult(AsU64(*LHSVal) > AsU64(*RHSVal));
     return Expr::EvalResult((*LHSVal) > (*RHSVal));
   case BinaryOperator::BO_LE:
+    if (LHSTy->isUnsignedIntegerType())
+      return Expr::EvalResult(AsU64(*LHSVal) <= AsU64(*RHSVal));
     return Expr::EvalResult((*LHSVal) <= (*RHSVal));
   case BinaryOperator::BO_GE:
+    if (LHSTy->isUnsignedIntegerType())
+      return Expr::EvalResult(AsU64(*LHSVal) >= AsU64(*RHSVal));
     return Expr::EvalResult((*LHSVal) >= (*RHSVal));
   case BinaryOperator::BO_LAnd:
     return Expr::EvalResult((*LHSVal) && (*RHSVal));

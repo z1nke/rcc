@@ -8,10 +8,16 @@ void ASTContext::initBuiltinTypes() {
   initBuiltinType(VoidTy, BuiltinType::BK_Void, 1, 1);
   initBuiltinType(BoolTy, BuiltinType::BK_Bool, 1, 1);
   initBuiltinType(CharTy, BuiltinType::BK_Char, 1, 1);
+  initBuiltinType(SignedCharTy, BuiltinType::BK_SignedChar, 1, 1);
+  initBuiltinType(UnsignedCharTy, BuiltinType::BK_UnsignedChar, 1, 1);
   initBuiltinType(ShortTy, BuiltinType::BK_Short, 2, 2);
+  initBuiltinType(UnsignedShortTy, BuiltinType::BK_UnsignedShort, 2, 2);
   initBuiltinType(IntTy, BuiltinType::BK_Int, 4, 4);
+  initBuiltinType(UnsignedIntTy, BuiltinType::BK_UnsignedInt, 4, 4);
   initBuiltinType(LongTy, BuiltinType::BK_Long, 8, 8);
+  initBuiltinType(UnsignedLongTy, BuiltinType::BK_UnsignedLong, 8, 8);
   initBuiltinType(LongLongTy, BuiltinType::BK_LongLong, 8, 8);
+  initBuiltinType(UnsignedLongLongTy, BuiltinType::BK_UnsignedLongLong, 8, 8);
 }
 
 void ASTContext::initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,
@@ -123,14 +129,20 @@ unsigned ASTContext::getIntRank(const Type *T) const {
   case BuiltinType::BK_Bool:
     return 1 + (getIntWidth(BoolTy) << 3);
   case BuiltinType::BK_Char:
+  case BuiltinType::BK_SignedChar:
+  case BuiltinType::BK_UnsignedChar:
     return 2 + (getIntWidth(CharTy) << 3);
   case BuiltinType::BK_Short:
+  case BuiltinType::BK_UnsignedShort:
     return 3 + (getIntWidth(ShortTy) << 3);
   case BuiltinType::BK_Int:
+  case BuiltinType::BK_UnsignedInt:
     return 4 + (getIntWidth(IntTy) << 3);
   case BuiltinType::BK_Long:
+  case BuiltinType::BK_UnsignedLong:
     return 5 + (getIntWidth(LongTy) << 3);
   case BuiltinType::BK_LongLong:
+  case BuiltinType::BK_UnsignedLongLong:
     return 6 + (getIntWidth(LongLongTy) << 3);
   default:
     RCC_UNREACHABLE("Unknown int type kind");
@@ -140,6 +152,33 @@ unsigned ASTContext::getIntRank(const Type *T) const {
 std::size_t ASTContext::getIntWidth(QualType T) const {
   // TODO: Bool -> 1
   return 8 * T->getSize();
+}
+
+QualType ASTContext::getCorrespondingUnsignedType(QualType T) const {
+  const auto *BT = dynCast<BuiltinType>(T.getCanonicalType().getTypePtr());
+  assert(BT);
+  switch (BT->getKind()) {
+  case BuiltinType::BK_Char:
+  case BuiltinType::BK_SignedChar:
+    return UnsignedCharTy;
+  case BuiltinType::BK_Short:
+    return UnsignedShortTy;
+  case BuiltinType::BK_Int:
+    return UnsignedIntTy;
+  case BuiltinType::BK_Long:
+    return UnsignedLongTy;
+  case BuiltinType::BK_LongLong:
+    return UnsignedLongLongTy;
+  case BuiltinType::BK_UnsignedChar:
+  case BuiltinType::BK_UnsignedShort:
+  case BuiltinType::BK_UnsignedInt:
+  case BuiltinType::BK_UnsignedLong:
+  case BuiltinType::BK_UnsignedLongLong:
+  case BuiltinType::BK_Bool:
+    return T;
+  default:
+    RCC_UNREACHABLE("getCorrespondingUnsignedType: not an integer type");
+  }
 }
 
 } // namespace rcc

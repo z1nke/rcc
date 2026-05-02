@@ -90,7 +90,10 @@ private:
 
   void storeGenReg(int Reg, int Offset, int Size);
 
-  char getWidthSuffix(std::size_t Size) const;
+  /// Returns the RISC-V load/store width suffix ("b"/"h"/"w"/"d").
+  /// When \p IsUnsigned is true, returns the zero-extending load suffix
+  /// ("bu"/"hu"/"wu"; "d" is unchanged).
+  const char *getWidthSuffix(std::size_t Size, bool IsUnsigned = false) const;
 
   int getCount() const;
   int simpleLog2(int Num);

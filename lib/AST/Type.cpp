@@ -247,8 +247,18 @@ bool Type::isBooleanType() const {
 
 bool Type::isUnsignedIntegerType() const {
   if (const auto *BT = dynCast<BuiltinType>(getCanonicalType())) {
-    auto Kind = BT->getKind();
-    return Kind == BuiltinType::BK_Bool;
+    switch (BT->getKind()) {
+    case BuiltinType::BK_Bool:
+    case BuiltinType::BK_Char: // Plain char is unsigned on RISC-V.
+    case BuiltinType::BK_UnsignedChar:
+    case BuiltinType::BK_UnsignedShort:
+    case BuiltinType::BK_UnsignedInt:
+    case BuiltinType::BK_UnsignedLong:
+    case BuiltinType::BK_UnsignedLongLong:
+      return true;
+    default:
+      return false;
+    }
   }
 
   return false;
@@ -256,8 +266,16 @@ bool Type::isUnsignedIntegerType() const {
 
 bool Type::isSignedIntegerType() const {
   if (const auto *BT = dynCast<BuiltinType>(getCanonicalType())) {
-    auto Kind = BT->getKind();
-    return Kind >= BuiltinType::BK_Char && Kind <= BuiltinType::BK_LongLong;
+    switch (BT->getKind()) {
+    case BuiltinType::BK_SignedChar:
+    case BuiltinType::BK_Short:
+    case BuiltinType::BK_Int:
+    case BuiltinType::BK_Long:
+    case BuiltinType::BK_LongLong:
+      return true;
+    default:
+      return false;
+    }
   }
   return false;
 }
@@ -329,7 +347,7 @@ TagDecl *Type::getAsTagDecl() const {
 bool BuiltinType::isBooleanType() const { return BK == BK_Bool; }
 
 bool BuiltinType::isIntegerType() const {
-  return BK >= BK_Bool && BK <= BK_LongLong;
+  return BK >= BK_Bool && BK <= BK_UnsignedLongLong;
 }
 
 bool BuiltinType::isVoidType() const { return BK == BK_Void; }
@@ -342,14 +360,26 @@ const char *BuiltinType::getKindStr() const {
     return "_Bool";
   case BK_Char:
     return "char";
+  case BK_SignedChar:
+    return "signed char";
+  case BK_UnsignedChar:
+    return "unsigned char";
   case BK_Short:
     return "short";
+  case BK_UnsignedShort:
+    return "unsigned short";
   case BK_Int:
     return "int";
+  case BK_UnsignedInt:
+    return "unsigned int";
   case BK_Long:
     return "long";
+  case BK_UnsignedLong:
+    return "unsigned long";
   case BK_LongLong:
     return "long long";
+  case BK_UnsignedLongLong:
+    return "unsigned long long";
   default:
     RCC_UNREACHABLE("Unknown builtin type");
   }

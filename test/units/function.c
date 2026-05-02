@@ -123,6 +123,13 @@ char *fmt(char *buf, char *fmt, ...) {
 // [129] Check the number of function arguments
 int nullParam() { return 123; }
 
+// [131] Add unsigned integral types
+unsigned char uchar_fn();
+unsigned short ushort_fn();
+
+signed char schar_fn();
+short sshort_fn();
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -209,6 +216,12 @@ int main() {
 
   // [129] Check the number of function arguments
   ASSERT(123, ({ nullParam(); }));
+
+  // [131] Add unsigned integral types
+  ASSERT(251, uchar_fn());
+  ASSERT(65528, ushort_fn());
+  ASSERT(-5, schar_fn());
+  ASSERT(-8, sshort_fn());
 
   printf("OK\n");
   return 0;

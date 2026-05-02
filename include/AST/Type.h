@@ -157,11 +157,17 @@ public:
   enum Kind {
     BK_Void,
     BK_Bool,
-    BK_Char,
+    BK_Char,         // Plain char (unsigned on RISC-V)
+    BK_SignedChar,
+    BK_UnsignedChar,
     BK_Short,
+    BK_UnsignedShort,
     BK_Int,
+    BK_UnsignedInt,
     BK_Long,
+    BK_UnsignedLong,
     BK_LongLong,
+    BK_UnsignedLongLong,
   };
 
   static bool classof(const Type *T) {

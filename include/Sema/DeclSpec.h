@@ -48,6 +48,7 @@ public:
   enum TypeSpecSign {
     TSS_Unspecified,
     TSS_Signed,
+    TSS_Unsigned,
   };
 
   DeclSpec(Diagnostic &Diag) : Diag(Diag) {}

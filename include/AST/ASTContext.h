@@ -27,10 +27,16 @@ public:
   CanQualType VoidTy;
   CanQualType BoolTy;
   CanQualType CharTy;
+  CanQualType SignedCharTy;
+  CanQualType UnsignedCharTy;
   CanQualType ShortTy;
+  CanQualType UnsignedShortTy;
   CanQualType IntTy;
+  CanQualType UnsignedIntTy;
   CanQualType LongTy;
+  CanQualType UnsignedLongTy;
   CanQualType LongLongTy;
+  CanQualType UnsignedLongLongTy;
 
   void initBuiltinTypes();
   void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind, std::size_t Size,
@@ -44,6 +50,7 @@ public:
   QualType getEnumType(EnumDecl *ED);
   QualType getTypedefType(TypedefDecl *TD, QualType Underlying);
   QualType getArrayDecayedType(QualType Ty);
+  QualType getCorrespondingUnsignedType(QualType T) const;
 
   bool hasSameType(QualType T1, QualType T2) const {
     return T1.getCanonicalType() == T2.getCanonicalType();

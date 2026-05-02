@@ -1254,9 +1254,11 @@ Expr *Sema::usualUnaryConv(Expr *E) const {
   E = defaultFunctionArrayLvalueConv(E);
   assert(E);
 
-  // TODO: Try to perform integral promotions if the object has a theoretically
-  // promotable type.
-  // ...
+  // Integer promotions (C99 6.3.1.1): types smaller than int convert to int
+  // when int can represent all values of the original type.
+  QualType Ty = E->getType();
+  if (Ty->isIntegerType() && Ty->getSize() < Ctx.IntTy->getSize())
+    E = impCastExprToType(E, Ctx.IntTy, CastExpr::CK_IntegralCast);
 
   return E;
 }
@@ -1335,12 +1337,16 @@ static QualType handleArithConv(const Sema &S, Expr *&LHS, Expr *&RHS,
     return RType;
   }
 
-  // TODO: Impl
   // The signed type is higher-ranked than the unsigned type,
   // but isn't actually any bigger (like unsigned int and long
   // on most 32-bit systems).  Use the unsigned type corresponding
   // to the signed type.
-  return LType;
+  QualType Result =
+      Ctx.getCorrespondingUnsignedType(IsLS ? LType : RType);
+  if (!IsCompAssign)
+    LHS = (*doLHSCast)(S, LHS, Result);
+  RHS = (*doRHSCast)(S, RHS, Result);
+  return Result;
 }
 
 static Expr *doIntegralCast(const Sema &S, Expr *E, QualType ToType) {
@@ -1560,9 +1566,15 @@ QualType Sema::getBinaryOperatorType(SourceLocation OpLoc, Expr *&LHS,
   case BinaryOperator::BO_LT:
   case BinaryOperator::BO_GT:
   case BinaryOperator::BO_LE:
-  case BinaryOperator::BO_GE:
-    // TODO: Check operands and add implicit expr.
+  case BinaryOperator::BO_GE: {
+    LHS = usualUnaryConv(LHS);
+    RHS = usualUnaryConv(RHS);
+    QualType LType = LHS->getType();
+    QualType RType = RHS->getType();
+    if (LType->isArithmeticType() && RType->isArithmeticType())
+      usualArithConv(LHS, RHS, ACK_Arithmetic);
     return Ctx.IntTy;
+  }
   case BinaryOperator::BO_Comma:
     return RHS->getType();
   default:
@@ -1810,6 +1822,7 @@ TypedefDecl *Sema::findTypedef(std::string_view Ident) const {
 
 QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
   QualType T;
+  DeclSpec::TypeSpecSign Sign = DS.getTypeSpecSign();
   switch (DS.getTypeSpecType()) {
   case DeclSpec::TST_Void:
     T = Ctx.VoidTy;
@@ -1818,22 +1831,28 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
     T = Ctx.BoolTy;
     break;
   case DeclSpec::TST_Char:
-    T = Ctx.CharTy;
+    if (Sign == DeclSpec::TSS_Signed)
+      T = Ctx.SignedCharTy;
+    else if (Sign == DeclSpec::TSS_Unsigned)
+      T = Ctx.UnsignedCharTy;
+    else
+      T = Ctx.CharTy;
     break;
   case DeclSpec::TST_Unspecified:
   case DeclSpec::TST_Int: {
+    bool IsUnsigned = Sign == DeclSpec::TSS_Unsigned;
     switch (DS.getTypeSpecWidth()) {
     case DeclSpec::TSW_Unspecified:
-      T = Ctx.IntTy;
+      T = IsUnsigned ? Ctx.UnsignedIntTy : Ctx.IntTy;
       break;
     case DeclSpec::TSW_Short:
-      T = Ctx.ShortTy;
+      T = IsUnsigned ? Ctx.UnsignedShortTy : Ctx.ShortTy;
       break;
     case DeclSpec::TSW_Long:
-      T = Ctx.LongTy;
+      T = IsUnsigned ? Ctx.UnsignedLongTy : Ctx.LongTy;
       break;
     case DeclSpec::TSW_LongLong:
-      T = Ctx.LongLongTy;
+      T = IsUnsigned ? Ctx.UnsignedLongLongTy : Ctx.LongLongTy;
       break;
     default:
       RCC_UNREACHABLE("Unknown type specifier width");

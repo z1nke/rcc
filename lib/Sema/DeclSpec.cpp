@@ -127,6 +127,8 @@ const char *DeclSpec::getSpecifierName(TypeSpecSign T) {
   switch (T) {
   case TSS_Signed:
     return "signed";
+  case TSS_Unsigned:
+    return "unsigned";
   default:
     RCC_UNREACHABLE("Unknown type specifier sign");
   }

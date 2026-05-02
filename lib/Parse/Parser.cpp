@@ -608,7 +608,7 @@ Stmt *Parser::parseDeclStmt() {
 //          | type-spec declspecs?
 //          | '_Alignas' '(' type-name | constant-expr ')' declspecs?
 // storage-class-spec: typedef | extern | static | auto | register
-// typespec: void | _Bool | char | short | int | long | signed
+// typespec: void | _Bool | char | short | int | long | signed | unsigned
 //         | struct-or-union-spec | enum-spec | typedef-name
 void Parser::parseDeclSpecs(DeclSpec &DS) {
 #define STORAGE_CLASS_SPEC_CASE(T)                                             \
@@ -646,6 +646,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       TYPE_SPEC_WIDTH_CASE(Short);
       TYPE_SPEC_WIDTH_CASE(Long);
       TYPE_SPEC_SIGN_CASE(Signed);
+      TYPE_SPEC_SIGN_CASE(Unsigned);
     case Token::TK_Alignas: {
       if (!DS.isAlignasAllowed())
         Diag.fatalAt(TyLoc, "_Alignas is not allowed in this context");
@@ -1202,6 +1203,7 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Int:
   case Token::TK_Long:
   case Token::TK_Signed:
+  case Token::TK_Unsigned:
   case Token::TK_Struct:
   case Token::TK_Union:
   case Token::TK_Enum:
