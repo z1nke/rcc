@@ -834,13 +834,18 @@ void Parser::parseDirectDeclarator(Declarator &D) {
   parseTypeSuffix(D);
 }
 
-// [type-suffix]: '(' param-type-list ')'
-//              | '[' { assign-expr } ']'
+// [type-suffix]: '[' type-qualifiers? assign-expr? ']'
+//              | '[' 'static' type-qualifiers? assign-expr ']'
+//              | '[' type-qualifiers 'static' assign-expr ']'
+//              | '[' type-qualifiers? '*' ']'
+//              | '(' param-type-list ')'
+//              | '(' identifiers? ')'
 // param-type-list: param-list
 //                | param-list, '...'
 // param-list: param-decl
 //           | param-list, param-decl
 // param: declspec declarator
+// identifiers: identifier | identifiers ',' identifiers
 void Parser::parseTypeSuffix(Declarator &D) {
   while (true) {
     if (tryConsume(Token::TK_LParen)) {
@@ -881,6 +886,10 @@ void Parser::parseTypeSuffix(Declarator &D) {
 
     // Try parse array declarator.
     if (tryConsume(Token::TK_LSquare)) {
+      // Ignored for now: static, restrict.
+      while (CurTok->isOneOf(Token::TK_Static, Token::TK_Restrict))
+        skip();
+
       // Parse '[' ']'.
       if (tryConsume(Token::TK_RSquare)) {
         D.addDeclChunk(DeclaratorChunk::createArray(nullptr));

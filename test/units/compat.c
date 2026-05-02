@@ -6,6 +6,9 @@ _Noreturn noreturn_fn(int restrict x) {
   exit(0);
 }
 
+// [137] Ignore "static" and "const" in array-dimensions
+void funcy_type(int arg[restrict static 3]) {}
+
 int main() {
   // [136] Ignore const, volatile, auto, register, restrict or _Noreturn
   { volatile x; }
