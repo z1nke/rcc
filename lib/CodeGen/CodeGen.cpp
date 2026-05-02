@@ -600,7 +600,8 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   // sp -= StackSize
   if (StackSize > 0) {
     emit("  # allocate {} bytes for local variables", StackSize);
-    emit("  addi sp, sp, -{}", StackSize);
+    emit("  li t0, -{}", StackSize);
+    emit("  add sp, sp, t0");
   }
 
   unsigned NumParams = FD->getNumParams();
@@ -1816,7 +1817,8 @@ void CodeGen::genAddr(const Decl *D) {
     emit("  la a0, {}", getVarSymbol(Var));
   } else {
     emit("  # genAddr lvar {}, offset={}", Var->getName(), Var->getOffset());
-    emit("  addi a0, fp, {}", Var->getOffset());
+    emit("  li t0, {}", Var->getOffset());
+    emit("  add a0, fp, t0");
   }
 }
 
@@ -1886,7 +1888,9 @@ void CodeGen::store(const Type *Ty) {
 }
 
 void CodeGen::storeGenReg(int Reg, int Offset, int Size) {
-  emit("  s{} {}, {}(fp)", getWidthSuffix(Size), ArgReg[Reg], Offset);
+  emit("  li t0, {}", Offset);
+  emit("  add t0, fp, t0");
+  emit("  s{} {}, 0(t0)", getWidthSuffix(Size), ArgReg[Reg]);
 }
 
 const char *CodeGen::getWidthSuffix(std::size_t Size, bool IsUnsigned) const {
