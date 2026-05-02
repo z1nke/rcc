@@ -608,8 +608,8 @@ Stmt *Parser::parseDeclStmt() {
 //          | type-spec declspecs?
 //          | '_Alignas' '(' type-name | constant-expr ')' declspecs?
 // storage-class-spec: typedef | extern | static | auto | register
-// typespec: void | _Bool | char | short | int | long | struct-or-union-spec
-//         | enum-spec | typedef-name
+// typespec: void | _Bool | char | short | int | long | signed
+//         | struct-or-union-spec | enum-spec | typedef-name
 void Parser::parseDeclSpecs(DeclSpec &DS) {
 #define STORAGE_CLASS_SPEC_CASE(T)                                             \
   case Token::TK_##T:                                                          \
@@ -627,6 +627,11 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
     DS.setTypeSpecWidth(DeclSpec::TSW_##T, TyLoc);                             \
     skip();                                                                    \
     break
+#define TYPE_SPEC_SIGN_CASE(T)                                                 \
+  case Token::TK_##T:                                                          \
+    DS.setTypeSpecSign(DeclSpec::TSS_##T, TyLoc);                              \
+    skip();                                                                    \
+    break
 
   while (true) {
     auto TyLoc = SM.createBeginLocation(CurTok);
@@ -640,6 +645,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       TYPE_SPEC_TYPE_CASE(Int);
       TYPE_SPEC_WIDTH_CASE(Short);
       TYPE_SPEC_WIDTH_CASE(Long);
+      TYPE_SPEC_SIGN_CASE(Signed);
     case Token::TK_Alignas: {
       if (!DS.isAlignasAllowed())
         Diag.fatalAt(TyLoc, "_Alignas is not allowed in this context");
@@ -696,6 +702,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
   }
 #undef TYPE_SPEC_TYPE_CASE
 #undef TYPE_SPEC_WIDTH_CASE
+#undef TYPE_SPEC_SIGN_CASE
 }
 
 // init-declarator-list: init-declarator { ',' init-declarator }*
@@ -1194,6 +1201,7 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Short:
   case Token::TK_Int:
   case Token::TK_Long:
+  case Token::TK_Signed:
   case Token::TK_Struct:
   case Token::TK_Union:
   case Token::TK_Enum:

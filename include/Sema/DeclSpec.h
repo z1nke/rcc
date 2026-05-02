@@ -45,6 +45,11 @@ public:
     TSW_LongLong,
   };
 
+  enum TypeSpecSign {
+    TSS_Unspecified,
+    TSS_Signed,
+  };
+
   DeclSpec(Diagnostic &Diag) : Diag(Diag) {}
   DeclSpec(const DeclSpec &) = delete;
   void operator=(const DeclSpec &) = delete;
@@ -53,11 +58,13 @@ public:
   StorageClassSpec getStorageClassSpec() const { return SCS; }
   TypeSpecType getTypeSpecType() const { return TST; }
   TypeSpecWidth getTypeSpecWidth() const { return TSW; }
+  TypeSpecSign getTypeSpecSign() const { return TSS; }
   bool hasTypeSpecifier() const;
 
   void setStorageClassSpec(StorageClassSpec S, SourceLocation Loc);
   void setTypeSpecType(TypeSpecType T, SourceLocation Loc);
   void setTypeSpecWidth(TypeSpecWidth W, SourceLocation Loc);
+  void setTypeSpecSign(TypeSpecSign S, SourceLocation Loc);
 
   Decl *getRepDecl() const { return RepDecl; }
   void setRepDecl(Decl *D) { RepDecl = D; }
@@ -71,6 +78,7 @@ public:
   static const char *getSpecifierName(StorageClassSpec S);
   static const char *getSpecifierName(TypeSpecType T);
   static const char *getSpecifierName(TypeSpecWidth T);
+  static const char *getSpecifierName(TypeSpecSign T);
 
 private:
   template <typename T>
@@ -80,6 +88,7 @@ private:
   StorageClassSpec SCS = SCS_Unspecified;
   TypeSpecType TST = TST_Unspecified;
   TypeSpecWidth TSW = TSW_Unspecified;
+  TypeSpecSign TSS = TSS_Unspecified;
   SourceLocation SCSLoc;
   SourceLocation TSLoc;
   Decl *RepDecl = nullptr;

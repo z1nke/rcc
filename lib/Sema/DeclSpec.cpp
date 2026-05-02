@@ -21,7 +21,8 @@ DeclaratorChunk DeclaratorChunk::createArray(Expr *LenExpr) {
 }
 
 bool DeclSpec::hasTypeSpecifier() const {
-  return TST != TST_Unspecified || TSW != TSW_Unspecified;
+  return TST != TST_Unspecified || TSW != TSW_Unspecified ||
+         TSS != TSS_Unspecified;
 }
 
 void DeclSpec::setStorageClassSpec(StorageClassSpec S, SourceLocation Loc) {
@@ -55,6 +56,16 @@ void DeclSpec::setTypeSpecWidth(TypeSpecWidth W, SourceLocation Loc) {
   }
 
   reportBadSpec(TSLoc, W, TSW);
+}
+
+void DeclSpec::setTypeSpecSign(TypeSpecSign S, SourceLocation Loc) {
+  if (TSLoc.isInvalid())
+    TSLoc = Loc;
+
+  if (TSS != TSS_Unspecified)
+    reportBadSpec(Loc, S, TSS);
+
+  TSS = S;
 }
 
 template <typename T>
@@ -109,6 +120,15 @@ const char *DeclSpec::getSpecifierName(TypeSpecWidth T) {
     return "long";
   default:
     RCC_UNREACHABLE("Unknown type specifier width");
+  }
+}
+
+const char *DeclSpec::getSpecifierName(TypeSpecSign T) {
+  switch (T) {
+  case TSS_Signed:
+    return "signed";
+  default:
+    RCC_UNREACHABLE("Unknown type specifier sign");
   }
 }
 
