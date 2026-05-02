@@ -233,11 +233,68 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
     }
   }
 
-  std::int64_t Val = std::strtoul(P, &const_cast<char *&>(P), Base);
+  std::uint64_t Val = std::strtoul(P, &const_cast<char *&>(P), Base);
+
+  // Parse integer suffixes in any order, matching clang NumericLiteralParser:
+  // - u/U -> unsigned;
+  // - l/L -> long; 
+  // - ll/LL -> long long.
+  bool IsUnsigned = false;
+  bool IsLong = false;
+  bool IsLongLong = false;
+  bool HasSize = false;
+  for (; *P; ++P) {
+    switch (*P) {
+    case 'u':
+    case 'U':
+      if (IsUnsigned)
+        break;
+      IsUnsigned = true;
+      continue;
+    case 'l':
+    case 'L':
+      if (HasSize)
+        break;
+      HasSize = true;
+      if (P[1] == *P) {
+        IsLongLong = true;
+        ++P; // Eat the second L/l.
+      } else {
+        IsLong = true;
+      }
+      continue;
+    default:
+      break;
+    }
+    break;
+  }
+
   if (std::isalnum(*P))
     Diag.fatalAt(P, "invalid numeric literal suffix: {}", *P);
 
-  Curr->setNext(newToken(Token::TK_Num, Start, P, Val));
+  // Infer the literal type (C99 6.4.4.1 / LP64).
+  using NLK = Token::NumericLiteralKind;
+  NLK NumKind;
+  bool IsUnsignedLongInt = IsUnsigned || (Base != 10 && (Val >> 63));
+  if (IsLongLong)
+    NumKind = IsUnsignedLongInt ? NLK::ULongLong : NLK::LongLong;
+  else if (IsLong)
+    NumKind = IsUnsignedLongInt ? NLK::ULong : NLK::Long;
+  else if (IsUnsigned)
+    NumKind = (Val >> 32) ? NLK::ULong : NLK::UInt;
+  else if (Base == 10)
+    NumKind = (Val >> 31) ? NLK::Long : NLK::Int;
+  else if (Val >> 63)
+    NumKind = NLK::ULong;
+  else if (Val >> 32)
+    NumKind = NLK::Long;
+  else if (Val >> 31)
+    NumKind = NLK::UInt;
+  else
+    NumKind = NLK::Int;
+
+  Curr->setNext(newToken(Token::TK_Num, Start, P,
+                         static_cast<std::int64_t>(Val), NumKind));
   Curr = Curr->getNext();
 }
 
@@ -294,9 +351,10 @@ Token::TokenKind Lexer::getTokenKindOfIdent(const char *Start,
 }
 
 Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
-                       const char *End, int Val) {
+                       const char *End, std::int64_t Val,
+                       Token::NumericLiteralKind NumKind) {
   void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
-  return new (Mem) Token(Kind, Start, End, Val);
+  return new (Mem) Token(Kind, Start, End, Val, NumKind);
 }
 
 } // namespace rcc

@@ -29,7 +29,9 @@ private:
   Token::TokenKind getTokenKindOfIdent(const char *Start, const char *End);
 
   Token *newToken(Token::TokenKind Kind, const char *Start, const char *End,
-                  int Val = 0);
+                  std::int64_t Val = 0,
+                  Token::NumericLiteralKind NumKind =
+                      Token::NumericLiteralKind::Int);
 
 private:
   Diagnostic &Diag;

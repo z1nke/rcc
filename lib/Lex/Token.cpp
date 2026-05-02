@@ -12,6 +12,11 @@ std::int64_t Token::getVal() const {
   return Val;
 }
 
+Token::NumericLiteralKind Token::getNumericLiteralKind() const {
+  assert(Kind == TK_Num && "expect a number");
+  return NumKind;
+}
+
 static int fromHex(char C) {
   if ('0' <= C && C <= '9')
     return C - '0';

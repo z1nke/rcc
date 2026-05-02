@@ -1057,11 +1057,32 @@ void CodeGen::genDoWhileStmt(const DoWhileStmt *DoWhile) {
 void CodeGen::genSwitchStmt(const SwitchStmt *Switch) {
   int Count = getCount();
   genExpr(Switch->getCond());
+
+  // Compare at the width of the controlling expression: convert case
+  // constants as if cast to that type (C99 6.8.4.2).
+  QualType CondTy = Switch->getCond()->getType();
+  bool Is32 = CondTy->getSize() == 4;
+  bool IsUnsigned = CondTy->isUnsignedIntegerType();
+  if (Is32) {
+    if (IsUnsigned) {
+      emit("  slli a0, a0, 32");
+      emit("  srli a0, a0, 32");
+    } else {
+      emit("  sext.w a0, a0");
+    }
+  }
+
   const DefaultStmt *Default = nullptr;
   for (const auto *SC = Switch->getSwitchCaseList(); SC;
        SC = SC->getNextSwitchCase()) {
     if (const auto *CS = dynCast<CaseStmt>(SC)) {
-      emit("  li t0, {}", CS->getCaseValue());
+      std::int64_t CaseVal = CS->getCaseValue();
+      if (Is32) {
+        auto U32 = static_cast<std::uint32_t>(CaseVal);
+        CaseVal = IsUnsigned ? static_cast<std::int64_t>(U32)
+                             : static_cast<std::int64_t>(static_cast<std::int32_t>(U32));
+      }
+      emit("  li t0, {}", CaseVal);
       emit("  beq a0, t0, .L.case.{}.{}", Count, CS->getLabelId());
       continue;
     }

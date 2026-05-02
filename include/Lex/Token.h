@@ -1,6 +1,7 @@
 #ifndef RCC_LEX_TOKEN_H
 #define RCC_LEX_TOKEN_H
 
+#include <cstdint>
 #include <string_view>
 
 namespace rcc {
@@ -16,16 +17,29 @@ public:
     TK_Unknown,
   };
 
+  /// Resolved type of a numeric literal.
+  enum class NumericLiteralKind : unsigned char {
+    Int,
+    UInt,
+    Long,
+    ULong,
+    LongLong,
+    ULongLong,
+  };
+
   constexpr Token() = default;
 
-  Token(TokenKind Kind, const char *Start, const char *End, int Val = 0)
-      : Loc(Start), Kind(Kind), Val(Val), Len(End - Start) {}
+  Token(TokenKind Kind, const char *Start, const char *End,
+        std::int64_t Val = 0,
+        NumericLiteralKind NumKind = NumericLiteralKind::Int)
+      : Loc(Start), Kind(Kind), Val(Val), Len(End - Start), NumKind(NumKind) {}
 
   Token *getNext() const { return Next; }
   void setNext(Token *Next) { this->Next = Next; }
 
   std::string_view getIdentifer() const;
   std::int64_t getVal() const;
+  NumericLiteralKind getNumericLiteralKind() const;
   unsigned getCharLiteral(Diagnostic &Diag) const;
   std::string getStringLiteral(Diagnostic &Diag) const;
 
@@ -52,6 +66,7 @@ private:
   TokenKind Kind = TK_Unknown;
   std::int64_t Val = 0;
   int Len = 0;
+  NumericLiteralKind NumKind = NumericLiteralKind::Int;
 };
 
 } // namespace rcc

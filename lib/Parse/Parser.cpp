@@ -1323,8 +1323,29 @@ Expr *Parser::parsePrimaryExpr() {
     auto Val = CurTok->getVal();
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
+    QualType Ty;
+    switch (CurTok->getNumericLiteralKind()) {
+    case Token::NumericLiteralKind::Int:
+      Ty = Ctx.IntTy;
+      break;
+    case Token::NumericLiteralKind::UInt:
+      Ty = Ctx.UnsignedIntTy;
+      break;
+    case Token::NumericLiteralKind::Long:
+      Ty = Ctx.LongTy;
+      break;
+    case Token::NumericLiteralKind::ULong:
+      Ty = Ctx.UnsignedLongTy;
+      break;
+    case Token::NumericLiteralKind::LongLong:
+      Ty = Ctx.LongLongTy;
+      break;
+    case Token::NumericLiteralKind::ULongLong:
+      Ty = Ctx.UnsignedLongLongTy;
+      break;
+    }
     skip();
-    return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Val);
+    return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ty, Val);
   }
 
   if (CurTok->is(Token::TK_Ident)) {
