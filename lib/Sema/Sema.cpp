@@ -1003,17 +1003,16 @@ Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
 
 Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc, Expr *Ex) {
   checkSizeofType(BegLoc, Ex->getType());
-  // FIXME: Fix sizeof type, int -> size_t.
   return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, Ex->getEndLoc(),
-                                          Ctx.IntTy, Ex);
+                                          Ctx.UnsignedLongTy, Ex);
 }
 
 Expr *Sema::actOnUnaryExprOrTypeTraitExpr(SourceLocation BegLoc,
                                           SourceLocation EndLoc,
                                           const Type *Ty) {
   checkSizeofType(BegLoc, QualType(Ty));
-  // FIXME: Fix sizeof type, int -> size_t.
-  return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, EndLoc, Ctx.IntTy, Ty);
+  return UnaryExprOrTypeTraitExpr::create(Ctx, BegLoc, EndLoc,
+                                          Ctx.UnsignedLongTy, Ty);
 }
 
 Expr *Sema::actOnParenExpr(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -1633,7 +1632,7 @@ QualType Sema::getSubOpType(SourceLocation OpLoc, Expr *&LHS, Expr *&RHS,
   if (LIsPtr && RIsPtr) {
     if (IsCompAssign)
       Diag.fatalAt(LHS->getBeginLoc(), "invalid compound assignment operand");
-    return Ctx.IntTy; // FIXME: ptrdiff_t
+    return Ctx.LongTy;
   }
 
   bool LIsArithmetic = LType->isArithmeticType();

@@ -1133,13 +1133,13 @@ Expr *Parser::parseUnaryExpr() {
       QualType T = parseTypeName();
       SourceLocation EndLoc = SM.createBeginLocation(CurTok);
       skip(Token::TK_RParen);
-      return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy,
+      return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.UnsignedLongTy,
                                     T->getAlign());
     }
 
     Expr *Ex = parseUnaryExpr();
-    return IntegerLiteral::create(Ctx, BegLoc, Ex->getEndLoc(), Ctx.IntTy,
-                                  Ex->getType()->getAlign());
+    return IntegerLiteral::create(Ctx, BegLoc, Ex->getEndLoc(),
+                                  Ctx.UnsignedLongTy, Ex->getType()->getAlign());
   }
 
   return parsePostfixExpr();

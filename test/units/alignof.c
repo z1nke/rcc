@@ -40,6 +40,11 @@ int main() {
   ASSERT(1, ({ char x; _Alignof x; }));
   ASSERT(4, ({ int x; _Alignof x; }));
 
+  // [133] Use long or ulong instead of int for some expressions
+  ASSERT(1, _Alignof(char) << 31 >> 31);
+  ASSERT(1, _Alignof(char) << 63 >> 63);
+  ASSERT(1, ({ char x; _Alignof(x) << 63 >> 63; }));
+
   printf("OK\n");
   return 0;
 }
