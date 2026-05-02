@@ -377,6 +377,8 @@ Stmt *Parser::parseStmt() {
     return parseForStmt();
   case Token::TK_While:
     return parseWhileStmt();
+  case Token::TK_Do:
+    return parseDoWhileStmt();
   case Token::TK_Break:
     return parseBreakStmt();
   case Token::TK_Continue:
@@ -520,6 +522,23 @@ Stmt *Parser::parseWhileStmt() {
   Stmt *Body = parseStmt();
   exitScope();
   return S.actOnWhileStmt(Ctx, BegLoc, Cond, Body);
+}
+
+// do-while-stmt: 'do' stmt 'while' '(' expr ')' ';'
+Stmt *Parser::parseDoWhileStmt() {
+  assert(CurTok->is(Token::TK_Do));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  enterScope(Scope::BreakScope | Scope::ContinueScope | Scope::ControlScope);
+  skip();
+  Stmt *Body = parseStmt();
+  exitScope();
+  skip(Token::TK_While);
+  skip(Token::TK_LParen);
+  Expr *Cond = parseExpr();
+  skip(Token::TK_RParen);
+  auto EndLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Semicolon);
+  return S.actOnDoWhileStmt(BegLoc, EndLoc, Body, Cond);
 }
 
 // break-stmt: 'break' ';'

@@ -65,6 +65,7 @@ private:
   Stmt *parseIfStmt();
   Stmt *parseForStmt();
   Stmt *parseWhileStmt();
+  Stmt *parseDoWhileStmt();
   Stmt *parseSwitchStmt();
   Stmt *parseCaseStmt();
   Stmt *parseDefaultStmt();

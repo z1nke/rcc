@@ -80,6 +80,8 @@ public:
                      Stmt *Body);
   Stmt *actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
                        Stmt *Body);
+  Stmt *actOnDoWhileStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                         Stmt *Body, Expr *Cond);
   void actOnSwitchStmtStart();
   Stmt *actOnSwitchStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Body);
   Stmt *actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt);

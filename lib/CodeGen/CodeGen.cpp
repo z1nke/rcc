@@ -655,6 +655,9 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     genWhileStmt(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_DoWhileStmt:
+    genDoWhileStmt(cast<DoWhileStmt>(S));
+    break;
   case Stmt::SK_SwitchStmt:
     genSwitchStmt(cast<SwitchStmt>(S));
     break;
@@ -1007,6 +1010,27 @@ void CodeGen::genWhileStmt(const WhileStmt *While) {
   emit("  beqz a0, .L.end.{}", Count);
   genStmt(While->getBody());
   emit("  j .L.begin.{}", Count);
+  emit(".L.end.{}:", Count);
+  ContinueCounts.pop_back();
+  BreakCounts.pop_back();
+}
+
+void CodeGen::genDoWhileStmt(const DoWhileStmt *DoWhile) {
+  int Count = getCount();
+  // .L.begin.C:
+  //   body-stmt
+  // .L.continue.C:
+  //   cond-expr
+  //   if a0 != 0 goto .L.begin.C
+  // .L.end.C:
+  //   ...
+  BreakCounts.push_back(Count);
+  ContinueCounts.push_back(Count);
+  emit(".L.begin.{}:", Count);
+  genStmt(DoWhile->getBody());
+  emit(".L.continue.{}:", Count);
+  genExpr(DoWhile->getCond());
+  emit("  bnez a0, .L.begin.{}", Count);
   emit(".L.end.{}:", Count);
   ContinueCounts.pop_back();
   BreakCounts.pop_back();

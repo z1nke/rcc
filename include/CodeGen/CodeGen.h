@@ -34,6 +34,7 @@ private:
   void genIfStmt(const IfStmt *If);
   void genForStmt(const ForStmt *For);
   void genWhileStmt(const WhileStmt *While);
+  void genDoWhileStmt(const DoWhileStmt *DoWhile);
   void genSwitchStmt(const SwitchStmt *Switch);
   void genCaseStmt(const CaseStmt *Case);
   void genDefaultStmt(const DefaultStmt *Default);

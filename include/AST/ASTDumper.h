@@ -23,6 +23,7 @@ class NullStmt;
 class IfStmt;
 class ForStmt;
 class WhileStmt;
+class DoWhileStmt;
 class SwitchStmt;
 class CaseStmt;
 class DefaultStmt;
@@ -63,6 +64,7 @@ public:
   void visit(const IfStmt *If);
   void visit(const ForStmt *For);
   void visit(const WhileStmt *While);
+  void visit(const DoWhileStmt *DoWhile);
   void visit(const SwitchStmt *Switch);
   void visit(const CaseStmt *Case);
   void visit(const DefaultStmt *Default);

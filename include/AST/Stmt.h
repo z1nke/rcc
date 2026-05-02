@@ -224,6 +224,25 @@ private:
   Stmt *Body;
 };
 
+class DoWhileStmt final : public Stmt {
+public:
+  static DoWhileStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                             SourceLocation EndLoc, Stmt *Body, Expr *Cond);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_DoWhileStmt; }
+
+  Stmt *getBody() const { return Body; }
+  Expr *getCond() const { return Cond; }
+
+private:
+  DoWhileStmt(SourceLocation BegLoc, SourceLocation EndLoc, Stmt *Body,
+              Expr *Cond);
+
+private:
+  Stmt *Body;
+  Expr *Cond;
+};
+
 class CaseStmt;
 class DefaultStmt;
 class SwitchCaseStmt;

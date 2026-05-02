@@ -822,6 +822,12 @@ Stmt *Sema::actOnWhileStmt(ASTContext &Ctx, SourceLocation BegLoc, Expr *Cond,
   return WhileStmt::create(Ctx, BegLoc, EndLoc, Cond, Body);
 }
 
+Stmt *Sema::actOnDoWhileStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                             Stmt *Body, Expr *Cond) {
+  checkScalarType(Cond);
+  return DoWhileStmt::create(Ctx, BegLoc, EndLoc, Body, Cond);
+}
+
 void Sema::actOnSwitchStmtStart() { SwitchStack.push_back({}); }
 
 Stmt *Sema::actOnSwitchStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Body) {

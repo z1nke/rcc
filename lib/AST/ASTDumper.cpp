@@ -150,6 +150,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_WhileStmt:
     visit(cast<WhileStmt>(S));
     break;
+  case Stmt::SK_DoWhileStmt:
+    visit(cast<DoWhileStmt>(S));
+    break;
   case Stmt::SK_SwitchStmt:
     visit(cast<SwitchStmt>(S));
     break;
@@ -299,6 +302,18 @@ void ASTDumper::visit(const WhileStmt *While) {
   {
     ScopedIndent SI(*this, false);
     visit(While->getBody());
+  }
+}
+
+void ASTDumper::visit(const DoWhileStmt *DoWhile) {
+  printName("DoWhileStmt");
+  {
+    ScopedIndent SI(*this, false);
+    visit(DoWhile->getBody());
+  }
+  {
+    ScopedIndent SI(*this, false);
+    visit(DoWhile->getCond());
   }
 }
 

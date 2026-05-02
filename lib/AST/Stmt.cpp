@@ -91,6 +91,17 @@ WhileStmt *WhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) WhileStmt(BegLoc, EndLoc, Cond, Body);
 }
 
+DoWhileStmt::DoWhileStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                         Stmt *Body, Expr *Cond)
+    : Stmt(SK_DoWhileStmt, BegLoc, EndLoc), Body(Body), Cond(Cond) {}
+
+DoWhileStmt *DoWhileStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                 SourceLocation EndLoc, Stmt *Body,
+                                 Expr *Cond) {
+  void *Mem = Ctx.allocate(sizeof(DoWhileStmt), alignof(DoWhileStmt));
+  return new (Mem) DoWhileStmt(BegLoc, EndLoc, Body, Cond);
+}
+
 SwitchStmt::SwitchStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *Cond,
                        Stmt *Body, SwitchCaseStmt *FirstCase)
     : Stmt(SK_SwitchStmt, BegLoc, EndLoc), Cond(Cond), Body(Body),
