@@ -1079,8 +1079,10 @@ void CodeGen::genSwitchStmt(const SwitchStmt *Switch) {
       std::int64_t CaseVal = CS->getCaseValue();
       if (Is32) {
         auto U32 = static_cast<std::uint32_t>(CaseVal);
-        CaseVal = IsUnsigned ? static_cast<std::int64_t>(U32)
-                             : static_cast<std::int64_t>(static_cast<std::int32_t>(U32));
+        CaseVal =
+            IsUnsigned
+                ? static_cast<std::int64_t>(U32)
+                : static_cast<std::int64_t>(static_cast<std::int32_t>(U32));
       }
       emit("  li t0, {}", CaseVal);
       emit("  beq a0, t0, .L.case.{}.{}", Count, CS->getLabelId());
@@ -1477,6 +1479,9 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   genExpr(LHS);
   pop("a1");
 
+  bool IsLHSUnsignedOrPointer =
+      LType->isUnsignedIntegerType() || LType->isPointerType();
+
   switch (Op) {
   case BinaryOperator::BO_Add:
   case BinaryOperator::BO_Sub:
@@ -1509,20 +1514,20 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   }
   case BinaryOperator::BO_LT:
     // a0 = a0 < a1
-    emit("  slt{} a0, a0, a1", LType->isUnsignedIntegerType() ? "u" : "");
+    emit("  slt{} a0, a0, a1", IsLHSUnsignedOrPointer ? "u" : "");
     break;
   case BinaryOperator::BO_LE:
     // a0 <= a1  <=>  !(a1 < a0)
-    emit("  slt{} a0, a1, a0", LType->isUnsignedIntegerType() ? "u" : "");
+    emit("  slt{} a0, a1, a0", IsLHSUnsignedOrPointer ? "u" : "");
     emit("  xori a0, a0, 1");
     break;
   case BinaryOperator::BO_GT:
     // a0 > a1  <=>  a1 < a0
-    emit("  slt{} a0, a1, a0", LType->isUnsignedIntegerType() ? "u" : "");
+    emit("  slt{} a0, a1, a0", IsLHSUnsignedOrPointer ? "u" : "");
     break;
   case BinaryOperator::BO_GE:
     // a0 >= a1  <=>  !(a0 < a1)
-    emit("  slt{} a0, a0, a1", LType->isUnsignedIntegerType() ? "u" : "");
+    emit("  slt{} a0, a0, a1", IsLHSUnsignedOrPointer ? "u" : "");
     emit("  xori a0, a0, 1");
     break;
   default:
