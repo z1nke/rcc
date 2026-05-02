@@ -834,6 +834,11 @@ void Parser::parseTypeSuffix(Declarator &D) {
         ++Idx;
       }
 
+      // Empty parameter list is an old-style (unprototyped) parameter list:
+      // treat as variadic so callers may pass arguments. (void) is not empty.
+      if (Idx == 0)
+        IsVariadic = true;
+
       D.setEndLoc(SM.createEndLocation(CurTok));
       skip(Token::TK_RParen);
       D.addDeclChunk(DeclaratorChunk::createFunction(IsVariadic));

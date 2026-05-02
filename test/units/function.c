@@ -120,6 +120,9 @@ char *fmt(char *buf, char *fmt, ...) {
   vsprintf(buf, fmt, ap);
 }
 
+// [129] Check the number of function arguments
+int nullParam() { return 123; }
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -203,6 +206,9 @@ int main() {
   ASSERT(0, ({ char buf[100]; sprintf(buf, "%d %d %s", 1, 2, "foo"); strcmp("1 2 foo", buf); }));
 
   ASSERT(0, ({ char buf[100]; fmt(buf, "%d %d %s", 1, 2, "foo"); strcmp("1 2 foo", buf); }));
+
+  // [129] Check the number of function arguments
+  ASSERT(123, ({ nullParam(); }));
 
   printf("OK\n");
   return 0;
