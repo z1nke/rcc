@@ -214,18 +214,20 @@ public:
   unsigned getNumParams() const { return ParamTypes.size(); }
   QualType getParamType(unsigned Idx) const { return ParamTypes[Idx]; }
   const std::vector<QualType> &getParamTypes() const { return ParamTypes; }
+  bool isVariadic() const { return IsVariadic; }
 
 private:
   friend class ASTContext;
 
-  FunctionType(QualType RetType, std::vector<QualType> ParamTypes)
+  FunctionType(QualType RetType, std::vector<QualType> ParamTypes,
+               bool IsVariadic)
       : Type(TK_Function, 0), RetType(RetType),
-        ParamTypes(std::move(ParamTypes)) {}
+        ParamTypes(std::move(ParamTypes)), IsVariadic(IsVariadic) {}
 
 private:
-  // TODO: Function type details.
   QualType RetType;
   std::vector<QualType> ParamTypes;
+  bool IsVariadic;
 };
 
 class ArrayType : public Type {

@@ -34,9 +34,10 @@ QualType ASTContext::getPointerType(QualType PointeeType) {
 }
 
 QualType ASTContext::getFunctionType(QualType RetType,
-                                     std::vector<QualType> ParamTypes) {
+                                     std::vector<QualType> ParamTypes,
+                                     bool IsVariadic) {
   auto *Ty = new (*this, alignof(FunctionType))
-      FunctionType(RetType, std::move(ParamTypes));
+      FunctionType(RetType, std::move(ParamTypes), IsVariadic);
   return QualType(Ty);
 }
 

@@ -71,6 +71,11 @@ static TypeDumper dumpToString(QualType T) {
         Params += ", ";
       Params += FT->getParamType(I).getAsString();
     }
+    if (FT->isVariadic()) {
+      if (FT->getNumParams() != 0)
+        Params += ", ";
+      Params += "...";
+    }
     Params += ')';
     Dumper.Postfix += Params;
     return Dumper;

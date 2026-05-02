@@ -195,7 +195,10 @@ Token *Lexer::tokenize(const char *P) {
       lexPunctuator(Curr, Token::TK_RSquare, P);
       break;
     case '.':
-      lexPunctuator(Curr, Token::TK_Dot, P);
+      if (*(P + 1) == '.' && *(P + 2) == '.')
+        lexPunctuator(Curr, Token::TK_Ellipsis, P, 3);
+      else
+        lexPunctuator(Curr, Token::TK_Dot, P);
       break;
     default:
       Diag.fatalAt(P, "invalid character: {}", *P);

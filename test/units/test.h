@@ -1,7 +1,7 @@
 #define ASSERT(x, y) assert(x, y, #y, __LINE__)
 
 // [60] Add function declaration
-int printf();
+int printf(char *fmt, ...);
 
 // [69] Report an error on undefined/undeclared functions
 void assert(int expected, int actual, char *code, int line);
@@ -9,3 +9,6 @@ void assert(int expected, int actual, char *code, int line);
 // [107] Handle union initializers for global variable
 int strcmp(char *p, char *q);
 int memcmp(char *p, char *q, long n);
+
+// [127] Allow to call a variadic function
+int sprintf(char *buf, char *fmt, ...);

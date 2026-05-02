@@ -101,12 +101,17 @@ struct DeclaratorChunk {
     Expr *LenExpr;
   };
 
+  struct FunctionTypeInfo {
+    bool IsVariadic;
+  };
+
   union {
     ArrayTypeInfo Arr;
+    FunctionTypeInfo Fun;
   };
 
   static DeclaratorChunk createPointer();
-  static DeclaratorChunk createFunction();
+  static DeclaratorChunk createFunction(bool IsVariadic = false);
   static DeclaratorChunk createArray(Expr *LenExpr);
 };
 

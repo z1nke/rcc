@@ -50,7 +50,8 @@ public:
   FunctionDecl *actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
                                   SourceLocation Loc, SourceLocation BegLoc,
                                   SourceLocation EndLoc, std::string Name,
-                                  QualType RetType, Stmt *Body);
+                                  QualType RetType, bool IsVariadic,
+                                  Stmt *Body);
   FunctionDecl *actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                   Stmt *Body);
 

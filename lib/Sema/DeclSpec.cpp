@@ -8,8 +8,10 @@ DeclaratorChunk DeclaratorChunk::createPointer() {
   return DeclaratorChunk(DCK_Pointer);
 }
 
-DeclaratorChunk DeclaratorChunk::createFunction() {
-  return DeclaratorChunk(DCK_Function);
+DeclaratorChunk DeclaratorChunk::createFunction(bool IsVariadic) {
+  DeclaratorChunk Chunk(DCK_Function);
+  Chunk.Fun.IsVariadic = IsVariadic;
+  return Chunk;
 }
 
 DeclaratorChunk DeclaratorChunk::createArray(Expr *LenExpr) {

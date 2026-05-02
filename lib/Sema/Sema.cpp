@@ -255,16 +255,17 @@ FunctionDecl *Sema::actOnFunctionDecl(Declarator &D, const FunctionType *FT,
 
   return actOnFunctionDecl(Ctx, D.getDeclSpec(), D.getLocation(),
                            D.getTypeSpecLoc(), D.getEndLoc(), D.getIdent(),
-                           FT->getReturnType(), Body);
+                           FT->getReturnType(), FT->isVariadic(), Body);
 }
 
 FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
                                       SourceLocation Loc, SourceLocation BegLoc,
                                       SourceLocation EndLoc, std::string Name,
-                                      QualType RetType, Stmt *Body) {
-  auto *Func = FunctionDecl::create(Ctx, Loc, BegLoc, EndLoc,
-                                    Ctx.getFunctionType(RetType, {}),
-                                    std::move(Name), Body);
+                                      QualType RetType, bool IsVariadic,
+                                      Stmt *Body) {
+  auto *Func = FunctionDecl::create(
+      Ctx, Loc, BegLoc, EndLoc, Ctx.getFunctionType(RetType, {}, IsVariadic),
+      std::move(Name), Body);
   assert(CurrScope->isFunctionScope());
   addDecl(Func);
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Static)
@@ -454,7 +455,8 @@ void Sema::complete(FunctionDecl *FD) {
     Diag.fatalAt(FD->getLocation(), "expect function type");
 
   QualType RetType = FuncTy->getReturnType();
-  QualType NewFT = Ctx.getFunctionType(RetType, std::move(ParamTypes));
+  QualType NewFT =
+      Ctx.getFunctionType(RetType, std::move(ParamTypes), FuncTy->isVariadic());
   FD->setType(NewFT);
 
   if (!FD->getBody()) {
@@ -1843,7 +1845,7 @@ QualType Sema::getTypeForDeclarator(Declarator &D) const {
       T = Ctx.getPointerType(T);
       break;
     case DeclaratorChunk::DCK_Function:
-      T = Ctx.getFunctionType(T, {});
+      T = Ctx.getFunctionType(T, {}, Chunk.Fun.IsVariadic);
       break;
     case DeclaratorChunk::DCK_Array:
       if (!Chunk.Arr.LenExpr)

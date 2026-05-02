@@ -799,21 +799,31 @@ void Parser::parseDirectDeclarator(Declarator &D) {
   parseTypeSuffix(D);
 }
 
-// [type-suffix]: '(' { params } ')'
+// [type-suffix]: '(' param-type-list ')'
 //              | '[' { assign-expr } ']'
+// param-type-list: param-list
+//                | param-list, '...'
+// param-list: param-decl
+//           | param-list, param-decl
+// param: declspec declarator
 void Parser::parseTypeSuffix(Declarator &D) {
   while (true) {
     if (tryConsume(Token::TK_LParen)) {
       // Try parse function declarator.
       // Record function information in DeclaratorChunk.
-      // params: param { ',' param }*
-      // param: declspec declarator
       S.enterParamList();
       enterScope(Scope::FnScope);
       unsigned Idx = 0;
+      bool IsVariadic = false;
       while (CurTok->isNot(Token::TK_RParen)) {
         if (Idx > 0)
           skip(Token::TK_Comma);
+
+        if (CurTok->is(Token::TK_Ellipsis)) {
+          IsVariadic = true;
+          skip();
+          break;
+        }
 
         DeclSpec ParamDS(Diag);
         parseDeclSpecs(ParamDS);
@@ -824,8 +834,8 @@ void Parser::parseTypeSuffix(Declarator &D) {
       }
 
       D.setEndLoc(SM.createEndLocation(CurTok));
-      skip();
-      D.addDeclChunk(DeclaratorChunk::createFunction());
+      skip(Token::TK_RParen);
+      D.addDeclChunk(DeclaratorChunk::createFunction(IsVariadic));
       continue;
     }
 
