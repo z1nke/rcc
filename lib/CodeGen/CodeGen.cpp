@@ -1573,6 +1573,29 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     emit("  call {}", Name);
     emit("  addi sp, sp, 8");
   }
+
+  // Truncate/sign-extend a0 for narrow integer return types.
+  const Type *RetTy = CE->getTypePtr();
+  if (const auto *BT = dynCast<BuiltinType>(RetTy)) {
+    switch (BT->getKind()) {
+    case BuiltinType::BK_Bool:
+      emit("  # clear high bits for bool return");
+      emit("  slli a0, a0, 63");
+      emit("  srli a0, a0, 63");
+    case BuiltinType::BK_Char:
+      emit("  # sign-extend char return");
+      emit("  slli a0, a0, 56");
+      emit("  srai a0, a0, 56");
+      break;
+    case BuiltinType::BK_Short:
+      emit("  # sign-extend short return");
+      emit("  slli a0, a0, 48");
+      emit("  srai a0, a0, 48");
+      break;
+    default:
+      break;
+    }
+  }
 }
 
 void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {

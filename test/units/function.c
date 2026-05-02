@@ -100,6 +100,12 @@ int counter() {
 // [122] Add return that doesn't take any value
 void ret_none() { return; }
 
+// [126] Handle a function returning bool, char or short
+_Bool true_fn();
+_Bool false_fn();
+char char_fn();
+short short_fn();
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -166,6 +172,12 @@ int main() {
 
   // [122] Add return that doesn't take any value
   ret_none();
+
+  // [126] Handle a function returning bool, char or short
+  ASSERT(1, true_fn());
+  ASSERT(0, false_fn());
+  ASSERT(3, char_fn());
+  ASSERT(5, short_fn());
 
   printf("OK\n");
   return 0;
