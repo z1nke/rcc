@@ -86,6 +86,14 @@ KEYWORD(Enum, "enum")
 KEYWORD(Typedef, "typedef")
 KEYWORD(Static, "static")
 KEYWORD(Extern, "extern")
+KEYWORD(Const, "const")
+KEYWORD(Volatile, "volatile")
+KEYWORD(Auto, "auto")
+KEYWORD(Register, "register")
+KEYWORD(Restrict, "restrict")
+KEYWORD(GnuURestrict, "__restrict")
+KEYWORD(GnuURestrictU, "__restrict__")
+KEYWORD(Noreturn, "_Noreturn")
 
 #undef KEYWORD
 #undef TOKEN

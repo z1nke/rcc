@@ -606,10 +606,16 @@ Stmt *Parser::parseDeclStmt() {
 
 // declspecs: storage-class-spec declspecs?
 //          | type-spec declspecs?
-//          | '_Alignas' '(' type-name | constant-expr ')' declspecs?
+//          | type-qualifier declspecs?
+//          | func-spec declspecs?
+//          | align-spec declspecs?
 // storage-class-spec: typedef | extern | static | auto | register
 // typespec: void | _Bool | char | short | int | long | signed | unsigned
 //         | struct-or-union-spec | enum-spec | typedef-name
+// type-qualifier: const | restrict | __restrict | __restrict__
+// func-spec: _Noreturn
+// align-spec: _Alignas '(' type-name ')'
+//           | _Alignas '(' constant-expr ')'
 void Parser::parseDeclSpecs(DeclSpec &DS) {
 #define STORAGE_CLASS_SPEC_CASE(T)                                             \
   case Token::TK_##T:                                                          \
@@ -678,19 +684,28 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       DS.setTypeSpecType(DeclSpec::TST_Enum, TyLoc);
       DS.setRepDecl(parseEnumDecl());
       break;
+    // Ignored for now: const | volatile | auto | register | restrict |
+    // __restrict | __restrict__ | _Noreturn
+    case Token::TK_Const:
+    case Token::TK_Volatile:
+    case Token::TK_Auto:
+    case Token::TK_Register:
+    case Token::TK_Restrict:
+    case Token::TK_GnuURestrict:
+    case Token::TK_GnuURestrictU:
+    case Token::TK_Noreturn:
+      skip();
+      break;
     case Token::TK_Ident: {
       if (DS.hasTypeSpecifier())
         return;
 
       std::string_view Ident = CurTok->getIdentifer();
       auto *Typedef = S.findTypedef(Ident);
-      if (!Typedef) {
-        // Support C89-style implicit-int typedef declarations like:
-        //   typedef t;
-        if (DS.getStorageClassSpec() == DeclSpec::SCS_Typedef)
-          return;
-        Diag.fatalAt(TyLoc, "use of undeclared identifier '{}'", Ident);
-      }
+      if (!Typedef)
+        // End of declspecs; remaining identifier is the declarator (possibly
+        // with implicit int), e.g. `const x;` or `typedef t;`.
+        return;
 
       DS.setTypeSpecType(DeclSpec::TST_Typename, TyLoc);
       DS.setRepDecl(Typedef);
@@ -773,12 +788,23 @@ Expr *Parser::parseInitExpr() {
   }
   SourceLocation EndLoc = SM.createEndLocation(CurTok);
   skip(Token::TK_RBrace);
-  return InitListExpr::create(Ctx, BegLoc, EndLoc, QualType(), std::move(Inits));
+  return InitListExpr::create(Ctx, BegLoc, EndLoc, QualType(),
+                              std::move(Inits));
 }
 
-// declarator: '*'* direct-declarator
+// Skip ignored pointer qualifiers: const | volatile | restrict | ...
+void Parser::skipPointerQualifiers() {
+  while (CurTok->isOneOf(Token::TK_Const, Token::TK_Volatile,
+                         Token::TK_Restrict, Token::TK_GnuURestrict,
+                         Token::TK_GnuURestrictU))
+    skip();
+}
+
+// declarator: pointers direct-declarator
+// pointers: ('*' pointer-qualifier*)*
 void Parser::parseDeclarator(Declarator &D) {
   while (tryConsume(Token::TK_Star)) {
+    skipPointerQualifiers();
     // Recursively parse the declarator.
     // Type suffixes have higher priority than stars.
     parseDeclarator(D);
@@ -1139,16 +1165,18 @@ Expr *Parser::parseUnaryExpr() {
 
     Expr *Ex = parseUnaryExpr();
     return IntegerLiteral::create(Ctx, BegLoc, Ex->getEndLoc(),
-                                  Ctx.UnsignedLongTy, Ex->getType()->getAlign());
+                                  Ctx.UnsignedLongTy,
+                                  Ex->getType()->getAlign());
   }
 
   return parsePostfixExpr();
 }
 
-// abstract-declarator: pointer
-//                    | pointer? direct-abstract-declarator
+// abstract-declarator: pointers direct-abstract-declarator?
+// pointers: ('*' pointer-qualifier*)*
 void Parser::parseAbstractDeclarator(Declarator &D) {
   while (tryConsume(Token::TK_Star)) {
+    skipPointerQualifiers();
     // Type suffixes have higher priority than stars.
     parseAbstractDeclarator(D);
     D.addDeclChunk(DeclaratorChunk::createPointer());
@@ -1211,6 +1239,14 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Typedef:
   case Token::TK_Static:
   case Token::TK_Extern:
+  case Token::TK_Const:
+  case Token::TK_Volatile:
+  case Token::TK_Auto:
+  case Token::TK_Register:
+  case Token::TK_Restrict:
+  case Token::TK_GnuURestrict:
+  case Token::TK_GnuURestrictU:
+  case Token::TK_Noreturn:
     return true;
   case Token::TK_Ident:
     return S.findTypedef(Tok->getIdentifer());
