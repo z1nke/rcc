@@ -1562,7 +1562,17 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   }
 
   const std::string &Name = Func->getName();
-  emit("  call {}", Name);
+  // RISC-V ABI requires sp to be 16-byte aligned at call sites. Each push
+  // adjusts sp by 8, so an odd depth means sp is only 8-byte aligned.
+  if (Depth % 2 == 0) {
+    emit("  # call {}", Name);
+    emit("  call {}", Name);
+  } else {
+    emit("  # align sp to 16-byte boundary and call {}", Name);
+    emit("  addi sp, sp, -8");
+    emit("  call {}", Name);
+    emit("  addi sp, sp, 8");
+  }
 }
 
 void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
