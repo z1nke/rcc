@@ -225,7 +225,9 @@ ParamVarDecl *Sema::actOnParamVarDecl(Declarator &D, unsigned Index) {
       ParamVarDecl::create(Ctx, D.getLocation(), DS.getTypeSpecLoc(),
                            D.getEndLoc(), T, D.getIdent(), Index);
   Params.push_back(Param);
-  addDecl(Param);
+  // Unnamed parameters are allowed in declarations; do not enter the scope.
+  if (!D.getIdent().empty())
+    addDecl(Param);
   return Param;
 }
 
@@ -290,6 +292,11 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
 }
 
 void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
+  for (const ParamVarDecl *Param : Params) {
+    if (Param->getName().empty() && !Param->getType().isVoidType())
+      Diag.fatalAt(Param->getBeginLoc(), "parameter name omitted");
+  }
+
   const auto *FT = FD->getType()->getAs<FunctionType>();
   if (!FT || !FT->isVariadic())
     return;

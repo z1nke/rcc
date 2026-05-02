@@ -800,7 +800,8 @@ void Parser::skipPointerQualifiers() {
     skip();
 }
 
-// declarator: pointers direct-declarator
+// declarator: pointers direct-declarator?
+//           | pointers abstract-declarator-suffix
 // pointers: ('*' pointer-qualifier*)*
 void Parser::parseDeclarator(Declarator &D) {
   while (tryConsume(Token::TK_Star)) {
@@ -814,6 +815,8 @@ void Parser::parseDeclarator(Declarator &D) {
 
   if (CurTok->isOneOf(Token::TK_Ident, Token::TK_LParen))
     parseDirectDeclarator(D);
+  else
+    parseTypeSuffix(D);
 }
 
 // direct-declarator: ident

@@ -130,6 +130,11 @@ unsigned short ushort_fn();
 signed char schar_fn();
 short sshort_fn();
 
+// [138] Allow to omit parameter name in function declaration
+int add2_omit(int, int);
+int ptr_omit(int *);
+int arr_omit(int [3]);
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
