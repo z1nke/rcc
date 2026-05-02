@@ -43,7 +43,15 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   return alignTo(Offset, 16);
 }
 
-static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
+static const VarDecl *findVaAreaVar(const FunctionDecl *FD) {
+  for (const VarDecl *Var : FD->getLocalVars()) {
+    if (Var->getName() == "__va_area__")
+      return Var;
+  }
+  return nullptr;
+}
+
+static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 
 void CodeGen::codegen(const TranslationUnitDecl *TU, const char *Input) {
   emit(".file 1 \"{}\"", Input);
@@ -596,12 +604,22 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   }
 
   unsigned NumParams = FD->getNumParams();
+  unsigned I = 0;
   if (NumParams > 0) {
-    assert(NumParams <= 6);
+    assert(NumParams <= 8);
     emit("  # store {} parameters to stack", NumParams);
-    for (unsigned I = 0; I < NumParams; ++I) {
+    for (; I < NumParams; ++I) {
       const auto *Param = FD->getParam(I);
       storeGenReg(I, Param->getOffset(), Param->getType()->getSize());
+    }
+  }
+
+  if (const VarDecl *VaArea = findVaAreaVar(FD)) {
+    int Offset = VaArea->getOffset();
+    emit("  # store variadic args to {}", VaArea->getName());
+    while (I < 8) {
+      storeGenReg(I++, Offset, 8);
+      Offset += 8;
     }
   }
 

@@ -77,6 +77,7 @@ FunctionDecl *Parser::parseFunctionBody(FunctionDecl *FD) {
   Decl *OldScopeDecl = S.CurrScopeDecl;
   S.CurrScopeDecl = FD;
   S.CurrScope->setDeclContext(FD);
+  S.actOnStartOfFunctionBody(FD);
   Stmt *Body = parseCompoundStmt();
   FD->setBody(Body);
   FD->setEndLoc(Body->getEndLoc());

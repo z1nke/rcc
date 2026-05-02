@@ -54,6 +54,7 @@ public:
                                   Stmt *Body);
   FunctionDecl *actOnFunctionDecl(Declarator &D, const FunctionType *FT,
                                   Stmt *Body);
+  void actOnStartOfFunctionBody(FunctionDecl *FD);
 
   TagDecl *actOnTagDecl(SourceLocation Loc, SourceLocation BegLoc,
                         SourceLocation EndLoc, std::string_view Ident,

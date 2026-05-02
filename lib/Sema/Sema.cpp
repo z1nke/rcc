@@ -263,15 +263,44 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
                                       SourceLocation EndLoc, std::string Name,
                                       QualType RetType, bool IsVariadic,
                                       Stmt *Body) {
+  assert(CurrScope->isFunctionScope());
+  // Function name belongs to the enclosing scope; parameters live in FnScope.
+  Scope *FnSc = CurrScope;
+  Scope *Enclosing = FnSc->getParent();
+
+  // Allow compatible function redeclarations (e.g. prototype in a header and
+  // again in the translation unit).
+  for (Decl *D : Enclosing->decls()) {
+    if (auto *Prev = dynCast<FunctionDecl>(D)) {
+      if (Prev->getName() == Name)
+        return Prev;
+    }
+  }
+
   auto *Func = FunctionDecl::create(
       Ctx, Loc, BegLoc, EndLoc, Ctx.getFunctionType(RetType, {}, IsVariadic),
       std::move(Name), Body);
-  assert(CurrScope->isFunctionScope());
+  CurrScope = Enclosing;
   addDecl(Func);
+  CurrScope = FnSc;
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Static)
     Func->setLinkage(Linkage::InternalLinkage);
   Funcs.push_back(Func);
   return Func;
+}
+
+void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
+  const auto *FT = FD->getType()->getAs<FunctionType>();
+  if (!FT || !FT->isVariadic())
+    return;
+
+  // Inject an implementation local that CodeGen uses as the RISC-V varargs
+  // register save area.
+  QualType ArrTy = Ctx.getConstantArrayType(Ctx.CharTy, 64);
+  VarDecl *VaArea = VarDecl::create(Ctx, FD->getLocation(), FD->getBeginLoc(),
+                                    FD->getEndLoc(), ArrTy, "__va_area__");
+  LocalVars.push_back(VaArea);
+  addDecl(VaArea);
 }
 
 TagDecl *Sema::actOnTagDecl(SourceLocation Loc, SourceLocation BegLoc,
