@@ -155,6 +155,12 @@ bool QualType::isIntegerType() const {
   return false;
 }
 
+bool QualType::isFloatingType() const {
+  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
+    return BT->isFloatingType();
+  return false;
+}
+
 void Type::dump() const {
   QualType T(this);
   std::println(stderr, "{}", T.getAsString());
@@ -202,7 +208,9 @@ bool Type::isScalarType() const {
 }
 
 // Arithmetic type: integer type or floating point type.
-bool Type::isArithmeticType() const { return isIntegerType(); }
+bool Type::isArithmeticType() const {
+  return isIntegerType() || isFloatingType();
+}
 
 QualType Type::getPointeeType() const {
   if (const auto *PtrTy = dynCast<PointerType>(this))
@@ -237,6 +245,13 @@ bool Type::isIntegerType() const {
   if (CanonicalType->isEnumType())
     return true;
 
+  return false;
+}
+
+bool Type::isFloatingType() const {
+  QualType CanonicalType = getCanonicalType();
+  if (const auto *BT = dynCast<BuiltinType>(CanonicalType))
+    return BT->isFloatingType();
   return false;
 }
 
@@ -350,6 +365,10 @@ bool BuiltinType::isIntegerType() const {
   return BK >= BK_Bool && BK <= BK_UnsignedLongLong;
 }
 
+bool BuiltinType::isFloatingType() const {
+  return BK == BK_Float || BK == BK_Double;
+}
+
 bool BuiltinType::isVoidType() const { return BK == BK_Void; }
 
 const char *BuiltinType::getKindStr() const {
@@ -380,6 +399,10 @@ const char *BuiltinType::getKindStr() const {
     return "long long";
   case BK_UnsignedLongLong:
     return "unsigned long long";
+  case BK_Float:
+    return "float";
+  case BK_Double:
+    return "double";
   default:
     RCC_UNREACHABLE("Unknown builtin type");
   }

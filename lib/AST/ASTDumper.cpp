@@ -186,6 +186,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_IntegerLiteral:
     visit(cast<IntegerLiteral>(S));
     break;
+  case Stmt::SK_FloatingLiteral:
+    visit(cast<FloatingLiteral>(S));
+    break;
   case Stmt::SK_ParenExpr:
     visit(cast<ParenExpr>(S));
     break;
@@ -397,6 +400,10 @@ void ASTDumper::visit(const ConditionalOperator *CO) {
 
 void ASTDumper::visit(const IntegerLiteral *IL) {
   std::println(stderr, "IntegerLiteral {}", IL->getVal());
+}
+
+void ASTDumper::visit(const FloatingLiteral *FL) {
+  std::println(stderr, "FloatingLiteral {}", FL->getVal());
 }
 
 void ASTDumper::visit(const ParenExpr *Paren) {

@@ -1368,11 +1368,11 @@ Expr *Parser::parsePrimaryExpr() {
   }
 
   if (CurTok->is(Token::TK_Num)) {
-    auto Val = CurTok->getVal();
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
+    auto NumKind = CurTok->getNumericLiteralKind();
     QualType Ty;
-    switch (CurTok->getNumericLiteralKind()) {
+    switch (NumKind) {
     case Token::NumericLiteralKind::Int:
       Ty = Ctx.IntTy;
       break;
@@ -1391,7 +1391,19 @@ Expr *Parser::parsePrimaryExpr() {
     case Token::NumericLiteralKind::ULongLong:
       Ty = Ctx.UnsignedLongLongTy;
       break;
+    case Token::NumericLiteralKind::Float:
+      Ty = Ctx.FloatTy;
+      break;
+    case Token::NumericLiteralKind::Double:
+      Ty = Ctx.DoubleTy;
+      break;
     }
+    if (CurTok->isFloatingLiteral()) {
+      double FVal = CurTok->getFVal();
+      skip();
+      return FloatingLiteral::create(Ctx, BegLoc, EndLoc, Ty, FVal);
+    }
+    auto Val = CurTok->getVal();
     skip();
     return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ty, Val);
   }

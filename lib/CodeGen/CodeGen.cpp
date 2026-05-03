@@ -1166,6 +1166,29 @@ void CodeGen::genExpr(const Expr *E) {
     emit("  li a0, {}", Val);
     break;
   }
+  case Stmt::SK_FloatingLiteral: {
+    const auto *FL = cast<FloatingLiteral>(E);
+    double FVal = FL->getVal();
+    union {
+      float F32;
+      double F64;
+      std::uint32_t U32;
+      std::uint64_t U64;
+    } U;
+    if (FL->getType().isFloatingType() &&
+        FL->getTypePtr()->getSize() == 4) {
+      U.F32 = static_cast<float>(FVal);
+      emit("  # fa0 = {}f", FVal);
+      emit("  li a0, {}", U.U32);
+      emit("  fmv.w.x fa0, a0");
+    } else {
+      U.F64 = FVal;
+      emit("  # fa0 = {}", FVal);
+      emit("  li a0, {}", U.U64);
+      emit("  fmv.d.x fa0, a0");
+    }
+    break;
+  }
   case Stmt::SK_CharacterLiteral: {
     auto Val = cast<CharacterLiteral>(E)->getValue();
     emit("  # a0 = '{}'", static_cast<unsigned char>(Val));

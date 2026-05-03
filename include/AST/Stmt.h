@@ -548,6 +548,25 @@ private:
   std::int64_t Val;
 };
 
+class FloatingLiteral final : public Expr {
+public:
+  static FloatingLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,
+                                 SourceLocation EndLoc, QualType T, double Val);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_FloatingLiteral;
+  }
+
+  double getVal() const { return Val; }
+
+private:
+  FloatingLiteral(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                  double Val);
+
+private:
+  double Val;
+};
+
 class CharacterLiteral final : public Expr {
 public:
   static CharacterLiteral *create(ASTContext &Ctx, SourceLocation BegLoc,

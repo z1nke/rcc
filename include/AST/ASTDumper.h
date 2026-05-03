@@ -35,6 +35,7 @@ class UnaryOperator;
 class BinaryOperator;
 class ConditionalOperator;
 class IntegerLiteral;
+class FloatingLiteral;
 class ParenExpr;
 class DeclRefExpr;
 class CallExpr;
@@ -76,6 +77,7 @@ public:
   void visit(const BinaryOperator *BO);
   void visit(const ConditionalOperator *CO);
   void visit(const IntegerLiteral *IL);
+  void visit(const FloatingLiteral *FL);
   void visit(const ParenExpr *Paren);
   void visit(const DeclRefExpr *Ref);
   void visit(const CallExpr *Call);

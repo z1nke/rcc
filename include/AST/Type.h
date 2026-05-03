@@ -69,6 +69,7 @@ public:
   QualType getCanonicalType() const;
   bool isVoidType() const;
   bool isIntegerType() const;
+  bool isFloatingType() const;
 
   friend bool operator==(const QualType &LHS, const QualType &RHS) {
     return LHS.Value == RHS.Value;
@@ -116,6 +117,7 @@ public:
   bool isScalarType() const;
   bool isArithmeticType() const;
   bool isIntegerType() const;
+  bool isFloatingType() const;
   bool isBooleanType() const;
   bool isUnsignedIntegerType() const;
   bool isSignedIntegerType() const;
@@ -168,6 +170,8 @@ public:
     BK_UnsignedLong,
     BK_LongLong,
     BK_UnsignedLongLong,
+    BK_Float,
+    BK_Double,
   };
 
   static bool classof(const Type *T) {
@@ -176,6 +180,7 @@ public:
 
   bool isBooleanType() const;
   bool isIntegerType() const;
+  bool isFloatingType() const;
   bool isVoidType() const;
 
   Kind getKind() const { return BK; }

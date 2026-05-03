@@ -25,6 +25,8 @@ public:
     ULong,
     LongLong,
     ULongLong,
+    Float,
+    Double,
   };
 
   constexpr Token() = default;
@@ -34,12 +36,18 @@ public:
         NumericLiteralKind NumKind = NumericLiteralKind::Int)
       : Loc(Start), Kind(Kind), Val(Val), Len(End - Start), NumKind(NumKind) {}
 
+  Token(TokenKind Kind, const char *Start, const char *End, double FVal,
+        NumericLiteralKind NumKind)
+      : Loc(Start), Kind(Kind), FVal(FVal), Len(End - Start), NumKind(NumKind) {}
+
   Token *getNext() const { return Next; }
   void setNext(Token *Next) { this->Next = Next; }
 
   std::string_view getIdentifer() const;
   std::int64_t getVal() const;
+  double getFVal() const;
   NumericLiteralKind getNumericLiteralKind() const;
+  bool isFloatingLiteral() const;
   unsigned getCharLiteral(Diagnostic &Diag) const;
   std::string getStringLiteral(Diagnostic &Diag) const;
 
@@ -64,7 +72,10 @@ private:
   const char *Loc = nullptr;
   Token *Next = nullptr;
   TokenKind Kind = TK_Unknown;
-  std::int64_t Val = 0;
+  union {
+    std::int64_t Val = 0;
+    double FVal;
+  };
   int Len = 0;
   NumericLiteralKind NumKind = NumericLiteralKind::Int;
 };

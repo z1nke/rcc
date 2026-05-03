@@ -37,6 +37,8 @@ public:
   CanQualType UnsignedLongTy;
   CanQualType LongLongTy;
   CanQualType UnsignedLongLongTy;
+  CanQualType FloatTy;
+  CanQualType DoubleTy;
 
   void initBuiltinTypes();
   void initBuiltinType(CanQualType &R, BuiltinType::Kind Kind, std::size_t Size,

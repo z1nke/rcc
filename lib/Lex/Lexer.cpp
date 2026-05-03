@@ -6,6 +6,7 @@
 
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 
 namespace rcc {
 
@@ -31,7 +32,7 @@ Token *Lexer::tokenize(const char *P) {
       continue;
     }
 
-    if (*P >= '0' && *P <= '9') {
+    if ((*P >= '0' && *P <= '9') || (*P == '.' && std::isdigit(*(P + 1)))) {
       lexNumericLiteral(Curr, P);
       continue;
     }
@@ -219,6 +220,13 @@ Token *Lexer::tokenizeFile(const char *Path) {
 
 void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
+
+  // Floating literal that begins with '.'.
+  if (*P == '.') {
+    lexFloatingLiteral(Curr, Start, P);
+    return;
+  }
+
   int Base = 10;
   if (*P == '0') {
     char Next = *(P + 1);
@@ -237,7 +245,7 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
 
   // Parse integer suffixes in any order, matching clang NumericLiteralParser:
   // - u/U -> unsigned;
-  // - l/L -> long; 
+  // - l/L -> long;
   // - ll/LL -> long long.
   bool IsUnsigned = false;
   bool IsLong = false;
@@ -269,6 +277,14 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
     break;
   }
 
+  // If the next character indicates a floating constant, reparse with strtod.
+  // Parse '.', 'e'/'E', or 'f'/'F' after the integer.
+  if (*P && std::strchr(".eEfF", *P)) {
+    P = Start;
+    lexFloatingLiteral(Curr, Start, P);
+    return;
+  }
+
   if (std::isalnum(*P))
     Diag.fatalAt(P, "invalid numeric literal suffix: {}", *P);
 
@@ -295,6 +311,30 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
 
   Curr->setNext(newToken(Token::TK_Num, Start, P,
                          static_cast<std::int64_t>(Val), NumKind));
+  Curr = Curr->getNext();
+}
+
+void Lexer::lexFloatingLiteral(Token *&Curr, const char *Start,
+                               const char *&P) {
+  char *End = nullptr;
+  double Val = std::strtod(Start, &End);
+  P = End;
+
+  using NLK = Token::NumericLiteralKind;
+  NLK NumKind = NLK::Double;
+  if (*P == 'f' || *P == 'F') {
+    NumKind = NLK::Float;
+    ++P;
+  } else if (*P == 'l' || *P == 'L') {
+    // long double is treated as double(RV64).
+    NumKind = NLK::Double;
+    ++P;
+  }
+
+  if (std::isalnum(*P))
+    Diag.fatalAt(P, "invalid numeric literal suffix: {}", *P);
+
+  Curr->setNext(newToken(Token::TK_Num, Start, P, Val, NumKind));
   Curr = Curr->getNext();
 }
 
@@ -355,6 +395,13 @@ Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
                        Token::NumericLiteralKind NumKind) {
   void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
   return new (Mem) Token(Kind, Start, End, Val, NumKind);
+}
+
+Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
+                       const char *End, double FVal,
+                       Token::NumericLiteralKind NumKind) {
+  void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
+  return new (Mem) Token(Kind, Start, End, FVal, NumKind);
 }
 
 } // namespace rcc

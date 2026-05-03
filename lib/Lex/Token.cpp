@@ -9,12 +9,24 @@ namespace rcc {
 
 std::int64_t Token::getVal() const {
   assert(Kind == TK_Num && "expect a number");
+  assert(!isFloatingLiteral() && "expect an integer literal");
   return Val;
+}
+
+double Token::getFVal() const {
+  assert(Kind == TK_Num && "expect a number");
+  assert(isFloatingLiteral() && "expect a floating literal");
+  return FVal;
 }
 
 Token::NumericLiteralKind Token::getNumericLiteralKind() const {
   assert(Kind == TK_Num && "expect a number");
   return NumKind;
+}
+
+bool Token::isFloatingLiteral() const {
+  return NumKind == NumericLiteralKind::Float ||
+         NumKind == NumericLiteralKind::Double;
 }
 
 static int fromHex(char C) {

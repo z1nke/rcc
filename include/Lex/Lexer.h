@@ -22,6 +22,7 @@ private:
                      int Len = 1);
 
   void lexNumericLiteral(Token *&Curr, const char *&P);
+  void lexFloatingLiteral(Token *&Curr, const char *Start, const char *&P);
   void lexCharLiteral(Token *&Curr, const char *&P);
   void lexStringLiteral(Token *&Curr, const char *&P);
 
@@ -32,6 +33,8 @@ private:
                   std::int64_t Val = 0,
                   Token::NumericLiteralKind NumKind =
                       Token::NumericLiteralKind::Int);
+  Token *newToken(Token::TokenKind Kind, const char *Start, const char *End,
+                  double FVal, Token::NumericLiteralKind NumKind);
 
 private:
   Diagnostic &Diag;

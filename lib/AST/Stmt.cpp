@@ -496,6 +496,8 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
       return IL->getVal();
     return static_cast<std::uint64_t>(IL->getVal());
   }
+  case Stmt::SK_FloatingLiteral:
+    return cast<FloatingLiteral>(this)->getVal();
   case Stmt::SK_CharacterLiteral: {
     const auto *CL = cast<CharacterLiteral>(this);
     return static_cast<std::uint64_t>(CL->getValue());
@@ -674,6 +676,17 @@ IntegerLiteral *IntegerLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
                                        std::int64_t Val) {
   void *Mem = Ctx.allocate(sizeof(IntegerLiteral), alignof(IntegerLiteral));
   return new (Mem) IntegerLiteral(BegLoc, EndLoc, T, Val);
+}
+
+FloatingLiteral::FloatingLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
+                                 QualType T, double Val)
+    : Expr(SK_FloatingLiteral, BegLoc, EndLoc, T), Val(Val) {}
+
+FloatingLiteral *FloatingLiteral::create(ASTContext &Ctx, SourceLocation BegLoc,
+                                         SourceLocation EndLoc, QualType T,
+                                         double Val) {
+  void *Mem = Ctx.allocate(sizeof(FloatingLiteral), alignof(FloatingLiteral));
+  return new (Mem) FloatingLiteral(BegLoc, EndLoc, T, Val);
 }
 
 CharacterLiteral *CharacterLiteral::create(ASTContext &Ctx,
