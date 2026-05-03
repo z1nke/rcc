@@ -1571,6 +1571,22 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
 
     const char *FSuffix = LType->getSize() == 4 ? "s" : "d";
     switch (Op) {
+    case BinaryOperator::BO_Add:
+      emit("  # fa0 + fa1");
+      emit("  fadd.{} fa0, fa0, fa1", FSuffix);
+      return;
+    case BinaryOperator::BO_Sub:
+      emit("  # fa0 - fa1");
+      emit("  fsub.{} fa0, fa0, fa1", FSuffix);
+      return;
+    case BinaryOperator::BO_Mul:
+      emit("  # fa0 * fa1");
+      emit("  fmul.{} fa0, fa0, fa1", FSuffix);
+      return;
+    case BinaryOperator::BO_Div:
+      emit("  # fa0 / fa1");
+      emit("  fdiv.{} fa0, fa0, fa1", FSuffix);
+      return;
     case BinaryOperator::BO_EQ:
       emit("  # fa0 == fa1");
       emit("  feq.{} a0, fa0, fa1", FSuffix);
@@ -1683,10 +1699,15 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     emit("  # unary plus");
     genExpr(UO->getSubExpr());
     break;
-  case UnaryOperator::UO_Minus:
+  case UnaryOperator::UO_Minus: {
     genExpr(UO->getSubExpr());
-    emit("  neg{} a0, a0", UO->getType()->getSize() <= 4 ? "w" : "");
+    QualType Ty = UO->getType();
+    if (Ty.isFloatingType())
+      emit("  fneg.{} fa0, fa0", Ty->getSize() == 4 ? "s" : "d");
+    else
+      emit("  neg{} a0, a0", Ty->getSize() <= 4 ? "w" : "");
     break;
+  }
   case UnaryOperator::UO_LNot:
     genExpr(UO->getSubExpr());
     emit("  # unary lnot");
