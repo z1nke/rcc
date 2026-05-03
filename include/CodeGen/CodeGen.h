@@ -90,6 +90,9 @@ private:
   void load(const Type *Ty);
   void store(const Type *Ty);
 
+  /// If \p Ty is floating, set a0 to 1 when fa0 != 0.0, else 0.
+  void emitIsNotZero(const Type *Ty);
+
   void storeGenReg(int Reg, int Offset, int Size);
 
   /// Returns the RISC-V load/store width suffix ("b"/"h"/"w"/"d").

@@ -966,6 +966,7 @@ void CodeGen::genZeroInit(const VarDecl *Var, QualType Ty,
 void CodeGen::genIfStmt(const IfStmt *If) {
   int Count = getCount();
   genExpr(If->getCond());
+  emitIsNotZero(If->getCond()->getTypePtr());
   //    if a0 == 0, goto .L.else.C
   //    then-stmt
   //    goto .L.end.C
@@ -1000,6 +1001,7 @@ void CodeGen::genForStmt(const ForStmt *For) {
   emit(".L.begin.{}:", Count);
   if (const auto *Cond = For->getCond()) {
     genExpr(Cond);
+    emitIsNotZero(Cond->getTypePtr());
     emit("  beqz a0, .L.end.{}", Count);
   }
   genStmt(For->getBody());
@@ -1026,6 +1028,7 @@ void CodeGen::genWhileStmt(const WhileStmt *While) {
   emit(".L.continue.{}:", Count);
   emit(".L.begin.{}:", Count);
   genExpr(While->getCond());
+  emitIsNotZero(While->getCond()->getTypePtr());
   emit("  beqz a0, .L.end.{}", Count);
   genStmt(While->getBody());
   emit("  j .L.begin.{}", Count);
@@ -1049,6 +1052,7 @@ void CodeGen::genDoWhileStmt(const DoWhileStmt *DoWhile) {
   genStmt(DoWhile->getBody());
   emit(".L.continue.{}:", Count);
   genExpr(DoWhile->getCond());
+  emitIsNotZero(DoWhile->getCond()->getTypePtr());
   emit("  bnez a0, .L.begin.{}", Count);
   emit(".L.end.{}:", Count);
   ContinueCounts.pop_back();
@@ -1273,12 +1277,7 @@ void CodeGen::genScalarCast(const Type *From, const Type *To) {
   }
 
   if (To->isBooleanType()) {
-    if (From->isFloatingType()) {
-      if (From->getSize() == 4)
-        emit("  fmv.x.w a0, fa0");
-      else
-        emit("  fmv.x.d a0, fa0");
-    }
+    emitIsNotZero(From);
     emit("  snez a0, a0");
     return;
   }
@@ -1507,9 +1506,11 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_LAnd: {
     int Count = getCount();
     genExpr(LHS);
+    emitIsNotZero(LHS->getTypePtr());
     emit("  # logical-and test left");
     emit("  beqz a0, .L.false.{}", Count);
     genExpr(RHS);
+    emitIsNotZero(RHS->getTypePtr());
     emit("  # logical-and test right");
     emit("  beqz a0, .L.false.{}", Count);
     emit("  li a0, 1");
@@ -1522,9 +1523,11 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   case BinaryOperator::BO_LOr: {
     int Count = getCount();
     genExpr(LHS);
+    emitIsNotZero(LHS->getTypePtr());
     emit("  # logical-or test left");
     emit("  bnez a0, .L.true.{}", Count);
     genExpr(RHS);
+    emitIsNotZero(RHS->getTypePtr());
     emit("  # logical-or test right");
     emit("  bnez a0, .L.true.{}", Count);
     emit("  li a0, 0");
@@ -1685,6 +1688,7 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
 void CodeGen::genConditionalOperator(const ConditionalOperator *CO) {
   int Count = getCount();
   genExpr(CO->getCond());
+  emitIsNotZero(CO->getCond()->getTypePtr());
   emit("  beqz a0, .L.else.{}", Count);
   genExpr(CO->getTrueExpr());
   emit("  j .L.end.{}", Count);
@@ -1710,6 +1714,7 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   }
   case UnaryOperator::UO_LNot:
     genExpr(UO->getSubExpr());
+    emitIsNotZero(UO->getSubExpr()->getTypePtr());
     emit("  # unary lnot");
     emit("  seqz a0, a0");
     break;
@@ -1731,16 +1736,30 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   case UnaryOperator::UO_PreDec: {
     const auto *SubExpr = UO->getSubExpr();
     QualType SubType = SubExpr->getType();
-    std::size_t Step = 1;
-    if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
-      Step = PointeeTy->getSize();
 
     emit("  # pre {} operator", UO->getOpcodeStr());
     genAddr(SubExpr);
     push();
     load(SubType.getTypePtr());
-    emit("  li t0, {}", Step);
-    emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+    if (SubType.isFloatingType()) {
+      const char *FSuffix = SubType->getSize() == 4 ? "s" : "d";
+      // fa1 = 1.0
+      if (SubType->getSize() == 4) {
+        emit("  li t0, {}", 0x3f800000u);
+        emit("  fmv.w.x fa1, t0");
+      } else {
+        emit("  li t0, {}", 0x3ff0000000000000ull);
+        emit("  fmv.d.x fa1, t0");
+      }
+      emit("  f{}.{} fa0, fa0, fa1", UO->isIncrement() ? "add" : "sub",
+           FSuffix);
+    } else {
+      std::size_t Step = 1;
+      if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
+        Step = PointeeTy->getSize();
+      emit("  li t0, {}", Step);
+      emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+    }
     store(SubType.getTypePtr());
     break;
   }
@@ -1748,19 +1767,35 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   case UnaryOperator::UO_PostDec: {
     const auto *SubExpr = UO->getSubExpr();
     QualType SubType = SubExpr->getType();
-    std::size_t Step = 1;
-    if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
-      Step = PointeeTy->getSize();
 
     emit("  # post {} operator", UO->getOpcodeStr());
     genAddr(SubExpr);
     push();
     load(SubType.getTypePtr());
-    emit("  mv t2, a0");
-    emit("  li t0, {}", Step);
-    emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
-    store(SubType.getTypePtr());
-    emit("  mv a0, t2");
+    if (SubType.isFloatingType()) {
+      const char *FSuffix = SubType->getSize() == 4 ? "s" : "d";
+      emit("  fmv.{} ft0, fa0", FSuffix);
+      if (SubType->getSize() == 4) {
+        emit("  li t0, {}", 0x3f800000u);
+        emit("  fmv.w.x fa1, t0");
+      } else {
+        emit("  li t0, {}", 0x3ff0000000000000ull);
+        emit("  fmv.d.x fa1, t0");
+      }
+      emit("  f{}.{} fa0, fa0, fa1", UO->isIncrement() ? "add" : "sub",
+           FSuffix);
+      store(SubType.getTypePtr());
+      emit("  fmv.{} fa0, ft0", FSuffix);
+    } else {
+      std::size_t Step = 1;
+      if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
+        Step = PointeeTy->getSize();
+      emit("  mv t2, a0");
+      emit("  li t0, {}", Step);
+      emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+      store(SubType.getTypePtr());
+      emit("  mv a0, t2");
+    }
     break;
   }
   default:
@@ -2019,6 +2054,21 @@ void CodeGen::popF(const char *Reg) {
   emit("  fld {}, 0(sp)", Reg);
   emit("  addi sp, sp, 8");
   --Depth;
+}
+
+void CodeGen::emitIsNotZero(const Type *Ty) {
+  if (!Ty->isFloatingType())
+    return;
+
+  // Compare fa0 against +0.0; result is 1 if non-zero (incl. NaN), else 0.
+  if (Ty->getSize() == 4) {
+    emit("  fmv.w.x fa1, zero");
+    emit("  feq.s a0, fa0, fa1");
+  } else {
+    emit("  fmv.d.x fa1, zero");
+    emit("  feq.d a0, fa0, fa1");
+  }
+  emit("  xori a0, a0, 1");
 }
 
 // load *a0 to a0 (or fa0 for floating types).
