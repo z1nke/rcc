@@ -101,6 +101,7 @@ private:
   const std::string &getVarSymbol(const VarDecl *Var);
 
   void genIntCast(const Type *From, const Type *To);
+  void genScalarCast(const Type *From, const Type *To);
 
 private:
   template <typename... ARGS>

@@ -1263,7 +1263,22 @@ const std::string &CodeGen::getVarSymbol(const VarDecl *Var) {
 }
 
 void CodeGen::genIntCast(const Type *From, const Type *To) {
+  genScalarCast(From, To);
+}
+
+void CodeGen::genScalarCast(const Type *From, const Type *To) {
+  if (const auto *BT = dynCast<BuiltinType>(To)) {
+    if (BT->isVoidType())
+      return;
+  }
+
   if (To->isBooleanType()) {
+    if (From->isFloatingType()) {
+      if (From->getSize() == 4)
+        emit("  fmv.x.w a0, fa0");
+      else
+        emit("  fmv.x.d a0, fa0");
+    }
     emit("  snez a0, a0");
     return;
   }
@@ -1277,6 +1292,8 @@ void CodeGen::genIntCast(const Type *From, const Type *To) {
     U16,
     U32,
     U64,
+    F32,
+    F64,
   };
 
   auto GetTypeID = [](const Type *T) -> unsigned {
@@ -1302,6 +1319,10 @@ void CodeGen::genIntCast(const Type *From, const Type *To) {
       case BuiltinType::BK_UnsignedLong:
       case BuiltinType::BK_UnsignedLongLong:
         return U64;
+      case BuiltinType::BK_Float:
+        return F32;
+      case BuiltinType::BK_Double:
+        return F64;
       default:
         return I64;
       }
@@ -1310,38 +1331,82 @@ void CodeGen::genIntCast(const Type *From, const Type *To) {
   };
 
   static constexpr std::string_view I64ToI8 =
-      "slli a0, a0, 56\nsrai a0, a0, 56";
+      "  slli a0, a0, 56\n  srai a0, a0, 56";
   static constexpr std::string_view I64ToI16 =
-      "slli a0, a0, 48\nsrai a0, a0, 48";
+      "  slli a0, a0, 48\n  srai a0, a0, 48";
   static constexpr std::string_view I64ToI32 =
-      "slli a0, a0, 32\nsrai a0, a0, 32";
+      "  slli a0, a0, 32\n  srai a0, a0, 32";
   static constexpr std::string_view I64ToU8 =
-      "slli a0, a0, 56\nsrli a0, a0, 56";
+      "  slli a0, a0, 56\n  srli a0, a0, 56";
   static constexpr std::string_view I64ToU16 =
-      "slli a0, a0, 48\nsrli a0, a0, 48";
+      "  slli a0, a0, 48\n  srli a0, a0, 48";
   static constexpr std::string_view I64ToU32 =
-      "slli a0, a0, 32\nsrli a0, a0, 32";
+      "  slli a0, a0, 32\n  srli a0, a0, 32";
   static constexpr std::string_view U32ToI64 =
-      "slli a0, a0, 32\nsrli a0, a0, 32";
+      "  slli a0, a0, 32\n  srli a0, a0, 32";
+
+  static constexpr std::string_view I32ToF32 = "  fcvt.s.w fa0, a0";
+  static constexpr std::string_view I32ToF64 = "  fcvt.d.w fa0, a0";
+  static constexpr std::string_view I64ToF32 = "  fcvt.s.l fa0, a0";
+  static constexpr std::string_view I64ToF64 = "  fcvt.d.l fa0, a0";
+  static constexpr std::string_view U32ToF32 = "  fcvt.s.wu fa0, a0";
+  static constexpr std::string_view U32ToF64 = "  fcvt.d.wu fa0, a0";
+  static constexpr std::string_view U64ToF32 = "  fcvt.s.lu fa0, a0";
+  static constexpr std::string_view U64ToF64 = "  fcvt.d.lu fa0, a0";
+
+  static constexpr std::string_view F32ToI8 =
+      "  fcvt.w.s a0, fa0, rtz\n  slli a0, a0, 56\n  srai a0, a0, 56";
+  static constexpr std::string_view F32ToI16 =
+      "  fcvt.w.s a0, fa0, rtz\n  slli a0, a0, 48\n  srai a0, a0, 48";
+  static constexpr std::string_view F32ToI32 =
+      "  fcvt.w.s a0, fa0, rtz\n  slli a0, a0, 32\n  srai a0, a0, 32";
+  static constexpr std::string_view F32ToI64 = "  fcvt.l.s a0, fa0, rtz";
+  static constexpr std::string_view F32ToU8 =
+      "  fcvt.wu.s a0, fa0, rtz\n  slli a0, a0, 56\n  srli a0, a0, 56";
+  static constexpr std::string_view F32ToU16 =
+      "  fcvt.wu.s a0, fa0, rtz\n  slli a0, a0, 48\n  srli a0, a0, 48";
+  static constexpr std::string_view F32ToU32 =
+      "  fcvt.wu.s a0, fa0, rtz\n  slli a0, a0, 32\n  srli a0, a0, 32";
+  static constexpr std::string_view F32ToU64 = "  fcvt.lu.s a0, fa0, rtz";
+  static constexpr std::string_view F32ToF64 = "  fcvt.d.s fa0, fa0";
+
+  static constexpr std::string_view F64ToI8 =
+      "  fcvt.w.d a0, fa0, rtz\n  slli a0, a0, 56\n  srai a0, a0, 56";
+  static constexpr std::string_view F64ToI16 =
+      "  fcvt.w.d a0, fa0, rtz\n  slli a0, a0, 48\n  srai a0, a0, 48";
+  static constexpr std::string_view F64ToI32 =
+      "  fcvt.w.d a0, fa0, rtz\n  slli a0, a0, 32\n  srai a0, a0, 32";
+  static constexpr std::string_view F64ToI64 = "  fcvt.l.d a0, fa0, rtz";
+  static constexpr std::string_view F64ToU8 =
+      "  fcvt.wu.d a0, fa0, rtz\n  slli a0, a0, 56\n  srli a0, a0, 56";
+  static constexpr std::string_view F64ToU16 =
+      "  fcvt.wu.d a0, fa0, rtz\n  slli a0, a0, 48\n  srli a0, a0, 48";
+  static constexpr std::string_view F64ToU32 =
+      "  fcvt.wu.d a0, fa0, rtz\n  slli a0, a0, 32\n  srli a0, a0, 32";
+  static constexpr std::string_view F64ToU64 = "  fcvt.lu.d a0, fa0, rtz";
+  static constexpr std::string_view F64ToF32 = "  fcvt.s.d fa0, fa0";
 
   // clang-format off
-  // To:   i8       i16      i32      i64      u8       u16      u32      u64
-  constexpr std::array<std::array<std::string_view, 8>, 8> IntCastTable = {{
-      {{ {},       {},       {},       {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i8
-      {{ I64ToI8,  {},       {},       {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i16
-      {{ I64ToI8,  I64ToI16, {},       {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i32
-      {{ I64ToI8,  I64ToI16, I64ToI32, {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // i64
-      {{ I64ToI8,  {},       {},       {},       {},       {},       {},       {} }},       // u8
-      {{ I64ToI8,  I64ToI16, {},       {},       I64ToU8,  {},       {},       {} }},       // u16
-      {{ I64ToI8,  I64ToI16, I64ToI32, U32ToI64, I64ToU8,  I64ToU16, {},       U32ToI64 }}, // u32
-      {{ I64ToI8,  I64ToI16, I64ToI32, {},       I64ToU8,  I64ToU16, I64ToU32, {} }},       // u64
+  // To:   i8       i16      i32      i64      u8       u16      u32      u64      f32      f64
+  constexpr std::array<std::array<std::string_view, 10>, 10> CastTable = {{
+      {{ {},       {},       {},       {},       I64ToU8,  I64ToU16, I64ToU32, {},       I32ToF32, I32ToF64 }}, // i8
+      {{ I64ToI8,  {},       {},       {},       I64ToU8,  I64ToU16, I64ToU32, {},       I32ToF32, I32ToF64 }}, // i16
+      {{ I64ToI8,  I64ToI16, {},       {},       I64ToU8,  I64ToU16, I64ToU32, {},       I32ToF32, I32ToF64 }}, // i32
+      {{ I64ToI8,  I64ToI16, I64ToI32, {},       I64ToU8,  I64ToU16, I64ToU32, {},       I64ToF32, I64ToF64 }}, // i64
+      {{ I64ToI8,  {},       {},       {},       {},       {},       {},       {},       U32ToF32, U32ToF64 }}, // u8
+      {{ I64ToI8,  I64ToI16, {},       {},       I64ToU8,  {},       {},       {},       U32ToF32, U32ToF64 }}, // u16
+      {{ I64ToI8,  I64ToI16, I64ToI32, U32ToI64, I64ToU8,  I64ToU16, {},       U32ToI64, U32ToF32, U32ToF64 }}, // u32
+      {{ I64ToI8,  I64ToI16, I64ToI32, {},       I64ToU8,  I64ToU16, I64ToU32, {},       U64ToF32, U64ToF64 }}, // u64
+      {{ F32ToI8,  F32ToI16, F32ToI32, F32ToI64, F32ToU8,  F32ToU16, F32ToU32, F32ToU64, {},       F32ToF64 }}, // f32
+      {{ F64ToI8,  F64ToI16, F64ToI32, F64ToI64, F64ToU8,  F64ToU16, F64ToU32, F64ToU64, F64ToF32, {}       }}, // f64
   }};
   // clang-format on
 
   unsigned ID1 = GetTypeID(From);
   unsigned ID2 = GetTypeID(To);
-  std::string_view CastInsts = IntCastTable[ID1][ID2];
+  std::string_view CastInsts = CastTable[ID1][ID2];
   if (!CastInsts.empty()) {
+    emit("  # cast");
     emit("{}", CastInsts);
   }
 }
@@ -1734,7 +1799,11 @@ void CodeGen::genCastExpr(const CastExpr *Cast) {
   case CastExpr::CK_IntegralToPointer:
   case CastExpr::CK_PointerToIntegral:
   case CastExpr::CK_BitCast:
-    genIntCast(SubExpr->getTypePtr(), Cast->getTypePtr());
+  case CastExpr::CK_FloatingCast:
+  case CastExpr::CK_FloatingToIntegral:
+  case CastExpr::CK_IntegralToFloating:
+  case CastExpr::CK_FloatingToBoolean:
+    genScalarCast(SubExpr->getTypePtr(), Cast->getTypePtr());
     break;
   case CastExpr::CK_FuncToPointerDecay:
   case CastExpr::CK_ArrayToPointerDecay:
@@ -1876,17 +1945,26 @@ void CodeGen::pop(const char *Reg) {
   --Depth;
 }
 
-// load *a0 to a0.
+// load *a0 to a0 (or fa0 for floating types).
 void CodeGen::load(const Type *Ty) {
   if (Ty->isArraryType() || Ty->isRecordType())
     return;
+
+  if (Ty->isFloatingType()) {
+    emit("  # load float");
+    if (Ty->getSize() == 4)
+      emit("  flw fa0, 0(a0)");
+    else
+      emit("  fld fa0, 0(a0)");
+    return;
+  }
 
   bool IsUnsigned = Ty->isUnsignedIntegerType();
   emit("  # load");
   emit("  l{} a0, 0(a0)", getWidthSuffix(Ty->getSize(), IsUnsigned));
 }
 
-// store a0 to *a1.
+// store a0 (or fa0) to *a1.
 void CodeGen::store(const Type *Ty) {
   emit("  # store");
   pop("a1");
@@ -1904,6 +1982,14 @@ void CodeGen::store(const Type *Ty) {
       emit("  add t0, a1, t0");
       emit("  sb t1, 0(t0)");
     }
+    return;
+  }
+
+  if (Ty->isFloatingType()) {
+    if (Ty->getSize() == 4)
+      emit("  fsw fa0, 0(a1)");
+    else
+      emit("  fsd fa0, 0(a1)");
     return;
   }
 

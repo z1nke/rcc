@@ -649,6 +649,8 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       TYPE_SPEC_TYPE_CASE(UnderlineBool);
       TYPE_SPEC_TYPE_CASE(Char);
       TYPE_SPEC_TYPE_CASE(Int);
+      TYPE_SPEC_TYPE_CASE(Float);
+      TYPE_SPEC_TYPE_CASE(Double);
       TYPE_SPEC_WIDTH_CASE(Short);
       TYPE_SPEC_WIDTH_CASE(Long);
       TYPE_SPEC_SIGN_CASE(Signed);
@@ -1242,6 +1244,8 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Short:
   case Token::TK_Int:
   case Token::TK_Long:
+  case Token::TK_Float:
+  case Token::TK_Double:
   case Token::TK_Signed:
   case Token::TK_Unsigned:
   case Token::TK_Struct:

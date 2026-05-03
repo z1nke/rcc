@@ -1094,7 +1094,25 @@ Expr *Sema::actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc,
       break;
     }
 
+    if (T.isFloatingType()) {
+      if (SubT.isFloatingType()) {
+        CK = CastExpr::CK_FloatingCast;
+        break;
+      }
+      if (SubT.isIntegerType()) {
+        CK = CastExpr::CK_IntegralToFloating;
+        break;
+      }
+      break;
+    }
+
     if (T.isIntegerType()) {
+      if (SubT.isFloatingType()) {
+        CK = T->isBooleanType() ? CastExpr::CK_FloatingToBoolean
+                                : CastExpr::CK_FloatingToIntegral;
+        break;
+      }
+
       if (SubT.isIntegerType()) {
         CK = CastExpr::CK_IntegralCast;
         break;
@@ -1412,6 +1430,16 @@ std::optional<unsigned> Sema::getCastKind(QualType ToType,
     return ToPointeeTy == FromPointeeTy ? CastExpr::CK_NoOp
                                         : CastExpr::CK_BitCast;
   }
+
+  bool ToIsFloat = ToType.isFloatingType();
+  bool FromIsFloat = FromType.isFloatingType();
+  if (ToIsFloat && FromIsFloat)
+    return CastExpr::CK_FloatingCast;
+  if (ToIsFloat && FromType.isIntegerType())
+    return CastExpr::CK_IntegralToFloating;
+  if (ToType.isIntegerType() && FromIsFloat)
+    return ToType->isBooleanType() ? CastExpr::CK_FloatingToBoolean
+                                   : CastExpr::CK_FloatingToIntegral;
 
   bool ToIsInt = ToType.isIntegerType();
   bool FromIsInt = FromType.isIntegerType();
@@ -1843,6 +1871,12 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
       T = Ctx.UnsignedCharTy;
     else
       T = Ctx.CharTy;
+    break;
+  case DeclSpec::TST_Float:
+    T = Ctx.FloatTy;
+    break;
+  case DeclSpec::TST_Double:
+    T = Ctx.DoubleTy;
     break;
   case DeclSpec::TST_Unspecified:
   case DeclSpec::TST_Int: {

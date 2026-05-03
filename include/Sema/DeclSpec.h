@@ -32,6 +32,8 @@ public:
     TST_UnderlineBool,
     TST_Char,
     TST_Int,
+    TST_Float,
+    TST_Double,
     TST_Struct,
     TST_Union,
     TST_Enum,

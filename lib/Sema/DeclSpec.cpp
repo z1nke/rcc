@@ -102,6 +102,10 @@ const char *DeclSpec::getSpecifierName(TypeSpecType T) {
     return "_Bool";
   case TST_Int:
     return "int";
+  case TST_Float:
+    return "float";
+  case TST_Double:
+    return "double";
   case TST_Struct:
     return "struct";
   case TST_Union:

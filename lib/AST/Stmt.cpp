@@ -840,6 +840,10 @@ const char *CastExpr::getCastKindStr() const {
     CASE_CASTKIND(ToVoid);
     CASE_CASTKIND(BitCast);
     CASE_CASTKIND(IntegralCast);
+    CASE_CASTKIND(FloatingCast);
+    CASE_CASTKIND(FloatingToIntegral);
+    CASE_CASTKIND(IntegralToFloating);
+    CASE_CASTKIND(FloatingToBoolean);
     CASE_CASTKIND(PointerToIntegral);
     CASE_CASTKIND(IntegralToPointer);
     CASE_CASTKIND(FuncToPointerDecay);
