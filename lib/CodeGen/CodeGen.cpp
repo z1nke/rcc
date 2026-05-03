@@ -1562,7 +1562,48 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     return;
   }
 
-  // a0 op a1
+  // a0 op a1 (or fa0 op fa1 for floating types)
+  if (LType.isFloatingType()) {
+    genExpr(RHS);
+    pushF();
+    genExpr(LHS);
+    popF("fa1");
+
+    const char *FSuffix = LType->getSize() == 4 ? "s" : "d";
+    switch (Op) {
+    case BinaryOperator::BO_EQ:
+      emit("  # fa0 == fa1");
+      emit("  feq.{} a0, fa0, fa1", FSuffix);
+      return;
+    case BinaryOperator::BO_NE:
+      emit("  # fa0 != fa1");
+      emit("  feq.{} a0, fa0, fa1", FSuffix);
+      emit("  seqz a0, a0");
+      return;
+    case BinaryOperator::BO_LT:
+      emit("  # fa0 < fa1");
+      emit("  flt.{} a0, fa0, fa1", FSuffix);
+      return;
+    case BinaryOperator::BO_LE:
+      emit("  # fa0 <= fa1");
+      emit("  fle.{} a0, fa0, fa1", FSuffix);
+      return;
+    case BinaryOperator::BO_GT:
+      // a0 > a1  <=>  a1 < a0
+      emit("  # fa0 > fa1");
+      emit("  flt.{} a0, fa1, fa0", FSuffix);
+      return;
+    case BinaryOperator::BO_GE:
+      // a0 >= a1  <=>  a1 <= a0
+      emit("  # fa0 >= fa1");
+      emit("  fle.{} a0, fa1, fa0", FSuffix);
+      return;
+    default:
+      Diag.fatalAt(BO->getOpLocation(), "invalid floating binary opcode: {}",
+                   BO->getOpcodeStr());
+    }
+  }
+
   genExpr(RHS);
   push();
   genExpr(LHS);
@@ -1942,6 +1983,20 @@ void CodeGen::pop(const char *Reg) {
   emit("  # pop {}", Reg);
   emit("  ld {}, 0(sp)", Reg); // load from stack to Reg
   emit("  addi sp, sp, 8");    // sp += 8
+  --Depth;
+}
+
+void CodeGen::pushF() {
+  emit("  # push fa0");
+  emit("  addi sp, sp, -8");
+  emit("  fsd fa0, 0(sp)");
+  ++Depth;
+}
+
+void CodeGen::popF(const char *Reg) {
+  emit("  # pop {}", Reg);
+  emit("  fld {}, 0(sp)", Reg);
+  emit("  addi sp, sp, 8");
   --Depth;
 }
 

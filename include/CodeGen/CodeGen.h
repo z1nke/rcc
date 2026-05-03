@@ -85,6 +85,8 @@ private:
 private:
   void push();
   void pop(const char *Reg);
+  void pushF();
+  void popF(const char *Reg);
   void load(const Type *Ty);
   void store(const Type *Ty);
 

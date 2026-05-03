@@ -1399,6 +1399,24 @@ QualType Sema::usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) const {
   if (!LType->isArithmeticType() || !RType->isArithmeticType())
     return QualType();
 
+  // Floating types take precedence over integer types (C99 6.3.1.8).
+  if (LType.isFloatingType() || RType.isFloatingType()) {
+    QualType Result = Ctx.FloatTy;
+    if (Ctx.hasSameType(LType, Ctx.DoubleTy) ||
+        Ctx.hasSameType(RType, Ctx.DoubleTy))
+      Result = Ctx.DoubleTy;
+
+    auto CastTo = [this](Expr *&E, QualType To) {
+      auto CK = getCastKind(To, E->getType());
+      assert(CK && "usual arithmetic conversions: invalid arithmetic cast");
+      E = impCastExprToType(E, To, *CK);
+    };
+    if (ACK != ACK_CompAssign)
+      CastTo(LHS, Result);
+    CastTo(RHS, Result);
+    return Result;
+  }
+
   return handleArithConv<doIntegralCast, doIntegralCast>(
       *this, LHS, RHS, LType, RType, ACK == ACK_CompAssign);
 }
