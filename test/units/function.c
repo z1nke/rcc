@@ -252,6 +252,9 @@ int main() {
   // [146] Implement default argument promotion for float
   ASSERT(0, ({ char buf[100]; sprintf(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
 
+  // [147] Support variadic function with floating-point parameters
+  ASSERT(0, ({ char buf[100]; fmt(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
+
   printf("OK\n");
   return 0;
 }
