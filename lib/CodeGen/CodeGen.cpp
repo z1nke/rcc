@@ -608,22 +608,38 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     emit("  add sp, sp, t0");
   }
 
+  // Save incoming arguments from a*/fa* into the stack frame (LP64 ABI).
   unsigned NumParams = FD->getNumParams();
-  unsigned I = 0;
+  int GP = 0, FP = 0;
   if (NumParams > 0) {
-    assert(NumParams <= 8);
     emit("  # store {} parameters to stack", NumParams);
-    for (; I < NumParams; ++I) {
+    for (unsigned I = 0; I < NumParams; ++I) {
       const auto *Param = FD->getParam(I);
-      storeGenReg(I, Param->getOffset(), Param->getType()->getSize());
+      const Type *Ty = Param->getType().getTypePtr();
+      int Offset = Param->getOffset();
+      int Size = static_cast<int>(Ty->getSize());
+      if (Ty->isFloatingType()) {
+        if (FP < 8) {
+          emit("  # store float param '{}' from fa{}", Param->getName(), FP);
+          storeFloatReg(FP++, Offset, Size);
+        } else {
+          assert(GP < 8 && "too many floating-point parameters");
+          emit("  # store float param '{}' from a{}", Param->getName(), GP);
+          storeGenReg(GP++, Offset, Size);
+        }
+      } else {
+        assert(GP < 8 && "too many integer parameters");
+        emit("  # store int param '{}' from a{}", Param->getName(), GP);
+        storeGenReg(GP++, Offset, Size);
+      }
     }
   }
 
   if (const VarDecl *VaArea = findVaAreaVar(FD)) {
     int Offset = VaArea->getOffset();
     emit("  # store variadic args to {}", VaArea->getName());
-    while (I < 8) {
-      storeGenReg(I++, Offset, 8);
+    while (GP < 8) {
+      storeGenReg(GP++, Offset, 8);
       Offset += 8;
     }
   }
@@ -2166,6 +2182,17 @@ void CodeGen::storeGenReg(int Reg, int Offset, int Size) {
   emit("  li t0, {}", Offset);
   emit("  add t0, fp, t0");
   emit("  s{} {}, 0(t0)", getWidthSuffix(Size), ArgReg[Reg]);
+}
+
+void CodeGen::storeFloatReg(int Reg, int Offset, int Size) {
+  emit("  li t0, {}", Offset);
+  emit("  add t0, fp, t0");
+  if (Size == 4)
+    emit("  fsw {}, 0(t0)", FaArgReg[Reg]);
+  else {
+    assert(Size == 8);
+    emit("  fsd {}, 0(t0)", FaArgReg[Reg]);
+  }
 }
 
 const char *CodeGen::getWidthSuffix(std::size_t Size, bool IsUnsigned) const {

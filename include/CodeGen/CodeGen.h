@@ -94,6 +94,7 @@ private:
   void emitIsNotZero(const Type *Ty);
 
   void storeGenReg(int Reg, int Offset, int Size);
+  void storeFloatReg(int Reg, int Offset, int Size);
 
   /// Returns the RISC-V load/store width suffix ("b"/"h"/"w"/"d").
   /// When \p IsUnsigned is true, returns the zero-extending load suffix
