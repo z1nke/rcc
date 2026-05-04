@@ -135,6 +135,10 @@ int add2_omit(int, int);
 int ptr_omit(int *);
 int arr_omit(int [3]);
 
+// [144] Allow to call a function that takes/returns floating-point number
+double add_double(double x, double y);
+float add_float(float x, float y);
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -227,6 +231,10 @@ int main() {
   ASSERT(65528, ushort_fn());
   ASSERT(-5, schar_fn());
   ASSERT(-8, sshort_fn());
+
+  // [144] Allow to call a function that takes/returns floating-point number
+  ASSERT(6, add_float(2.3, 3.8));
+  ASSERT(6, add_double(2.3, 3.8));
 
   printf("OK\n");
   return 0;

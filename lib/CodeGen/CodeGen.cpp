@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <format>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace rcc {
 
@@ -52,6 +54,8 @@ static const VarDecl *findVaAreaVar(const FunctionDecl *FD) {
 }
 
 static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
+static const char *FaArgReg[] = {"fa0", "fa1", "fa2", "fa3",
+                                 "fa4", "fa5", "fa6", "fa7"};
 
 void CodeGen::codegen(const TranslationUnitDecl *TU, const char *Input) {
   emit(".file 1 \"{}\"", Input);
@@ -1809,16 +1813,51 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   if (!Func)
     Diag.fatalAt(CE->getCallee()->getBeginLoc(), "undeclared function");
 
+  const auto *FT = Func->getType()->getAs<FunctionType>();
+  assert(FT);
+  const unsigned NumParams = Func->getNumParams();
+  const bool IsVariadic = FT->isVariadic();
+
   int NumArgs = static_cast<int>(CE->getNumArgs());
+  std::vector<std::pair<bool, const char *>> ArgDest;
+  ArgDest.resize(NumArgs);
+  int GP = 0, FP = 0;
+  for (int I = 0; I < NumArgs; ++I) {
+    const bool IsFloat = CE->getArg(I)->getType().isFloatingType();
+    const bool VariadicTail =
+        IsVariadic && static_cast<unsigned>(I) >= NumParams;
+    if (VariadicTail) {
+      assert(GP < 8 && "too many variadic arguments");
+      ArgDest[I] = {false, ArgReg[GP++]};
+    } else if (IsFloat) {
+      if (FP < 8)
+        ArgDest[I] = {true, FaArgReg[FP++]};
+      else {
+        assert(GP < 8 && "too many floating-point arguments");
+        ArgDest[I] = {false, ArgReg[GP++]};
+      }
+    } else {
+      assert(GP < 8 && "too many integer arguments");
+      ArgDest[I] = {false, ArgReg[GP++]};
+    }
+  }
+
   if (NumArgs != 0) {
     emit("  # set args on calling {}", Func->getName());
     for (const Expr *Arg : CE->getArgs()) {
       genExpr(Arg);
-      push();
+      if (Arg->getType().isFloatingType())
+        pushF();
+      else
+        push();
     }
 
-    for (int I = NumArgs - 1; I >= 0; --I)
-      pop(ArgReg[I]);
+    for (int I = NumArgs - 1; I >= 0; --I) {
+      if (ArgDest[I].first)
+        popF(ArgDest[I].second);
+      else
+        pop(ArgDest[I].second);
+    }
   }
 
   const std::string &Name = Func->getName();
@@ -1835,6 +1874,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   }
 
   // Truncate/sign-extend a0 for narrow integer return types.
+  // Float/double returns stay in fa0 for subsequent float consumers/casts.
   const Type *RetTy = CE->getTypePtr();
   if (const auto *BT = dynCast<BuiltinType>(RetTy)) {
     switch (BT->getKind()) {
