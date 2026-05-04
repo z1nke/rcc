@@ -51,11 +51,13 @@ static int runSubprocess(char **Argv, bool PrintCommand) {
   return 1;
 }
 
-static int runCC1(int Argc, char **Argv, const std::string &Output,
-                  bool PrintCommand) {
+static int runCC1(int Argc, char **Argv, const char *Input,
+                  const std::string &Output, bool PrintCommand) {
   std::vector<char *> Args(Argv, Argv + Argc);
   Args.push_back(const_cast<char *>("-cc1"));
-  Args.push_back(const_cast<char *>("-o"));
+  Args.push_back(const_cast<char *>("-cc1-input"));
+  Args.push_back(const_cast<char *>(Input));
+  Args.push_back(const_cast<char *>("-cc1-output"));
   Args.push_back(const_cast<char *>(Output.c_str()));
   Args.push_back(nullptr);
   return runSubprocess(Args.data(), PrintCommand);
@@ -129,24 +131,42 @@ int main(int Argc, char **Argv) {
     return 0;
   }
 
-  const char *Input = Invocation->getInputs()[0];
-  std::string Output = Invocation->getOutputPath();
-  if (Output.empty()) {
-    std::string_view Extension = Invocation->shouldEmitAssembly() ? ".s" : ".o";
-    Output = replaceExtension(Input, Extension);
+  const auto &Inputs = Invocation->getInputs();
+  const std::string &RequestedOutput = Invocation->getOutputPath();
+  if (Inputs.size() > 1 && !RequestedOutput.empty()) {
+    std::println(stderr, "cannot specify '-o' with multiple files");
+    return 1;
   }
 
   bool PrintCommand = Invocation->shouldPrintCommands();
-  if (Invocation->shouldEmitAssembly() || Invocation->hasAstDump())
-    return runCC1(Argc, Argv, Output, PrintCommand);
+  for (const char *Input : Inputs) {
+    std::string Output = RequestedOutput;
+    if (Output.empty()) {
+      std::string_view Extension =
+          Invocation->shouldEmitAssembly() ? ".s" : ".o";
+      Output = replaceExtension(Input, Extension);
+    }
 
-  TempFile AssemblyFile;
-  if (!AssemblyFile.isValid())
-    return 1;
+    if (Invocation->shouldEmitAssembly() || Invocation->hasAstDump()) {
+      int Status = runCC1(Argc, Argv, Input, Output, PrintCommand);
+      if (Status != 0)
+        return Status;
+      continue;
+    }
 
-  int Status = runCC1(Argc, Argv, AssemblyFile.getPath(), PrintCommand);
-  if (Status != 0)
-    return Status;
+    TempFile AssemblyFile;
+    if (!AssemblyFile.isValid())
+      return 1;
 
-  return assemble(AssemblyFile.getPath(), Output, PrintCommand);
+    int Status =
+        runCC1(Argc, Argv, Input, AssemblyFile.getPath(), PrintCommand);
+    if (Status != 0)
+      return Status;
+
+    Status = assemble(AssemblyFile.getPath(), Output, PrintCommand);
+    if (Status != 0)
+      return Status;
+  }
+
+  return 0;
 }

@@ -11,6 +11,9 @@ public:
   static std::unique_ptr<CompilerInvocation> create(int Argc, char **Argv);
 
   const std::vector<const char *> &getInputs() const { return Inputs; }
+  const char *getCC1InputPath() const {
+    return CC1InputPath.empty() ? Inputs[0] : CC1InputPath.c_str();
+  }
 
   const std::string &getErrorMsg() const { return ErrMsg; }
   const std::string &getOutputPath() const { return OutputPath; }
@@ -21,6 +24,7 @@ public:
 
 private:
   std::vector<const char *> Inputs;
+  std::string CC1InputPath;
   std::string OutputPath;
   std::string ErrMsg;
   bool AstDump = false;

@@ -33,6 +33,24 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-cc1-input") {
+      if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
+        Invocation->ErrMsg = "missing filename after '-cc1-input'";
+        return Invocation;
+      }
+      Invocation->CC1InputPath = Argv[++Idx];
+      continue;
+    }
+
+    if (Arg == "-cc1-output") {
+      if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
+        Invocation->ErrMsg = "missing filename after '-cc1-output'";
+        return Invocation;
+      }
+      Invocation->OutputPath = Argv[++Idx];
+      continue;
+    }
+
     if (Arg == "-o") {
       if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
         Invocation->ErrMsg = "missing filename after '-o'";

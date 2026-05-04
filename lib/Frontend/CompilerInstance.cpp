@@ -42,8 +42,8 @@ void CompilerInstance::run() {
   }
 
   Lexer TheLexer(*Diag);
-  const auto &Inputs = Invocation->getInputs();
-  Token *Toks = TheLexer.tokenizeFile(Inputs[0]);
+  const char *Input = Invocation->getCC1InputPath();
+  Token *Toks = TheLexer.tokenizeFile(Input);
   if (!Toks)
     Diag->fatal("tokenize failed");
   Sema S(*ACtx, *Diag);
@@ -54,7 +54,7 @@ void CompilerInstance::run() {
     return;
   }
   CodeGen CG(*Diag, Fp);
-  CG.codegen(TU, Inputs[0]);
+  CG.codegen(TU, Input);
 }
 
 } // namespace rcc

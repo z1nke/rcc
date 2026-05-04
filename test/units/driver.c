@@ -14,6 +14,16 @@
 // RUN: test -f %t.default.o
 // RUN: cd %T && rcc -S %t.default.c
 // RUN: grep -q 'main:' %t.default.s
+// RUN: echo 'int foo;' > %t.foo.c
+// RUN: echo 'int bar;' > %t.bar.c
+// RUN: cd %T && rcc %t.foo.c %t.bar.c
+// RUN: test -f %t.foo.o
+// RUN: test -f %t.bar.o
+// RUN: cd %T && rcc -S %t.foo.c %t.bar.c
+// RUN: test -f %t.foo.s
+// RUN: test -f %t.bar.s
+// RUN: ! rcc -o %t.multi.o %t.foo.c %t.bar.c 2> %t.error
+// RUN: grep -q "cannot specify '-o' with multiple files" %t.error
 // RUN: rcc --help
 
 int main() {
