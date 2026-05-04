@@ -122,6 +122,7 @@ public:
       std::variant<std::int64_t, std::uint64_t, double, char, bool>;
   std::optional<EvalResult> evaluate() const;
   std::optional<std::int64_t> evaluateAsInt() const;
+  std::optional<double> evaluateAsDouble() const;
   std::optional<bool> evaluateAsBool() const;
 
 protected:

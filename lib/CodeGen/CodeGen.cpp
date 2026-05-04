@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <format>
 #include <optional>
 #include <utility>
@@ -317,6 +318,30 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
     if (Ty->getSize() != 8)
       Diag.fatalAt(Init->getBeginLoc(), "invalid variable init type");
     emit("  .8byte {}", getStringLabel(SL));
+    return;
+  }
+
+  // Floating-point constant initializers.
+  if (Ty->isFloatingType()) {
+    auto DblVal = Init->evaluateAsDouble();
+    if (!DblVal)
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "global variable initializer is not a constant expression");
+
+    if (Ty->getSize() == 4) {
+      float FVal = static_cast<float>(*DblVal);
+      std::uint32_t Bits = 0;
+      static_assert(sizeof(FVal) == sizeof(Bits));
+      memcpy(&Bits, &FVal, sizeof(Bits));
+      emit("  .4byte {}", Bits);
+    } else {
+      assert(Ty->getSize() == 8);
+      double DVal = *DblVal;
+      std::uint64_t Bits = 0;
+      static_assert(sizeof(DVal) == sizeof(Bits));
+      memcpy(&Bits, &DVal, sizeof(Bits));
+      emit("  .8byte {}", Bits);
+    }
     return;
   }
 
@@ -1199,8 +1224,7 @@ void CodeGen::genExpr(const Expr *E) {
       std::uint32_t U32;
       std::uint64_t U64;
     } U;
-    if (FL->getType().isFloatingType() &&
-        FL->getTypePtr()->getSize() == 4) {
+    if (FL->getType().isFloatingType() && FL->getTypePtr()->getSize() == 4) {
       U.F32 = static_cast<float>(FVal);
       emit("  # fa0 = {}f", FVal);
       emit("  li a0, {}", U.U32);

@@ -5,6 +5,10 @@
 #include "Support/Casting.h"
 #include "Support/Unreachable.h"
 
+#include <cstdint>
+#include <optional>
+#include <type_traits>
+
 namespace rcc {
 
 const char *Stmt::getKindStr() const {
@@ -290,6 +294,24 @@ Expr *Expr::ignoreParenCasts() {
 
 static std::optional<Expr::EvalResult>
 evaluateUnaryOperator(const UnaryOperator *UO) {
+  if (UO->getSubExpr()->getType().isFloatingType() ||
+      UO->getType().isFloatingType()) {
+    auto SubVal = UO->getSubExpr()->evaluateAsDouble();
+    if (!SubVal)
+      return std::nullopt;
+
+    switch (UO->getOpcode()) {
+    case UnaryOperator::UO_Plus:
+      return Expr::EvalResult(*SubVal);
+    case UnaryOperator::UO_Minus:
+      return Expr::EvalResult(-(*SubVal));
+    case UnaryOperator::UO_LNot:
+      return Expr::EvalResult(!(*SubVal != 0.0));
+    default:
+      return std::nullopt;
+    }
+  }
+
   auto SubVal = UO->getSubExpr()->evaluateAsInt();
   if (!SubVal)
     return std::nullopt;
@@ -315,6 +337,31 @@ evaluateUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
 
 static std::optional<Expr::EvalResult>
 evaluateBinaryOperator(const BinaryOperator *BO) {
+  // Comma yields the RHS value at its own type.
+  if (BO->getOpcode() == BinaryOperator::BO_Comma)
+    return BO->getRHS()->evaluate();
+
+  const QualType ResTy = BO->getType();
+  if (ResTy.isFloatingType()) {
+    auto LHSVal = BO->getLHS()->evaluateAsDouble();
+    auto RHSVal = BO->getRHS()->evaluateAsDouble();
+    if (!LHSVal || !RHSVal)
+      return std::nullopt;
+
+    switch (BO->getOpcode()) {
+    case BinaryOperator::BO_Add:
+      return Expr::EvalResult(*LHSVal + *RHSVal);
+    case BinaryOperator::BO_Sub:
+      return Expr::EvalResult(*LHSVal - *RHSVal);
+    case BinaryOperator::BO_Mul:
+      return Expr::EvalResult(*LHSVal * *RHSVal);
+    case BinaryOperator::BO_Div:
+      return Expr::EvalResult(*LHSVal / *RHSVal);
+    default:
+      return std::nullopt;
+    }
+  }
+
   auto LHSVal = BO->getLHS()->evaluateAsInt();
   auto RHSVal = BO->getRHS()->evaluateAsInt();
   if (!LHSVal || !RHSVal)
@@ -326,7 +373,6 @@ evaluateBinaryOperator(const BinaryOperator *BO) {
 
   const QualType LHSTy = BO->getLHS()->getType();
   const QualType RHSTy = BO->getRHS()->getType();
-  const QualType ResTy = BO->getType();
   bool IsUnsigned =
       ResTy->isUnsignedIntegerType() || LHSTy->isUnsignedIntegerType();
   bool IsLHSUnsignedOrPointer =
@@ -412,23 +458,86 @@ evaluateBinaryOperator(const BinaryOperator *BO) {
     return Expr::EvalResult((*LHSVal) && (*RHSVal));
   case BinaryOperator::BO_LOr:
     return Expr::EvalResult((*LHSVal) || (*RHSVal));
-  case BinaryOperator::BO_Comma:
-    return RHSVal;
   default:
     return std::nullopt;
   }
 }
 
 static std::optional<Expr::EvalResult> evaluateCastExpr(const CastExpr *Cast) {
+  switch (Cast->getCastKind()) {
+  case CastExpr::CK_NoOp:
+    return Cast->getSubExpr()->evaluate();
+  case CastExpr::CK_ToVoid:
+    return std::nullopt;
+  case CastExpr::CK_FloatingCast: {
+    auto SubVal = Cast->getSubExpr()->evaluateAsDouble();
+    if (!SubVal)
+      return std::nullopt;
+    // Narrowing to float may change the value.
+    if (Cast->getType()->getSize() == 4)
+      return Expr::EvalResult(static_cast<double>(static_cast<float>(*SubVal)));
+    return Expr::EvalResult(*SubVal);
+  }
+  case CastExpr::CK_IntegralToFloating: {
+    const Expr *Sub = Cast->getSubExpr();
+    auto SubVal = Sub->evaluateAsInt();
+    if (!SubVal)
+      return std::nullopt;
+    if (Sub->getType()->isUnsignedIntegerType())
+      return Expr::EvalResult(
+          static_cast<double>(static_cast<std::uint64_t>(*SubVal)));
+    return Expr::EvalResult(static_cast<double>(*SubVal));
+  }
+  case CastExpr::CK_FloatingToIntegral: {
+    auto SubVal = Cast->getSubExpr()->evaluateAsDouble();
+    if (!SubVal)
+      return std::nullopt;
+
+    const QualType ToTy = Cast->getType();
+    if (!ToTy->isIntegerType())
+      return std::nullopt;
+
+    std::int64_t SVal = static_cast<std::int64_t>(*SubVal);
+    std::size_t Width = ToTy->getSize() * 8;
+    if (Width == 0)
+      return std::nullopt;
+
+    if (ToTy->isBooleanType())
+      return Expr::EvalResult(*SubVal != 0.0);
+
+    if (ToTy->isUnsignedIntegerType()) {
+      std::uint64_t UVal = static_cast<std::uint64_t>(SVal);
+      if (Width < 64)
+        UVal &= ((1ULL << Width) - 1);
+      return Expr::EvalResult(UVal);
+    }
+
+    if (Width < 64) {
+      std::uint64_t UVal = static_cast<std::uint64_t>(SVal);
+      UVal &= ((1ULL << Width) - 1);
+      std::int64_t Narrow = static_cast<std::int64_t>(UVal);
+      std::uint64_t SignBit = 1ULL << (Width - 1);
+      if (UVal & SignBit)
+        Narrow |= static_cast<std::int64_t>(~((1ULL << Width) - 1));
+      return Expr::EvalResult(Narrow);
+    }
+    return Expr::EvalResult(SVal);
+  }
+  case CastExpr::CK_FloatingToBoolean: {
+    auto SubVal = Cast->getSubExpr()->evaluateAsDouble();
+    if (!SubVal)
+      return std::nullopt;
+    return Expr::EvalResult(*SubVal != 0.0);
+  }
+  default:
+    break;
+  }
+
   auto SubVal = Cast->getSubExpr()->evaluateAsInt();
   if (!SubVal)
     return std::nullopt;
 
   switch (Cast->getCastKind()) {
-  case CastExpr::CK_NoOp:
-    return SubVal;
-  case CastExpr::CK_ToVoid:
-    return std::nullopt;
   case CastExpr::CK_BitCast:
     return SubVal;
   case CastExpr::CK_IntegralCast: {
@@ -524,6 +633,43 @@ std::optional<std::int64_t> Expr::evaluateAsInt() const {
         using T = std::decay_t<decltype(V)>;
         if constexpr (std::is_integral_v<T>)
           return V;
+        // Truncate floating constants toward zero (C constant folding).
+        if constexpr (std::is_same_v<T, double>)
+          return static_cast<std::int64_t>(V);
+        return std::nullopt;
+      },
+      *Val);
+}
+
+std::optional<double> Expr::evaluateAsDouble() const {
+  QualType QT = getType();
+  if (QT.isNull())
+    return std::nullopt;
+
+  // Integer / bool operands used in floating expressions (rvcc evalDouble).
+  if (QT->isIntegerType() || QT->isBooleanType()) {
+    auto IntVal = evaluateAsInt();
+    if (!IntVal)
+      return std::nullopt;
+    if (QT->isUnsignedIntegerType() && !QT->isBooleanType())
+      return static_cast<double>(static_cast<std::uint64_t>(*IntVal));
+    return static_cast<double>(*IntVal);
+  }
+
+  if (!QT.isFloatingType())
+    return std::nullopt;
+
+  auto Val = evaluate();
+  if (!Val)
+    return std::nullopt;
+
+  return std::visit(
+      [](auto &&V) -> std::optional<double> {
+        using T = std::decay_t<decltype(V)>;
+        if constexpr (std::is_same_v<T, double>)
+          return V;
+        if constexpr (std::is_integral_v<T>)
+          return static_cast<double>(V);
         return std::nullopt;
       },
       *Val);
@@ -531,8 +677,17 @@ std::optional<std::int64_t> Expr::evaluateAsInt() const {
 
 std::optional<bool> Expr::evaluateAsBool() const {
   QualType QT = getType();
-  if (QT.isNull() ||
-      (!QT->isBooleanType() && !QT->isIntegerType() && !QT->isPointerType()))
+  if (QT.isNull())
+    return std::nullopt;
+
+  if (QT.isFloatingType()) {
+    auto DblVal = evaluateAsDouble();
+    if (!DblVal)
+      return std::nullopt;
+    return *DblVal != 0.0;
+  }
+
+  if (!QT->isBooleanType() && !QT->isIntegerType() && !QT->isPointerType())
     return std::nullopt;
 
   auto IntVal = evaluateAsInt();
