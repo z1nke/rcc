@@ -249,6 +249,9 @@ int main() {
   ASSERT(7, add_float3(2.5, 2.5, 2.5));
   ASSERT(7, add_double3(2.5, 2.5, 2.5));
 
+  // [146] Implement default argument promotion for float
+  ASSERT(0, ({ char buf[100]; sprintf(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
+
   printf("OK\n");
   return 0;
 }

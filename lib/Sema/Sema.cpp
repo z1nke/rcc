@@ -1077,6 +1077,15 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
     Args[I] = Arg;
   }
 
+  // Default argument promotions (C99 6.5.2.2p6) for arguments without a
+  // corresponding parameter type (variadic / excess args): float -> double.
+  for (unsigned I = N; I < NumArgs; ++I) {
+    Expr *Arg = usualUnaryConv(Args[I]);
+    if (Ctx.hasSameType(Arg->getType().getUnqualifiedType(), Ctx.FloatTy))
+      Arg = impCastExprToType(Arg, Ctx.DoubleTy, CastExpr::CK_FloatingCast);
+    Args[I] = Arg;
+  }
+
   return CallExpr::create(Ctx, IdentBegLoc, EndLoc, RetType, Ref,
                           std::move(Args));
 }
