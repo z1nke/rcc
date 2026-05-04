@@ -4,6 +4,10 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <print>
+#include <string>
+#include <string_view>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <utility>
@@ -13,22 +17,21 @@ using namespace rcc;
 
 static int runSubprocess(char **Argv, bool PrintCommand) {
   if (PrintCommand) {
-    std::fprintf(stderr, "%s", Argv[0]);
+    std::print(stderr, "{}", Argv[0]);
     for (unsigned I = 1; Argv[I]; ++I)
-      std::fprintf(stderr, " %s", Argv[I]);
-    std::fputc('\n', stderr);
+      std::print(stderr, " {}", Argv[I]);
+    std::println(stderr);
   }
 
   pid_t PID = fork();
   if (PID < 0) {
-    std::fprintf(stderr, "fork failed: %s\n", std::strerror(errno));
+    std::println(stderr, "fork failed: {}", std::strerror(errno));
     return 1;
   }
 
   if (PID == 0) {
     execvp(Argv[0], Argv);
-    std::fprintf(stderr, "exec failed: %s: %s\n", Argv[0],
-                 std::strerror(errno));
+    std::println(stderr, "exec failed: {}: {}", Argv[0], std::strerror(errno));
     _exit(1);
   }
 
@@ -39,7 +42,7 @@ static int runSubprocess(char **Argv, bool PrintCommand) {
   } while (Result < 0 && errno == EINTR);
 
   if (Result < 0) {
-    std::fprintf(stderr, "waitpid failed: %s\n", std::strerror(errno));
+    std::println(stderr, "waitpid failed: {}", std::strerror(errno));
     return 1;
   }
 
@@ -48,28 +51,102 @@ static int runSubprocess(char **Argv, bool PrintCommand) {
   return 1;
 }
 
-static int runCC1(int Argc, char **Argv, bool PrintCommand) {
+static int runCC1(int Argc, char **Argv, const std::string &Output,
+                  bool PrintCommand) {
   std::vector<char *> Args(Argv, Argv + Argc);
   Args.push_back(const_cast<char *>("-cc1"));
+  Args.push_back(const_cast<char *>("-o"));
+  Args.push_back(const_cast<char *>(Output.c_str()));
   Args.push_back(nullptr);
   return runSubprocess(Args.data(), PrintCommand);
 }
+
+static int assemble(const std::string &Input, const std::string &Output,
+                    bool PrintCommand) {
+  char *Args[] = {
+      const_cast<char *>("riscv64-unknown-linux-gnu-as"),
+      const_cast<char *>("-c"),
+      const_cast<char *>(Input.c_str()),
+      const_cast<char *>("-o"),
+      const_cast<char *>(Output.c_str()),
+      nullptr,
+  };
+  return runSubprocess(Args, PrintCommand);
+}
+
+static std::string replaceExtension(const char *Input,
+                                    std::string_view Extension) {
+  std::filesystem::path Filename = std::filesystem::path(Input).filename();
+  Filename.replace_extension(Extension);
+  return Filename.string();
+}
+
+class TempFile {
+public:
+  TempFile() {
+    std::string Template = "/tmp/rcc-XXXXXX";
+    std::vector<char> PathBuffer(Template.begin(), Template.end());
+    PathBuffer.push_back('\0');
+    int FD = mkstemp(PathBuffer.data());
+    if (FD < 0) {
+      std::println(stderr, "mkstemp failed: {}", std::strerror(errno));
+      return;
+    }
+
+    close(FD);
+    Path = PathBuffer.data();
+  }
+
+  ~TempFile() {
+    if (!Path.empty())
+      unlink(Path.c_str());
+  }
+
+  TempFile(const TempFile &) = delete;
+  TempFile &operator=(const TempFile &) = delete;
+
+  const std::string &getPath() const { return Path; }
+  bool isValid() const { return !Path.empty(); }
+
+private:
+  std::string Path;
+};
 
 int main(int Argc, char **Argv) {
   auto Invocation = CompilerInvocation::create(Argc, Argv);
   const auto &ErrMsg = Invocation->getErrorMsg();
   if (!ErrMsg.empty()) {
-    std::fprintf(stderr, "%s\n", ErrMsg.c_str());
+    std::println(stderr, "{}", ErrMsg);
     return 1;
   }
 
-  if (!Invocation->isCC1())
-    return runCC1(Argc, Argv, Invocation->shouldPrintCommands());
+  if (Invocation->isCC1()) {
+    auto CI = CompilerInstance::create(std::move(Invocation));
+    if (!CI)
+      return 1;
 
-  auto CI = CompilerInstance::create(std::move(Invocation));
-  if (!CI)
+    CI->run();
+    return 0;
+  }
+
+  const char *Input = Invocation->getInputs()[0];
+  std::string Output = Invocation->getOutputPath();
+  if (Output.empty()) {
+    std::string_view Extension = Invocation->shouldEmitAssembly() ? ".s" : ".o";
+    Output = replaceExtension(Input, Extension);
+  }
+
+  bool PrintCommand = Invocation->shouldPrintCommands();
+  if (Invocation->shouldEmitAssembly() || Invocation->hasAstDump())
+    return runCC1(Argc, Argv, Output, PrintCommand);
+
+  TempFile AssemblyFile;
+  if (!AssemblyFile.isValid())
     return 1;
 
-  CI->run();
-  return 0;
+  int Status = runCC1(Argc, Argv, AssemblyFile.getPath(), PrintCommand);
+  if (Status != 0)
+    return Status;
+
+  return assemble(AssemblyFile.getPath(), Output, PrintCommand);
 }

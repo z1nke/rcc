@@ -8,6 +8,7 @@
 #include "Parse/Parser.h"
 #include "Sema/Sema.h"
 
+#include <cstring>
 #include <memory>
 
 namespace rcc {
@@ -33,9 +34,12 @@ void CompilerInstance::run() {
   if (Output == nullptr || Output[0] == '\0')
     Output = "a.out";
 
-  FILE *Fp = std::fopen(Output, "w");
-  if (!Fp)
-    Diag->fatal("open {} failed", Output);
+  FILE *Fp = stdout;
+  if (std::strcmp(Output, "-") != 0) {
+    Fp = std::fopen(Output, "w");
+    if (!Fp)
+      Diag->fatal("open {} failed", Output);
+  }
 
   Lexer TheLexer(*Diag);
   const auto &Inputs = Invocation->getInputs();

@@ -28,6 +28,11 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-S") {
+      Invocation->EmitAssembly = true;
+      continue;
+    }
+
     if (Arg == "-o") {
       if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
         Invocation->ErrMsg = "missing filename after '-o'";
