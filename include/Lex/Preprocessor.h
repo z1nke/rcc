@@ -3,11 +3,17 @@
 
 namespace rcc {
 
+class Diagnostic;
 class Token;
 
 class Preprocessor {
 public:
+  explicit Preprocessor(Diagnostic &Diag) : Diag(Diag) {}
+
   Token *preprocess(Token *Toks);
+
+private:
+  Diagnostic &Diag;
 };
 
 } // namespace rcc

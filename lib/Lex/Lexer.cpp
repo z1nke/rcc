@@ -24,8 +24,15 @@ Lexer::Lexer(Diagnostic &Diag) : Diag(Diag), SM(Diag.getSourceManager()) {
 Token *Lexer::tokenize(const char *P) {
   Token Dummy;
   Token *Curr = &Dummy;
+  AtStartOfLine = true;
 
   while (*P) {
+    if (*P == '\n') {
+      AtStartOfLine = true;
+      ++P;
+      continue;
+    }
+
     // Skip whitespace characters.
     if (std::isspace(*P)) {
       ++P;
@@ -96,6 +103,8 @@ Token *Lexer::tokenize(const char *P) {
         const char *End = strstr(P + 2, "*/");
         if (!End)
           Diag.fatalAt(P, "unclosed block comment");
+        if (std::memchr(P, '\n', End + 2 - P))
+          AtStartOfLine = true;
         P = End + 2;
         continue;
       }
@@ -200,6 +209,9 @@ Token *Lexer::tokenize(const char *P) {
         lexPunctuator(Curr, Token::TK_Ellipsis, P, 3);
       else
         lexPunctuator(Curr, Token::TK_Dot, P);
+      break;
+    case '#':
+      lexPunctuator(Curr, Token::TK_Hash, P);
       break;
     default:
       Diag.fatalAt(P, "invalid character: {}", *P);
@@ -394,14 +406,20 @@ Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
                        const char *End, std::int64_t Val,
                        Token::NumericLiteralKind NumKind) {
   void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
-  return new (Mem) Token(Kind, Start, End, Val, NumKind);
+  Token *Tok = new (Mem) Token(Kind, Start, End, Val, NumKind);
+  Tok->setAtStartOfLine(AtStartOfLine);
+  AtStartOfLine = false;
+  return Tok;
 }
 
 Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
                        const char *End, double FVal,
                        Token::NumericLiteralKind NumKind) {
   void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
-  return new (Mem) Token(Kind, Start, End, FVal, NumKind);
+  Token *Tok = new (Mem) Token(Kind, Start, End, FVal, NumKind);
+  Tok->setAtStartOfLine(AtStartOfLine);
+  AtStartOfLine = false;
+  return Tok;
 }
 
 } // namespace rcc

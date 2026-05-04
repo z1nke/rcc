@@ -18,3 +18,9 @@ check_rcc_run = os.path.join(
     config.test_source_root, "check_rcc_run.py")
 config.substitutions.append(
     ('%check_rcc_run', f'{python_exec} {check_rcc_run}') )
+
+check_rcc_pp_run = os.path.join(
+    config.test_source_root, "check_rcc_pp_run.py")
+config.substitutions.append(
+    ('%check_rcc_pp_run',
+     f'{python_exec} {check_rcc_pp_run}') )

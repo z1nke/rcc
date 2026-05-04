@@ -43,6 +43,9 @@ public:
   Token *getNext() const { return Next; }
   void setNext(Token *Next) { this->Next = Next; }
 
+  bool isAtStartOfLine() const { return AtStartOfLine; }
+  void setAtStartOfLine(bool Value = true) { AtStartOfLine = Value; }
+
   std::string_view getIdentifer() const;
   std::int64_t getVal() const;
   double getFVal() const;
@@ -78,6 +81,7 @@ private:
   };
   int Len = 0;
   NumericLiteralKind NumKind = NumericLiteralKind::Int;
+  bool AtStartOfLine = false;
 };
 
 } // namespace rcc
