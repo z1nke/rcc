@@ -5,6 +5,7 @@
 #include "CodeGen/CodeGen.h"
 #include "Frontend/CompilerInvocation.h"
 #include "Lex/Lexer.h"
+#include "Lex/Preprocessor.h"
 #include "Parse/Parser.h"
 #include "Sema/Sema.h"
 
@@ -46,6 +47,10 @@ void CompilerInstance::run() {
   Token *Toks = TheLexer.tokenizeFile(Input);
   if (!Toks)
     Diag->fatal("tokenize failed");
+  Preprocessor PP;
+  Toks = PP.preprocess(Toks);
+  if (!Toks)
+    Diag->fatal("preprocess failed");
   Sema S(*ACtx, *Diag);
   Parser P(Toks, *ACtx, S, *SM);
   TranslationUnitDecl *TU = P.parse();
