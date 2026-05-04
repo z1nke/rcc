@@ -13,7 +13,8 @@ class SourceManager;
 
 class CompilerInstance {
 public:
-  static std::unique_ptr<CompilerInstance> create(int Argc, char **Argv);
+  static std::unique_ptr<CompilerInstance>
+  create(std::unique_ptr<CompilerInvocation> Invocation);
 
   void run();
 

@@ -15,12 +15,16 @@ public:
   const std::string &getErrorMsg() const { return ErrMsg; }
   const std::string &getOutputPath() const { return OutputPath; }
   bool hasAstDump() const { return AstDump; }
+  bool isCC1() const { return CC1; }
+  bool shouldPrintCommands() const { return PrintCommands; }
 
 private:
   std::vector<const char *> Inputs;
   std::string OutputPath;
   std::string ErrMsg;
   bool AstDump = false;
+  bool CC1 = false;
+  bool PrintCommands = false;
 };
 
 } // namespace rcc

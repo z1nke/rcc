@@ -15,15 +15,10 @@ namespace rcc {
 CompilerInstance::CompilerInstance() = default;
 CompilerInstance::~CompilerInstance() = default;
 
-std::unique_ptr<CompilerInstance> CompilerInstance::create(int Argc,
-                                                           char **Argv) {
+std::unique_ptr<CompilerInstance>
+CompilerInstance::create(std::unique_ptr<CompilerInvocation> Invocation) {
   auto CI = std::make_unique<CompilerInstance>();
-  CI->Invocation = CompilerInvocation::create(Argc, Argv);
-  const auto &ErrMsg = CI->Invocation->getErrorMsg();
-  if (!ErrMsg.empty()) {
-    std::println(stderr, "{}", ErrMsg);
-    return nullptr;
-  }
+  CI->Invocation = std::move(Invocation);
 
   CI->FileMgr = std::make_unique<FileManager>();
   CI->SM = std::make_unique<SourceManager>(*CI->FileMgr);

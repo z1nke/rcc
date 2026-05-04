@@ -18,6 +18,16 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
     if (Arg == "--help")
       usage(0);
 
+    if (Arg == "-cc1") {
+      Invocation->CC1 = true;
+      continue;
+    }
+
+    if (Arg == "-###") {
+      Invocation->PrintCommands = true;
+      continue;
+    }
+
     if (Arg == "-o") {
       if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
         Invocation->ErrMsg = "missing filename after '-o'";
