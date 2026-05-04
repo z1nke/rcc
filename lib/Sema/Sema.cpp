@@ -1900,9 +1900,18 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
       T = Ctx.CharTy;
     break;
   case DeclSpec::TST_Float:
+    if (DS.getTypeSpecWidth() != DeclSpec::TSW_Unspecified)
+      Diag.fatalAt(DS.getTypeSpecLoc(),
+                   "cannot combine '{}' with 'float'",
+                   DeclSpec::getSpecifierName(DS.getTypeSpecWidth()));
     T = Ctx.FloatTy;
     break;
   case DeclSpec::TST_Double:
+    if (DS.getTypeSpecWidth() != DeclSpec::TSW_Unspecified &&
+        DS.getTypeSpecWidth() != DeclSpec::TSW_Long)
+      Diag.fatalAt(DS.getTypeSpecLoc(),
+                   "cannot combine '{}' with 'double'",
+                   DeclSpec::getSpecifierName(DS.getTypeSpecWidth()));
     T = Ctx.DoubleTy;
     break;
   case DeclSpec::TST_Unspecified:
