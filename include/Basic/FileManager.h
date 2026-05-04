@@ -14,6 +14,7 @@ public:
 
   const FileEntry *getFile(const std::string &Path);
   const FileEntry *getFile(FileID FID);
+  const FileEntry *getFileContaining(const char *Loc) const;
   FileID translateFileID(const std::string &Path);
 
 private:

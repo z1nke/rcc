@@ -1,8 +1,23 @@
 #include "Lex/Preprocessor.h"
 #include "Basic/Diagnostic.h"
+#include "Basic/SourceManager.h"
+#include "Lex/Lexer.h"
 #include "Lex/Token.h"
 
+#include <filesystem>
+
 namespace rcc {
+
+static Token *append(Token *Included, Token *Rest) {
+  if (Included->is(Token::TK_EOF))
+    return Rest;
+
+  Token *Last = Included;
+  while (Last->getNext()->isNot(Token::TK_EOF))
+    Last = Last->getNext();
+  Last->setNext(Rest);
+  return Included;
+}
 
 Token *Preprocessor::preprocess(Token *Toks) {
   Token Head;
@@ -13,6 +28,23 @@ Token *Preprocessor::preprocess(Token *Toks) {
       Toks = Toks->getNext();
       if (Toks->is(Token::TK_EOF) || Toks->isAtStartOfLine())
         continue;
+
+      if (Toks->is(Token::TK_Ident) && Toks->getIdentifer() == "include") {
+        Token *FilenameTok = Toks->getNext();
+        if (FilenameTok->isNot(Token::TK_StrLiteral))
+          Diag.fatalAt(FilenameTok->getLoc(), "expected a filename");
+
+        SourceManager &SM = Diag.getSourceManager();
+        SourceLocation Loc = SM.createBeginLocation(FilenameTok);
+        std::filesystem::path IncludingFile(SM.getFilename(Loc));
+        std::filesystem::path IncludePath =
+            IncludingFile.parent_path() / FilenameTok->getStringLiteral(Diag);
+
+        Token *Included = Lex.tokenizeFile(IncludePath.c_str());
+        Toks = append(Included, FilenameTok->getNext());
+        continue;
+      }
+
       Diag.fatalAt(Toks->getLoc(), "invalid preprocessor directive");
     }
 

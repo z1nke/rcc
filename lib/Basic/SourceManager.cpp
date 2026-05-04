@@ -15,25 +15,23 @@ SourceLocation SourceManager::getLocForStartOfFile(FileID FID) const {
 }
 
 SourceLocation SourceManager::createBeginLocation(const Token *Tok) {
-  assert(Tok->getLoc() >= CurrBegin);
-  return createLocation(CurrFileID, Tok->getLoc() - CurrBegin);
+  return createBeginLocation(Tok->getLoc());
 }
 
 SourceLocation SourceManager::createBeginLocation(const char *Loc) {
-  assert(Loc >= CurrBegin && Loc <= CurrEnd);
-  return createLocation(CurrFileID, Loc - CurrBegin);
+  const FileEntry *FE = FileMgr.getFileContaining(Loc);
+  assert(FE && "location does not belong to a source file");
+  const char *Begin = FE->getContent()->getBufferStart();
+  FileID FID = FileID::getFileID(FE->getUID());
+  return createLocation(FID, Loc - Begin);
 }
 
 SourceLocation SourceManager::createEndLocation(const Token *Tok) {
-  assert(Tok->getLoc() >= CurrBegin);
-  return createLocation(CurrFileID, Tok->getLoc() + Tok->getLen() - CurrBegin);
+  return createBeginLocation(Tok->getLoc() + Tok->getLen());
 }
 
 const char *SourceManager::getLoc(SourceLocation Loc) const {
   assert(Loc.isValid());
-  if (Loc.getFileID() == CurrFileID)
-    return CurrBegin + Loc.getOffset();
-
   FileID FID = Loc.getFileID();
   const auto *FE = FileMgr.getFile(FID);
   if (!FE)
@@ -94,11 +92,7 @@ FileID SourceManager::createFileID(const std::string &Path) {
   if (!FE)
     return FileID::getFileID(0);
 
-  auto FID = FileID::getFileID(FE->getUID());
-  CurrBegin = FE->getContent()->getBufferStart();
-  CurrEnd = FE->getContent()->getBufferEnd();
-  CurrFileID = FID;
-  return FID;
+  return FileID::getFileID(FE->getUID());
 }
 
 SourceLocation SourceManager::createLocation(FileID FID,

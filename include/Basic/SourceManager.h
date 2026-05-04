@@ -45,9 +45,6 @@ private:
 
 private:
   FileManager &FileMgr;
-  const char *CurrBegin = nullptr;
-  const char *CurrEnd = nullptr;
-  FileID CurrFileID;
 };
 
 } // namespace rcc

@@ -47,7 +47,7 @@ void CompilerInstance::run() {
   Token *Toks = TheLexer.tokenizeFile(Input);
   if (!Toks)
     Diag->fatal("tokenize failed");
-  Preprocessor PP(*Diag);
+  Preprocessor PP(*Diag, TheLexer);
   Toks = PP.preprocess(Toks);
   if (!Toks)
     Diag->fatal("preprocess failed");

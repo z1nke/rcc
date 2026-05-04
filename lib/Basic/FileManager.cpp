@@ -4,6 +4,7 @@
 #include "Support/Error.h"
 #include "Support/MemoryBuffer.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -31,6 +32,18 @@ const FileEntry *FileManager::getFile(FileID FID) {
   auto It = FileEntries.find(FID);
   if (It != FileEntries.end())
     return It->second.get();
+  return nullptr;
+}
+
+const FileEntry *FileManager::getFileContaining(const char *Loc) const {
+  auto Address = reinterpret_cast<std::uintptr_t>(Loc);
+  for (const auto &[FID, FE] : FileEntries) {
+    const MemoryBuffer *Buf = FE->getContent();
+    auto Begin = reinterpret_cast<std::uintptr_t>(Buf->getBufferStart());
+    auto End = reinterpret_cast<std::uintptr_t>(Buf->getBufferEnd());
+    if (Begin <= Address && Address < End)
+      return FE.get();
+  }
   return nullptr;
 }
 

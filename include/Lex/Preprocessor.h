@@ -4,16 +4,18 @@
 namespace rcc {
 
 class Diagnostic;
+class Lexer;
 class Token;
 
 class Preprocessor {
 public:
-  explicit Preprocessor(Diagnostic &Diag) : Diag(Diag) {}
+  Preprocessor(Diagnostic &Diag, Lexer &Lex) : Diag(Diag), Lex(Lex) {}
 
   Token *preprocess(Token *Toks);
 
 private:
   Diagnostic &Diag;
+  Lexer &Lex;
 };
 
 } // namespace rcc
