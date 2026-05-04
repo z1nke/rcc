@@ -19,6 +19,7 @@ public:
   const std::string &getOutputPath() const { return OutputPath; }
   bool hasAstDump() const { return AstDump; }
   bool isCC1() const { return CC1; }
+  bool shouldCompileOnly() const { return CompileOnly; }
   bool shouldEmitAssembly() const { return EmitAssembly; }
   bool shouldPrintCommands() const { return PrintCommands; }
 
@@ -29,6 +30,7 @@ private:
   std::string ErrMsg;
   bool AstDump = false;
   bool CC1 = false;
+  bool CompileOnly = false;
   bool EmitAssembly = false;
   bool PrintCommands = false;
 };
