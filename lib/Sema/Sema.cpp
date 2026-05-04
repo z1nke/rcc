@@ -218,6 +218,9 @@ ParamVarDecl *Sema::actOnParamVarDecl(Declarator &D, unsigned Index) {
     // TODO: Add DecayedType.
     QualType BaseType = T->getBaseElementType();
     T = Ctx.getPointerType(BaseType);
+  } else if (T->isFunctionType()) {
+    // Function parameters of function type adjust to pointer-to-function.
+    T = Ctx.getPointerType(T);
   }
 
   const DeclSpec &DS = D.getDeclSpec();
@@ -579,6 +582,8 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   }
 
   QualType InitType = Init->getType();
+  Init = usualUnaryConv(Init);
+  InitType = Init->getType();
   if (!Ctx.hasSameType(VarType, InitType)) {
     auto CK = getCastKind(VarType, InitType);
     if (!CK)
@@ -1036,36 +1041,28 @@ Expr *Sema::actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
   return DeclRefExpr::create(Ctx, BegLoc, EndLoc, ND->getType(), ND);
 }
 
-Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
-                          SourceLocation IdentEndLoc, SourceLocation EndLoc,
-                          std::string_view Name, std::vector<Expr *> Args) {
-  FunctionDecl *FD = findFunction(Name);
-  if (!FD) {
-    // [69] Report an error on undefined/undeclared functions
-    Diag.fatalAt(IdentBegLoc, "implicit declaration of a function");
-
-    // Implicit function declaration.
-    // FD = FunctionDecl::create(
-    //     Ctx, SourceLocation(), SourceLocation(), SourceLocation(),
-    //     Ctx.getFunctionType(Ctx.IntTy, {}), std::string(Name), nullptr);
-    // Funcs.push_back(FD);
-    // FD->setImplicit(true);
+Expr *Sema::actOnCallExpr(SourceLocation EndLoc, Expr *Callee,
+                          std::vector<Expr *> Args) {
+  QualType CalleeTy = Callee->getType();
+  const FunctionType *FT = CalleeTy->getAs<FunctionType>();
+  if (!FT) {
+    if (const auto *PT = CalleeTy->getAs<PointerType>())
+      FT = PT->getPointeeType()->getAs<FunctionType>();
   }
-
-  QualType FuncType = FD->getType();
-  auto *FT = FuncType->getAs<FunctionType>();
-  assert(FT);
+  if (!FT)
+    Diag.fatalAt(Callee->getBeginLoc(), "not a function");
 
   QualType RetType = FT->getReturnType();
-  auto *Ref = DeclRefExpr::create(Ctx, IdentBegLoc, IdentEndLoc, RetType, FD);
   unsigned NumArgs = Args.size();
-  unsigned NumParams = FD->getNumParams();
+  unsigned NumParams = FT->getNumParams();
   unsigned N = std::min(NumArgs, NumParams);
   for (unsigned I = 0; I < N; ++I) {
     Expr *Arg = Args[I];
     Arg = usualUnaryConv(Arg);
     QualType ArgType = Arg->getType();
     QualType ParamType = FT->getParamType(I);
+    if (ParamType.isVoidType())
+      break;
     if (!Ctx.hasSameType(ParamType, ArgType)) {
       auto CK = getCastKind(ParamType, ArgType);
       if (!CK)
@@ -1086,8 +1083,8 @@ Expr *Sema::actOnCallExpr(SourceLocation IdentBegLoc,
     Args[I] = Arg;
   }
 
-  return CallExpr::create(Ctx, IdentBegLoc, EndLoc, RetType, Ref,
-                          std::move(Args));
+  return CallExpr::create(Ctx, Callee->getBeginLoc(), EndLoc, RetType, Callee,
+                          FT, std::move(Args));
 }
 
 Expr *Sema::actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -1450,6 +1447,10 @@ std::optional<unsigned> Sema::getCastKind(QualType ToType,
   const auto *FromPtrTy = FromType->getAs<PointerType>();
   if (FromType->isArraryType() && ToPtrTy)
     return CastExpr::CK_ArrayToPointerDecay;
+
+  if (FromType->isFunctionType() && ToPtrTy &&
+      ToPtrTy->getPointeeType()->isFunctionType())
+    return CastExpr::CK_FuncToPointerDecay;
 
   if (ToPtrTy && FromPtrTy) {
     QualType ToPointeeTy = ToPtrTy->getPointeeType();
@@ -1978,7 +1979,7 @@ QualType Sema::getTypeForDeclarator(Declarator &D) const {
         T = Ctx.getConstantArrayType(T, getArrayLength(Chunk.Arr.LenExpr));
       break;
     default:
-      Diag.fatalAt(DS.getTypeSpecLoc(), "unknown declarator type");
+      RCC_UNREACHABLE("Unknown declarator chunk kind");
     }
   }
 

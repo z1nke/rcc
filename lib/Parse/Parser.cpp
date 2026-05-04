@@ -886,6 +886,13 @@ void Parser::parseTypeSuffix(Declarator &D) {
       D.setEndLoc(SM.createEndLocation(CurTok));
       skip(Token::TK_RParen);
       D.addDeclChunk(DeclaratorChunk::createFunction(IsVariadic));
+      // Nested function types (e.g. pointer-to-function params / return types)
+      // must not leave their parameters in the enclosing parameter list.
+      if (getCurrScope()->getParent() &&
+          getCurrScope()->getParent()->isFunctionScope()) {
+        exitScope();
+        S.leaveParamList();
+      }
       continue;
     }
 
@@ -1274,6 +1281,7 @@ bool Parser::isTypeName(const Token *Tok) {
 // postfix-expr: '(' type-name ')' '{' initializer-list '}'
 //             | primary-expr
 //             | postfix-expr '[' expr ']'
+//             | postfix-expr '(' args? ')'
 //             | postfix-expr '.' identifier
 //             | postfix-expr '->' identifier
 //             | postfix-expr '++'
@@ -1296,6 +1304,11 @@ Expr *Parser::parsePostfixExpr() {
       auto EndLoc = SM.createBeginLocation(CurTok);
       skip(Token::TK_RSquare);
       LHS = S.actOnArraySubscriptExpr(EndLoc, LHS, RHS);
+      continue;
+    }
+
+    if (tryConsume(Token::TK_LParen)) {
+      LHS = parseCallArgs(LHS);
       continue;
     }
 
@@ -1417,14 +1430,6 @@ Expr *Parser::parsePrimaryExpr() {
     auto IdentBegLoc = SM.createBeginLocation(CurTok);
     auto IdentEndLoc = SM.createEndLocation(CurTok);
     skip();
-    if (tryConsume(Token::TK_LParen)) {
-      return parseCallExpr(Ident, IdentBegLoc, IdentEndLoc);
-
-      SourceLocation EndLoc = SM.createBeginLocation(CurTok);
-      skip(Token::TK_RParen);
-      return S.actOnCallExpr(IdentBegLoc, IdentEndLoc, EndLoc, Ident, {});
-    }
-
     return S.actOnDeclRefExpr(IdentBegLoc, IdentEndLoc, Ident);
   }
 
@@ -1433,11 +1438,8 @@ Expr *Parser::parsePrimaryExpr() {
   return nullptr;
 }
 
-// call-expr: ident '(' args? ')'
-// args: assign-expr { ',' assign-expr }*
-Expr *Parser::parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
-                            SourceLocation IdentEndLoc) {
-  // Parsed ident '(' already.
+// call-args: assign-expr { ',' assign-expr }* ')'
+Expr *Parser::parseCallArgs(Expr *Callee) {
   std::vector<Expr *> Args;
   while (CurTok->isNot(Token::TK_RParen)) {
     if (!Args.empty())
@@ -1448,8 +1450,7 @@ Expr *Parser::parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
 
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_RParen);
-  return S.actOnCallExpr(IdentBegLoc, IdentEndLoc, EndLoc, Ident,
-                         std::move(Args));
+  return S.actOnCallExpr(EndLoc, Callee, std::move(Args));
 }
 
 // paren-expr: '(' expr ')'

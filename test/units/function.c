@@ -148,6 +148,12 @@ double add_double3(double x, double y, double z) {
   return x + y + z;
 }
 
+// [151] Add function pointer
+int (*fnptr(int (*fn)(int n, ...)))(int, ...) {
+  return fn;
+}
+
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -254,6 +260,12 @@ int main() {
 
   // [147] Support variadic function with floating-point parameters
   ASSERT(0, ({ char buf[100]; fmt(buf, "%.1f", (float)3.5); strcmp(buf, "3.5"); }));
+
+  // [151] Add function pointer
+  ASSERT(5, (add2)(2, 3));
+  ASSERT(5, (&add2)(2,3));
+  ASSERT(7, ({ int (*fn)(int,int) = add2; fn(2,5); }));
+  ASSERT(6, fnptr(add_all)(3, 1, 2, 3));
 
   printf("OK\n");
   return 0;

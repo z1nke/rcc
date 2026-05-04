@@ -110,8 +110,7 @@ public:
                        Expr *SubExpr);
   Expr *actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                          std::string_view Ident);
-  Expr *actOnCallExpr(SourceLocation IdentBegLoc, SourceLocation IdentEndLoc,
-                      SourceLocation EndLoc, std::string_view Name,
+  Expr *actOnCallExpr(SourceLocation EndLoc, Expr *Callee,
                       std::vector<Expr *> Args);
   Expr *actOnArraySubscriptExpr(SourceLocation EndLoc, Expr *LHS, Expr *RHS);
   Expr *actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,

@@ -904,20 +904,24 @@ ArraySubscriptExpr *ArraySubscriptExpr::create(ASTContext &Ctx,
 }
 
 CallExpr::CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
-                   DeclRefExpr *Callee, std::vector<Expr *> Args)
-    : Expr(SK_CallExpr, BegLoc, EndLoc, T), Callee(Callee), Args(Args) {}
+                   Expr *Callee, const FunctionType *FuncType,
+                   std::vector<Expr *> Args)
+    : Expr(SK_CallExpr, BegLoc, EndLoc, T), Callee(Callee), FuncType(FuncType),
+      Args(Args) {}
 
 CallExpr *CallExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
-                           SourceLocation EndLoc, QualType T,
-                           DeclRefExpr *Callee, std::vector<Expr *> Args) {
+                           SourceLocation EndLoc, QualType T, Expr *Callee,
+                           const FunctionType *FuncType,
+                           std::vector<Expr *> Args) {
   void *Mem = Ctx.allocate(sizeof(CallExpr), alignof(CallExpr));
-  return new (Mem) CallExpr(BegLoc, EndLoc, T, Callee, Args);
+  return new (Mem) CallExpr(BegLoc, EndLoc, T, Callee, FuncType, std::move(Args));
 }
 
 FunctionDecl *CallExpr::getCalleeDecl() const {
-  if (!Callee)
-    return nullptr;
-  return dynCast<FunctionDecl>(Callee->getDecl());
+  const Expr *E = Callee->ignoreParenCasts();
+  if (const auto *Ref = dynCast<DeclRefExpr>(E))
+    return dynCast<FunctionDecl>(Ref->getDecl());
+  return nullptr;
 }
 
 UnaryExprOrTypeTraitExpr *

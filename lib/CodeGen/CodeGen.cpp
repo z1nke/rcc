@@ -146,10 +146,15 @@ static std::optional<GlobalInitValue> evalGlobalAddress(const Expr *E) {
   switch (E->getKind()) {
   case Stmt::SK_DeclRefExpr: {
     const auto *Ref = cast<DeclRefExpr>(E);
-    const auto *Var = dynCast<VarDecl>(Ref->getDecl());
-    if (!Var || !Var->hasGlobalStorage())
-      return std::nullopt;
-    return GlobalInitValue{Var->getName(), 0};
+    const auto *VD = Ref->getDecl();
+    if (const auto *Var = dynCast<VarDecl>(VD)) {
+      if (!Var->hasGlobalStorage())
+        return std::nullopt;
+      return GlobalInitValue{Var->getName(), 0};
+    }
+    if (const auto *Func = dynCast<FunctionDecl>(VD))
+      return GlobalInitValue{Func->getName(), 0};
+    return std::nullopt;
   }
   case Stmt::SK_CompoundLiteralExpr: {
     const auto *Var = cast<CompoundLiteralExpr>(E)->getVarDecl();
@@ -1849,13 +1854,12 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
 }
 
 void CodeGen::genCallExpr(const CallExpr *CE) {
-  const auto *Func = CE->getCalleeDecl();
-  if (!Func)
-    Diag.fatalAt(CE->getCallee()->getBeginLoc(), "undeclared function");
-
-  const auto *FT = Func->getType()->getAs<FunctionType>();
+  const auto *FT = CE->getCalleeFunctionType();
   assert(FT);
-  const unsigned NumParams = Func->getNumParams();
+  const auto *Func = CE->getCalleeDecl();
+  // Prefer FunctionDecl param count when available.
+  const unsigned NumParams =
+      Func ? Func->getNumParams() : FT->getNumParams();
   const bool IsVariadic = FT->isVariadic();
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
@@ -1883,7 +1887,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   }
 
   if (NumArgs != 0) {
-    emit("  # set args on calling {}", Func->getName());
+    emit("  # set call args");
     for (const Expr *Arg : CE->getArgs()) {
       genExpr(Arg);
       if (Arg->getType().isFloatingType())
@@ -1891,25 +1895,41 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
       else
         push();
     }
-
-    for (int I = NumArgs - 1; I >= 0; --I) {
-      if (ArgDest[I].first)
-        popF(ArgDest[I].second);
-      else
-        pop(ArgDest[I].second);
-    }
   }
 
-  const std::string &Name = Func->getName();
+  // Indirect call: evaluate callee before restoring argument registers.
+  if (!Func) {
+    genExpr(CE->getCallee());
+    emit("  mv t5, a0");
+  }
+
+  for (int I = NumArgs - 1; I >= 0; --I) {
+    if (ArgDest[I].first)
+      popF(ArgDest[I].second);
+    else
+      pop(ArgDest[I].second);
+  }
+
   // RISC-V ABI requires sp to be 16-byte aligned at call sites. Each push
   // adjusts sp by 8, so an odd depth means sp is only 8-byte aligned.
-  if (Depth % 2 == 0) {
-    emit("  # call {}", Name);
-    emit("  call {}", Name);
+  if (Func) {
+    const std::string &Name = Func->getName();
+    if (Depth % 2 == 0) {
+      emit("  # call {}", Name);
+      emit("  call {}", Name);
+    } else {
+      emit("  # align sp to 16-byte boundary and call {}", Name);
+      emit("  addi sp, sp, -8");
+      emit("  call {}", Name);
+      emit("  addi sp, sp, 8");
+    }
+  } else if (Depth % 2 == 0) {
+    emit("  # indirect call");
+    emit("  jalr t5");
   } else {
-    emit("  # align sp to 16-byte boundary and call {}", Name);
+    emit("  # align sp to 16-byte boundary and indirect call");
     emit("  addi sp, sp, -8");
-    emit("  call {}", Name);
+    emit("  jalr t5");
     emit("  addi sp, sp, 8");
   }
 
@@ -2077,6 +2097,12 @@ void CodeGen::genAddr(const ArraySubscriptExpr *ASE) {
 }
 
 void CodeGen::genAddr(const Decl *D) {
+  if (const auto *FD = dynCast<FunctionDecl>(D)) {
+    emit("  # genAddr func {}", FD->getName());
+    emit("  la a0, {}", FD->getName());
+    return;
+  }
+
   const auto *Var = dynCast<VarDecl>(D);
   if (!Var)
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
@@ -2153,7 +2179,7 @@ void CodeGen::emitIsNotZero(const Type *Ty) {
 
 // load *a0 to a0 (or fa0 for floating types).
 void CodeGen::load(const Type *Ty) {
-  if (Ty->isArraryType() || Ty->isRecordType())
+  if (Ty->isArraryType() || Ty->isRecordType() || Ty->isFunctionType())
     return;
 
   if (Ty->isFloatingType()) {

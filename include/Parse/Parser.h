@@ -93,8 +93,7 @@ private:
   Expr *parseUnaryExpr();
   Expr *parsePrimaryExpr();
   Expr *parseParenOrStmtExpr();
-  Expr *parseCallExpr(std::string_view Ident, SourceLocation IdentBegLoc,
-                      SourceLocation IdentEndLoc);
+  Expr *parseCallArgs(Expr *Callee);
   Expr *parsePostfixExpr();
 
 public:

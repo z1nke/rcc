@@ -677,23 +677,27 @@ private:
 class CallExpr final : public Expr {
 public:
   static CallExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
-                          SourceLocation EndLoc, QualType T,
-                          DeclRefExpr *Callee, std::vector<Expr *> Args);
+                          SourceLocation EndLoc, QualType T, Expr *Callee,
+                          const FunctionType *FuncType,
+                          std::vector<Expr *> Args);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_CallExpr; }
 
-  DeclRefExpr *getCallee() const { return Callee; }
+  Expr *getCallee() const { return Callee; }
   FunctionDecl *getCalleeDecl() const;
+  const FunctionType *getCalleeFunctionType() const { return FuncType; }
   unsigned getNumArgs() const { return Args.size(); }
   Expr *getArg(unsigned Idx) const { return Args[Idx]; }
   const std::vector<Expr *> &getArgs() const { return Args; }
 
 private:
   CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
-           DeclRefExpr *Callee, std::vector<Expr *> Args);
+           Expr *Callee, const FunctionType *FuncType,
+           std::vector<Expr *> Args);
 
 private:
-  DeclRefExpr *Callee;
+  Expr *Callee;
+  const FunctionType *FuncType;
   std::vector<Expr *> Args;
 };
 
