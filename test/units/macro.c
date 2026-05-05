@@ -1,6 +1,6 @@
 // RUN: %check_rcc_pp_run %s %t
 
-#include "Inputs/include1.h"
+#include "Inputs/include1.h" extra tokens
 
 void assert(int expected, int actual, char *code, int line);
 

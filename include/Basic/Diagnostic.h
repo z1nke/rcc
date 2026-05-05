@@ -30,6 +30,13 @@ public:
   }
 
   template <typename... ARGS>
+  void warnAt(const char *Loc, std::format_string<ARGS...> Fmt,
+              ARGS &&...Args) const {
+    SourceLocation SL = SM.createBeginLocation(Loc);
+    vwarn(SL, Fmt, std::forward<ARGS>(Args)...);
+  }
+
+  template <typename... ARGS>
   [[noreturn]] void fatal(std::format_string<ARGS...> Fmt,
                           ARGS &&...Args) const {
     vfatal(SourceLocation(), Fmt, std::forward<ARGS>(Args)...);
@@ -47,6 +54,14 @@ private:
     std::println(stderr, "{}", Msg);
 
     std::exit(1);
+  }
+
+  template <typename... ARGS>
+  void vwarn(SourceLocation Loc, std::format_string<ARGS...> Fmt,
+             ARGS &&...Args) const {
+    printLoc(Loc);
+    auto Msg = std::format(Fmt, std::forward<ARGS>(Args)...);
+    std::println(stderr, "warning: {}", Msg);
   }
 
   void printLoc(SourceLocation Loc) const;

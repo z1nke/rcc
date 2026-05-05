@@ -8,6 +8,17 @@
 
 namespace rcc {
 
+static Token *skipLine(Token *Toks, Diagnostic &Diag) {
+  if (Toks->is(Token::TK_EOF) || Toks->isAtStartOfLine())
+    return Toks;
+
+  Diag.warnAt(Toks->getLoc(), "extra token at end of #include directive");
+  do {
+    Toks = Toks->getNext();
+  } while (Toks->isNot(Token::TK_EOF) && !Toks->isAtStartOfLine());
+  return Toks;
+}
+
 static Token *append(Token *Included, Token *Rest) {
   if (Included->is(Token::TK_EOF))
     return Rest;
@@ -41,7 +52,8 @@ Token *Preprocessor::preprocess(Token *Toks) {
             IncludingFile.parent_path() / FilenameTok->getStringLiteral(Diag);
 
         Token *Included = Lex.tokenizeFile(IncludePath.c_str());
-        Toks = append(Included, FilenameTok->getNext());
+        Token *Rest = skipLine(FilenameTok->getNext(), Diag);
+        Toks = append(Included, Rest);
         continue;
       }
 
