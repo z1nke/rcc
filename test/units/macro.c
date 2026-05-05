@@ -13,6 +13,10 @@ int main() {
 #if 0
 #include "/no/such/file"
   assert(0, 1, "1", 15);
+
+  // [164] Skip nested #if in a skipped #if-clause
+#if nested
+#endif
 #endif
 
   int m = 0;
@@ -25,6 +29,6 @@ int main() {
 #if UNDEFINED_IDENTIFIER
   m = 0;
 #endif
-  assert(7, m, "m", 28);
+  assert(7, m, "m", 32);
   return 0;
 }
