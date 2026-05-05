@@ -42,7 +42,9 @@ static Token *append(Token *Included, Token *Rest) {
 Token *Preprocessor::preprocess(Token *Toks) {
   struct ConditionalFrame {
     Token *Start;
+    bool ParentActive;
     bool Active;
+    bool HasElse;
   };
 
   Token Head;
@@ -67,9 +69,20 @@ Token *Preprocessor::preprocess(Token *Toks) {
         else
           Rest = skipToNextLine(Toks->getNext());
 
-        ConditionalStack.push_back(
-            ConditionalFrame{Start, ParentActive && Condition});
+        ConditionalStack.push_back(ConditionalFrame{
+            Start, ParentActive, ParentActive && Condition, false});
         Toks = Rest;
+        continue;
+      }
+
+      if (hasSpelling(Toks, "else")) {
+        if (ConditionalStack.empty() || ConditionalStack.back().HasElse)
+          Diag.fatalAt(Start->getLoc(), "stray #else");
+
+        ConditionalFrame &Frame = ConditionalStack.back();
+        Frame.HasElse = true;
+        Frame.Active = Frame.ParentActive && !Frame.Active;
+        Toks = skipLine(Toks->getNext(), Diag);
         continue;
       }
 

@@ -30,5 +30,25 @@ int main() {
   m = 0;
 #endif
   assert(7, m, "m", 32);
+
+  // [165] Add #else
+  int n = 0;
+#if 1
+  n = 2;
+#else
+  n = 3;
+#endif
+  assert(2, n, "n", 41);
+
+#if 0
+  n = 4;
+#else
+#if 1
+  n = 5;
+#else
+  n = 6;
+#endif
+#endif
+  assert(5, n, "n", 52);
   return 0;
 }
