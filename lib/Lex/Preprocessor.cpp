@@ -121,6 +121,13 @@ Token *Preprocessor::preprocess(Token *Toks) {
         continue;
       }
 
+      if (hasSpelling(Toks, "define")) {
+        Token *Rest;
+        handleDefineDirective(Rest, Toks->getNext());
+        Toks = Rest;
+        continue;
+      }
+
       if (hasSpelling(Toks, "include")) {
         Token *FilenameTok = Toks->getNext();
         if (FilenameTok->isNot(Token::TK_StrLiteral))
@@ -145,6 +152,10 @@ Token *Preprocessor::preprocess(Token *Toks) {
       Toks = Toks->getNext();
       continue;
     }
+
+    Token *Tok = Toks;
+    if (expandMacro(Toks, Tok))
+      continue;
 
     Curr->setNext(Toks);
     Curr = Toks;

@@ -1,6 +1,8 @@
 add_library(Lexer
   Lexer.cpp
+  PPDirectives.cpp
   PPExpressions.cpp
+  PPMacroExpansion.cpp
   Preprocessor.cpp
   Token.cpp
 )

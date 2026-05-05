@@ -71,5 +71,24 @@ int main() {
   n = 6;
 #endif
   assert(4, n, "n", 73);
+
+  // [167] Add object-like #define
+  int M1 = 5;
+#define M1 3
+  assert(3, M1, "M1", 0);
+#define M1 4
+  assert(4, M1, "M1", 0);
+
+#define M1 3 + 4 +
+  assert(12, M1 5, "M1 5", 0);
+
+#define M1 3 + 4
+  assert(23, M1 * 5, "M1 * 5", 0);
+
+#define ASSERT_ assert(
+#define if 5
+#define five "5"
+#define END )
+  ASSERT_ 5, if, five, 0 END;
   return 0;
 }
