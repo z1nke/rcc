@@ -21,6 +21,7 @@ public:
   bool isCC1() const { return CC1; }
   bool shouldCompileOnly() const { return CompileOnly; }
   bool shouldEmitAssembly() const { return EmitAssembly; }
+  bool shouldPreprocessOnly() const { return PreprocessOnly; }
   bool shouldPrintCommands() const { return PrintCommands; }
 
 private:
@@ -32,6 +33,7 @@ private:
   bool CC1 = false;
   bool CompileOnly = false;
   bool EmitAssembly = false;
+  bool PreprocessOnly = false;
   bool PrintCommands = false;
 };
 

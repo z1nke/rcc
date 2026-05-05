@@ -242,10 +242,12 @@ int main(int Argc, char **Argv) {
   const std::string &RequestedOutput = Invocation->getOutputPath();
   bool CompileOnly = Invocation->shouldCompileOnly();
   bool EmitAssembly = Invocation->shouldEmitAssembly();
+  bool PreprocessOnly = Invocation->shouldPreprocessOnly();
   if (Inputs.size() > 1 && !RequestedOutput.empty() &&
-      (CompileOnly || EmitAssembly)) {
+      (CompileOnly || EmitAssembly || PreprocessOnly)) {
     std::println(stderr,
-                 "cannot specify '-o' with '-c' or '-S' with multiple files");
+                 "cannot specify '-o' with '-c', '-S' or '-E' with multiple "
+                 "files");
     return 1;
   }
 
@@ -289,6 +291,14 @@ int main(int Argc, char **Argv) {
       return 1;
     }
 
+    if (PreprocessOnly) {
+      std::string Output = RequestedOutput.empty() ? "-" : RequestedOutput;
+      int Status = runCC1(Argc, Argv, Input, Output, PrintCommand);
+      if (Status != 0)
+        return Status;
+      continue;
+    }
+
     if (EmitAssembly || Invocation->hasAstDump()) {
       std::string Output = RequestedOutput.empty()
                                ? replaceExtension(Input, ".s")
@@ -325,7 +335,7 @@ int main(int Argc, char **Argv) {
       return Status;
   }
 
-  if (CompileOnly || EmitAssembly || Invocation->hasAstDump())
+  if (CompileOnly || EmitAssembly || PreprocessOnly || Invocation->hasAstDump())
     return 0;
 
   std::string LinkOutput = RequestedOutput.empty() ? "a.out" : RequestedOutput;

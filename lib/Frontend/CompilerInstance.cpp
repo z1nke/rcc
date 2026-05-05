@@ -9,6 +9,7 @@
 #include "Parse/Parser.h"
 #include "Sema/Sema.h"
 
+#include <cstdio>
 #include <cstring>
 #include <memory>
 
@@ -16,6 +17,17 @@ namespace rcc {
 
 CompilerInstance::CompilerInstance() = default;
 CompilerInstance::~CompilerInstance() = default;
+
+static void printTokens(Token *Toks, FILE *Fp) {
+  bool IsFirst = true;
+  for (; Toks->isNot(Token::TK_EOF); Toks = Toks->getNext()) {
+    if (!IsFirst && Toks->isAtStartOfLine())
+      std::fputc('\n', Fp);
+    std::fprintf(Fp, " %.*s", Toks->getLen(), Toks->getLoc());
+    IsFirst = false;
+  }
+  std::fputc('\n', Fp);
+}
 
 std::unique_ptr<CompilerInstance>
 CompilerInstance::create(std::unique_ptr<CompilerInvocation> Invocation) {
@@ -33,7 +45,7 @@ CompilerInstance::create(std::unique_ptr<CompilerInvocation> Invocation) {
 void CompilerInstance::run() {
   const char *Output = Invocation->getOutputPath().c_str();
   if (Output == nullptr || Output[0] == '\0')
-    Output = "a.out";
+    Output = Invocation->shouldPreprocessOnly() ? "-" : "a.out";
 
   FILE *Fp = stdout;
   if (std::strcmp(Output, "-") != 0) {
@@ -51,6 +63,10 @@ void CompilerInstance::run() {
   Toks = PP.preprocess(Toks);
   if (!Toks)
     Diag->fatal("preprocess failed");
+  if (Invocation->shouldPreprocessOnly()) {
+    printTokens(Toks, Fp);
+    return;
+  }
   Sema S(*ACtx, *Diag);
   Parser P(Toks, *ACtx, S, *SM);
   TranslationUnitDecl *TU = P.parse();

@@ -4,6 +4,14 @@
 // RUN: riscv64-unknown-linux-gnu-objdump -f %t.o | grep -q elf64-littleriscv
 // RUN: rcc -S -o %t.s %s
 // RUN: grep -q 'main:' %t.s
+// RUN: rcc -E %s > %t.i
+// RUN: grep -q 'int main' %t.i
+// RUN: rcc -E -o %t.output.i %s
+// RUN: grep -q 'int main' %t.output.i
+// RUN: echo foo > %t.header
+// RUN: echo '#include "%t.header"' | rcc -E - | grep -q foo
+// RUN: echo '#include "%t.header"' | rcc -E -o %t.stdin.i -
+// RUN: grep -q foo %t.stdin.i
 // RUN: rcc -cc1 -o %t.cc1 %s
 // RUN: test -f %t.cc1
 // RUN: rcc -### -o %t.trace %s > /dev/null 2> %t.log
@@ -28,7 +36,9 @@
 // RUN: test -f %t.foo.s
 // RUN: test -f %t.bar.s
 // RUN: ! rcc -c -o %t.multi.o %t.foo.c %t.bar.c 2> %t.error
-// RUN: grep -q "cannot specify '-o' with '-c' or '-S' with multiple files" %t.error
+// RUN: grep -q "cannot specify '-o' with '-c', '-S' or '-E' with multiple files" %t.error
+// RUN: ! rcc -E -o %t.multi.i %t.foo.c %t.bar.c 2> %t.error
+// RUN: grep -q "cannot specify '-o' with '-c', '-S' or '-E' with multiple files" %t.error
 // RUN: echo 'int bar(); int main() { return bar(); }' > %t.foo.c
 // RUN: echo 'int bar() { return 0; }' > %t.bar.c
 // RUN: rcc -o %t.multi %t.foo.c %t.bar.c

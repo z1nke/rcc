@@ -38,6 +38,11 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-E") {
+      Invocation->PreprocessOnly = true;
+      continue;
+    }
+
     if (Arg == "-cc1-input") {
       if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
         Invocation->ErrMsg = "missing filename after '-cc1-input'";
