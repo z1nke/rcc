@@ -1,6 +1,8 @@
 #ifndef RCC_LEX_PREPROCESSOR_H
 #define RCC_LEX_PREPROCESSOR_H
 
+#include <cstdint>
+
 namespace rcc {
 
 class Diagnostic;
@@ -14,6 +16,8 @@ public:
   Token *preprocess(Token *Toks);
 
 private:
+  std::int64_t evaluateDirectiveExpression(Token *&Rest, Token *Toks);
+
   Diagnostic &Diag;
   Lexer &Lex;
 };

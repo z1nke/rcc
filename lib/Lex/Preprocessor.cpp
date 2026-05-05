@@ -5,18 +5,27 @@
 #include "Lex/Token.h"
 
 #include <filesystem>
+#include <string_view>
+#include <vector>
 
 namespace rcc {
+
+static bool hasSpelling(const Token *Tok, std::string_view Spelling) {
+  return std::string_view(Tok->getLoc(), Tok->getLen()) == Spelling;
+}
+
+static Token *skipToNextLine(Token *Toks) {
+  while (Toks->isNot(Token::TK_EOF) && !Toks->isAtStartOfLine())
+    Toks = Toks->getNext();
+  return Toks;
+}
 
 static Token *skipLine(Token *Toks, Diagnostic &Diag) {
   if (Toks->is(Token::TK_EOF) || Toks->isAtStartOfLine())
     return Toks;
 
-  Diag.warnAt(Toks->getLoc(), "extra token at end of #include directive");
-  do {
-    Toks = Toks->getNext();
-  } while (Toks->isNot(Token::TK_EOF) && !Toks->isAtStartOfLine());
-  return Toks;
+  Diag.warnAt(Toks->getLoc(), "extra token");
+  return skipToNextLine(Toks);
 }
 
 static Token *append(Token *Included, Token *Rest) {
@@ -31,16 +40,54 @@ static Token *append(Token *Included, Token *Rest) {
 }
 
 Token *Preprocessor::preprocess(Token *Toks) {
+  struct ConditionalFrame {
+    Token *Start;
+    bool Active;
+  };
+
   Token Head;
   Token *Curr = &Head;
+  std::vector<ConditionalFrame> ConditionalStack;
 
   while (Toks->isNot(Token::TK_EOF)) {
     if (Toks->is(Token::TK_Hash) && Toks->isAtStartOfLine()) {
+      Token *Start = Toks;
       Toks = Toks->getNext();
       if (Toks->is(Token::TK_EOF) || Toks->isAtStartOfLine())
         continue;
 
-      if (Toks->is(Token::TK_Ident) && Toks->getIdentifer() == "include") {
+      bool ParentActive =
+          ConditionalStack.empty() || ConditionalStack.back().Active;
+
+      if (hasSpelling(Toks, "if")) {
+        Token *Rest;
+        bool Condition = false;
+        if (ParentActive)
+          Condition = evaluateDirectiveExpression(Rest, Toks->getNext()) != 0;
+        else
+          Rest = skipToNextLine(Toks->getNext());
+
+        ConditionalStack.push_back(
+            ConditionalFrame{Start, ParentActive && Condition});
+        Toks = Rest;
+        continue;
+      }
+
+      if (hasSpelling(Toks, "endif")) {
+        if (ConditionalStack.empty())
+          Diag.fatalAt(Start->getLoc(), "stray #endif");
+
+        ConditionalStack.pop_back();
+        Toks = skipLine(Toks->getNext(), Diag);
+        continue;
+      }
+
+      if (!ParentActive) {
+        Toks = skipToNextLine(Toks->getNext());
+        continue;
+      }
+
+      if (hasSpelling(Toks, "include")) {
         Token *FilenameTok = Toks->getNext();
         if (FilenameTok->isNot(Token::TK_StrLiteral))
           Diag.fatalAt(FilenameTok->getLoc(), "expected a filename");
@@ -60,10 +107,19 @@ Token *Preprocessor::preprocess(Token *Toks) {
       Diag.fatalAt(Toks->getLoc(), "invalid preprocessor directive");
     }
 
+    if (!ConditionalStack.empty() && !ConditionalStack.back().Active) {
+      Toks = Toks->getNext();
+      continue;
+    }
+
     Curr->setNext(Toks);
     Curr = Toks;
     Toks = Toks->getNext();
   }
+
+  if (!ConditionalStack.empty())
+    Diag.fatalAt(ConditionalStack.back().Start->getLoc(),
+                 "unterminated conditional directive");
 
   Curr->setNext(Toks);
   return Head.getNext();

@@ -1,5 +1,6 @@
 add_library(Lexer
   Lexer.cpp
+  PPExpressions.cpp
   Preprocessor.cpp
   Token.cpp
 )
