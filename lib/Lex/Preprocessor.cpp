@@ -44,6 +44,7 @@ Token *Preprocessor::preprocess(Token *Toks) {
     Token *Start;
     bool ParentActive;
     bool Active;
+    bool BranchTaken;
     bool HasElse;
   };
 
@@ -69,8 +70,27 @@ Token *Preprocessor::preprocess(Token *Toks) {
         else
           Rest = skipToNextLine(Toks->getNext());
 
-        ConditionalStack.push_back(ConditionalFrame{
-            Start, ParentActive, ParentActive && Condition, false});
+        bool Active = ParentActive && Condition;
+        ConditionalStack.push_back(
+            ConditionalFrame{Start, ParentActive, Active, Active, false});
+        Toks = Rest;
+        continue;
+      }
+
+      if (hasSpelling(Toks, "elif")) {
+        if (ConditionalStack.empty() || ConditionalStack.back().HasElse)
+          Diag.fatalAt(Start->getLoc(), "stray #elif");
+
+        ConditionalFrame &Frame = ConditionalStack.back();
+        Token *Rest;
+        bool Condition = false;
+        if (Frame.ParentActive && !Frame.BranchTaken)
+          Condition = evaluateDirectiveExpression(Rest, Toks->getNext()) != 0;
+        else
+          Rest = skipToNextLine(Toks->getNext());
+
+        Frame.Active = Frame.ParentActive && !Frame.BranchTaken && Condition;
+        Frame.BranchTaken = Frame.BranchTaken || Frame.Active;
         Toks = Rest;
         continue;
       }
@@ -81,7 +101,8 @@ Token *Preprocessor::preprocess(Token *Toks) {
 
         ConditionalFrame &Frame = ConditionalStack.back();
         Frame.HasElse = true;
-        Frame.Active = Frame.ParentActive && !Frame.Active;
+        Frame.Active = Frame.ParentActive && !Frame.BranchTaken;
+        Frame.BranchTaken = true;
         Toks = skipLine(Toks->getNext(), Diag);
         continue;
       }

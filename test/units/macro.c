@@ -50,5 +50,26 @@ int main() {
 #endif
 #endif
   assert(5, n, "n", 52);
+
+  // [166] Add #elif
+#if 0
+  n = 1;
+#elif 0
+  n = 2;
+#elif 3 + 5
+  n = 3;
+#elif 1 / 0
+  n = 4;
+#endif
+  assert(3, n, "n", 64);
+
+#if 1
+  n = 4;
+#elif 1 / 0
+  n = 5;
+#else
+  n = 6;
+#endif
+  assert(4, n, "n", 73);
   return 0;
 }
