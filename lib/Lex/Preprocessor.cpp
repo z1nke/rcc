@@ -64,6 +64,22 @@ Token *Preprocessor::preprocess(Token *Toks) {
       bool ParentActive =
           ConditionalStack.empty() || ConditionalStack.back().Active;
 
+      if (hasSpelling(Toks, "ifdef") || hasSpelling(Toks, "ifndef")) {
+        bool IsIfndef = hasSpelling(Toks, "ifndef");
+        Token *NameTok = Toks->getNext();
+        if (!isMacroIdentifier(NameTok))
+          Diag.fatalAt(NameTok->getLoc(),
+                       "macro name must be an identifier");
+
+        std::string Name(NameTok->getLoc(), NameTok->getLen());
+        bool Condition = Macros.contains(Name) != IsIfndef;
+        bool Active = ParentActive && Condition;
+        ConditionalStack.push_back(
+            ConditionalFrame{Start, ParentActive, Active, Active, false});
+        Toks = skipLine(NameTok->getNext(), Diag);
+        continue;
+      }
+
       if (hasSpelling(Toks, "if")) {
         Token *Rest;
         bool Condition = false;

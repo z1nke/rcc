@@ -128,5 +128,44 @@ int main() {
 #define M4 M5 * 5
 #define M5 M4 + 2
   assert(13, M4, "M4", 0);
+
+  // [171] Add #ifdef and #ifndef
+#ifdef M6
+  m = 5;
+#else
+  m = 3;
+#endif
+  assert(3, m, "m", 0);
+
+#define M6
+#ifdef M6
+  m = 5;
+#else
+  m = 3;
+#endif
+  assert(5, m, "m", 0);
+
+#ifndef M7
+  m = 3;
+#else
+  m = 5;
+#endif
+  assert(3, m, "m", 0);
+
+#define M7
+#ifndef M7
+  m = 3;
+#else
+  m = 5;
+#endif
+  assert(5, m, "m", 0);
+
+#if 0
+#ifdef NO_SUCH_MACRO
+#endif
+#ifndef NO_SUCH_MACRO
+#endif
+#else
+#endif
   return 0;
 }
