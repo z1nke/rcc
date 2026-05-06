@@ -53,6 +53,8 @@ Token *Preprocessor::preprocess(Token *Toks) {
   std::vector<ConditionalFrame> ConditionalStack;
 
   while (Toks->isNot(Token::TK_EOF)) {
+    finishMacroExpansions(Toks);
+
     if (Toks->is(Token::TK_Hash) && Toks->isAtStartOfLine()) {
       Token *Start = Toks;
       Toks = Toks->getNext();
@@ -168,6 +170,7 @@ Token *Preprocessor::preprocess(Token *Toks) {
     Curr = Toks;
     Toks = Toks->getNext();
   }
+  finishMacroExpansions(Toks);
 
   if (!ConditionalStack.empty())
     Diag.fatalAt(ConditionalStack.back().Start->getLoc(),

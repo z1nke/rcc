@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace rcc {
 
@@ -21,16 +22,23 @@ public:
   Token *preprocess(Token *Toks);
 
 private:
+  struct MacroExpansionFrame {
+    MacroInfo *MI;
+    Token *End;
+  };
+
   std::int64_t evaluateDirectiveExpression(Token *&Rest, Token *Toks);
   void handleDefineDirective(Token *&Rest, Token *NameTok);
   void handleUndefDirective(Token *&Rest, Token *NameTok);
   bool expandMacro(Token *&Rest, Token *Tok);
   Token *expandMacroExpression(Token *&Rest, Token *Toks);
+  void finishMacroExpansions(Token *Tok);
   static bool isMacroIdentifier(const Token *Tok);
 
   Diagnostic &Diag;
   Lexer &Lex;
   std::unordered_map<std::string, MacroInfo> Macros;
+  std::vector<MacroExpansionFrame> MacroExpansionStack;
   BumpPtrAllocator MacroTokenAlloc;
 };
 

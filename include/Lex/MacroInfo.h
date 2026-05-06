@@ -16,8 +16,13 @@ public:
 
   const std::vector<Token> &tokens() const { return ReplacementTokens; }
 
+  bool isDisabled() const { return IsDisabled; }
+  void disableMacro() { IsDisabled = true; }
+  void enableMacro() { IsDisabled = false; }
+
 private:
   std::vector<Token> ReplacementTokens;
+  bool IsDisabled = false;
 };
 
 } // namespace rcc

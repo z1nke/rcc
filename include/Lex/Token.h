@@ -38,13 +38,17 @@ public:
 
   Token(TokenKind Kind, const char *Start, const char *End, double FVal,
         NumericLiteralKind NumKind)
-      : Loc(Start), Kind(Kind), FVal(FVal), Len(End - Start), NumKind(NumKind) {}
+      : Loc(Start), Kind(Kind), FVal(FVal), Len(End - Start), NumKind(NumKind) {
+  }
 
   Token *getNext() const { return Next; }
   void setNext(Token *Next) { this->Next = Next; }
 
   bool isAtStartOfLine() const { return AtStartOfLine; }
   void setAtStartOfLine(bool Value = true) { AtStartOfLine = Value; }
+
+  bool isExpandDisabled() const { return DisableExpand; }
+  void disableExpand() { DisableExpand = true; }
 
   std::string_view getIdentifer() const;
   std::int64_t getVal() const;
@@ -82,6 +86,7 @@ private:
   int Len = 0;
   NumericLiteralKind NumKind = NumericLiteralKind::Int;
   bool AtStartOfLine = false;
+  bool DisableExpand = false;
 };
 
 } // namespace rcc
