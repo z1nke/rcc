@@ -343,9 +343,10 @@ static void evaluateDirectiveSubExpr(PPValue &LHS, unsigned MinPrec,
 
 std::int64_t Preprocessor::evaluateDirectiveExpression(Token *&Rest,
                                                        Token *Toks) {
-  EvalContext Ctx{Toks, Diag};
+  Token *ExpandedToks = expandMacroExpression(Rest, Toks);
+  EvalContext Ctx{ExpandedToks, Diag};
   if (atEnd(Ctx))
-    Diag.fatalAt(Toks->getLoc(), "no expression");
+    Diag.fatalAt(ExpandedToks->getLoc(), "no expression");
 
   PPValue Result;
   evaluateValue(Result, true, Ctx);
@@ -353,7 +354,6 @@ std::int64_t Preprocessor::evaluateDirectiveExpression(Token *&Rest,
   if (!atEnd(Ctx))
     Diag.fatalAt(Ctx.CurTok->getLoc(), "extra token");
 
-  Rest = Ctx.CurTok;
   return static_cast<std::int64_t>(Result.Val);
 }
 

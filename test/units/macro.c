@@ -99,5 +99,21 @@ int main() {
 #undef M1
   if (0);
   assert(5, M1, "M1", 0);
+
+  // [169] Expand macros in #if and #elif arguments
+#define M 5
+#if M
+  m = 5;
+#else
+  m = 6;
+#endif
+  assert(5, m, "m", 0);
+
+#if M - 5
+  m = 6;
+#elif M
+  m = 5;
+#endif
+  assert(5, m, "m", 0);
   return 0;
 }

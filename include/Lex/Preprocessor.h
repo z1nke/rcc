@@ -25,6 +25,7 @@ private:
   void handleDefineDirective(Token *&Rest, Token *NameTok);
   void handleUndefDirective(Token *&Rest, Token *NameTok);
   bool expandMacro(Token *&Rest, Token *Tok);
+  Token *expandMacroExpression(Token *&Rest, Token *Toks);
   static bool isMacroIdentifier(const Token *Tok);
 
   Diagnostic &Diag;

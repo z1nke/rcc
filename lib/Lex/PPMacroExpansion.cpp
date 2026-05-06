@@ -31,4 +31,38 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
   return true;
 }
 
+Token *Preprocessor::expandMacroExpression(Token *&Rest, Token *Toks) {
+  Token LineHead;
+  Token *LineCurr = &LineHead;
+  while (Toks->isNot(Token::TK_EOF) && !Toks->isAtStartOfLine()) {
+    void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+    Token *Copy = new (Mem) Token(*Toks);
+    Copy->setNext(nullptr);
+    LineCurr->setNext(Copy);
+    LineCurr = Copy;
+    Toks = Toks->getNext();
+  }
+  Rest = Toks;
+
+  void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+  Token *EOFToken =
+      new (Mem) Token(Token::TK_EOF, Toks->getLoc(), Toks->getLoc());
+  LineCurr->setNext(EOFToken);
+
+  Token ResultHead;
+  Token *ResultCurr = &ResultHead;
+  Toks = LineHead.getNext();
+  while (Toks->isNot(Token::TK_EOF)) {
+    Token *Tok = Toks;
+    if (expandMacro(Toks, Tok))
+      continue;
+
+    ResultCurr->setNext(Toks);
+    ResultCurr = Toks;
+    Toks = Toks->getNext();
+  }
+  ResultCurr->setNext(Toks);
+  return ResultHead.getNext();
+}
+
 } // namespace rcc
