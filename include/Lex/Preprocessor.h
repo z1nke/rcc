@@ -23,6 +23,7 @@ public:
 private:
   std::int64_t evaluateDirectiveExpression(Token *&Rest, Token *Toks);
   void handleDefineDirective(Token *&Rest, Token *NameTok);
+  void handleUndefDirective(Token *&Rest, Token *NameTok);
   bool expandMacro(Token *&Rest, Token *Tok);
   static bool isMacroIdentifier(const Token *Tok);
 

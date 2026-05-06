@@ -128,6 +128,13 @@ Token *Preprocessor::preprocess(Token *Toks) {
         continue;
       }
 
+      if (hasSpelling(Toks, "undef")) {
+        Token *Rest;
+        handleUndefDirective(Rest, Toks->getNext());
+        Toks = Rest;
+        continue;
+      }
+
       if (hasSpelling(Toks, "include")) {
         Token *FilenameTok = Toks->getNext();
         if (FilenameTok->isNot(Token::TK_StrLiteral))

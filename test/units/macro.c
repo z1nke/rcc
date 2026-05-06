@@ -90,5 +90,14 @@ int main() {
 #define five "5"
 #define END )
   ASSERT_ 5, if, five, 0 END;
+
+  // [168] Add #undef
+#undef ASSERT_
+#undef if
+#undef five
+#undef END
+#undef M1
+  if (0);
+  assert(5, M1, "M1", 0);
   return 0;
 }

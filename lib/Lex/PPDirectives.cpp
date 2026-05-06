@@ -41,4 +41,21 @@ void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {
   Rest = Tok;
 }
 
+void Preprocessor::handleUndefDirective(Token *&Rest, Token *NameTok) {
+  if (!isMacroIdentifier(NameTok))
+    Diag.fatalAt(NameTok->getLoc(), "macro name must be an identifier");
+
+  std::string Name(NameTok->getLoc(), NameTok->getLen());
+  Macros.erase(Name);
+
+  Token *Tok = NameTok->getNext();
+  if (Tok->isNot(Token::TK_EOF) && !Tok->isAtStartOfLine()) {
+    Diag.warnAt(Tok->getLoc(), "extra token");
+    do {
+      Tok = Tok->getNext();
+    } while (Tok->isNot(Token::TK_EOF) && !Tok->isAtStartOfLine());
+  }
+  Rest = Tok;
+}
+
 } // namespace rcc
