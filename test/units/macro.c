@@ -4,6 +4,8 @@
 
 void assert(int expected, int actual, char *code, int line);
 
+int ret3(void) { return 3; }
+
 int main() {
   // [160] Add #include "..."
   assert(5, include1, "include1", 9);
@@ -167,5 +169,14 @@ int main() {
 #endif
 #else
 #endif
+
+  // [172] Add zero-arity function-like #define
+#define M7() 1
+  int M7 = 5;
+  assert(1, M7(), "M7()", 0);
+  assert(5, M7, "M7", 0);
+
+#define M7 ()
+  assert(3, ret3 M7, "ret3 M7", 0);
   return 0;
 }

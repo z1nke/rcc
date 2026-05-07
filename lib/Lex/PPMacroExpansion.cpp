@@ -1,3 +1,4 @@
+#include "Basic/Diagnostic.h"
 #include "Lex/MacroInfo.h"
 #include "Lex/Preprocessor.h"
 #include "Lex/Token.h"
@@ -19,13 +20,23 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
     return false;
 
   MacroInfo &MI = Iter->second;
+  Token *ExpansionEnd = Tok->getNext();
+  if (MI.isFunctionLike()) {
+    if (ExpansionEnd->isNot(Token::TK_LParen))
+      return false;
+
+    Token *RParen = ExpansionEnd->getNext();
+    if (RParen->isNot(Token::TK_RParen))
+      Diag.fatalAt(RParen->getLoc(), "expected ')'");
+    ExpansionEnd = RParen->getNext();
+  }
+
   if (MI.isDisabled()) {
     Tok->disableExpand();
     return false;
   }
 
   MI.disableMacro();
-  Token *ExpansionEnd = Tok->getNext();
   Token Head;
   Token *Curr = &Head;
   for (const Token &Replacement : MI.tokens()) {

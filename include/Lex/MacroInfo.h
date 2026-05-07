@@ -16,12 +16,16 @@ public:
 
   const std::vector<Token> &tokens() const { return ReplacementTokens; }
 
+  bool isFunctionLike() const { return IsFunctionLike; }
+  void setIsFunctionLike() { IsFunctionLike = true; }
+
   bool isDisabled() const { return IsDisabled; }
   void disableMacro() { IsDisabled = true; }
   void enableMacro() { IsDisabled = false; }
 
 private:
   std::vector<Token> ReplacementTokens;
+  bool IsFunctionLike = false;
   bool IsDisabled = false;
 };
 

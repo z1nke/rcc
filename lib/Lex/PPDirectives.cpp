@@ -31,6 +31,15 @@ void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {
 
   MacroInfo MI;
   Token *Tok = NameTok->getNext();
+  if (Tok->is(Token::TK_LParen) &&
+      NameTok->getLoc() + NameTok->getLen() == Tok->getLoc()) {
+    MI.setIsFunctionLike();
+    Tok = Tok->getNext();
+    if (Tok->isNot(Token::TK_RParen))
+      Diag.fatalAt(Tok->getLoc(), "expected ')'");
+    Tok = Tok->getNext();
+  }
+
   while (Tok->isNot(Token::TK_EOF) && !Tok->isAtStartOfLine()) {
     MI.addTokenToBody(*Tok);
     Tok = Tok->getNext();
