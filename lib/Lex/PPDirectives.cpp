@@ -35,8 +35,18 @@ void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {
       NameTok->getLoc() + NameTok->getLen() == Tok->getLoc()) {
     MI.setIsFunctionLike();
     Tok = Tok->getNext();
-    if (Tok->isNot(Token::TK_RParen))
-      Diag.fatalAt(Tok->getLoc(), "expected ')'");
+    while (Tok->isNot(Token::TK_RParen)) {
+      if (!isMacroIdentifier(Tok))
+        Diag.fatalAt(Tok->getLoc(), "expected an identifier");
+
+      MI.addParameter(std::string(Tok->getLoc(), Tok->getLen()));
+      Tok = Tok->getNext();
+      if (Tok->is(Token::TK_RParen))
+        break;
+      if (Tok->isNot(Token::TK_Comma))
+        Diag.fatalAt(Tok->getLoc(), "expected ','");
+      Tok = Tok->getNext();
+    }
     Tok = Tok->getNext();
   }
 

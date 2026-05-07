@@ -3,6 +3,8 @@
 
 #include "Lex/Token.h"
 
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace rcc {
@@ -19,12 +21,18 @@ public:
   bool isFunctionLike() const { return IsFunctionLike; }
   void setIsFunctionLike() { IsFunctionLike = true; }
 
+  void addParameter(std::string Name) {
+    Parameters.push_back(std::move(Name));
+  }
+  const std::vector<std::string> &parameters() const { return Parameters; }
+
   bool isDisabled() const { return IsDisabled; }
   void disableMacro() { IsDisabled = true; }
   void enableMacro() { IsDisabled = false; }
 
 private:
   std::vector<Token> ReplacementTokens;
+  std::vector<std::string> Parameters;
   bool IsFunctionLike = false;
   bool IsDisabled = false;
 };
