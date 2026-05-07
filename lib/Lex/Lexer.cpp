@@ -216,7 +216,10 @@ Token *Lexer::tokenize(const char *P) {
         lexPunctuator(Curr, Token::TK_Dot, P);
       break;
     case '#':
-      lexPunctuator(Curr, Token::TK_Hash, P);
+      if (*(P + 1) == '#')
+        lexPunctuator(Curr, Token::TK_HashHash, P, 2);
+      else
+        lexPunctuator(Curr, Token::TK_Hash, P);
       break;
     default:
       lexPunctuator(Curr, Token::TK_Unknown, P);

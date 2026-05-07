@@ -1,4 +1,5 @@
 #include "Basic/Diagnostic.h"
+#include "Lex/Lexer.h"
 #include "Lex/MacroInfo.h"
 #include "Lex/Preprocessor.h"
 #include "Lex/Token.h"
@@ -19,6 +20,47 @@ static std::size_t getParameterIndex(const MacroInfo &MI, const Token &Tok) {
     if (Parameters[I] == Spelling)
       return I;
   return Parameters.size();
+}
+
+static void
+copyOperandTokens(BumpPtrAllocator &Alloc, const MacroInfo &MI,
+                  const std::vector<std::vector<const Token *>> &Arguments,
+                  const Token &Operand, std::vector<Token *> &Result) {
+  std::size_t Index = getParameterIndex(MI, Operand);
+  if (Index == MI.parameters().size()) {
+    void *Mem = Alloc.allocate(sizeof(Token), alignof(Token));
+    Result.push_back(new (Mem) Token(Operand));
+    Result.back()->setNext(nullptr);
+    return;
+  }
+
+  for (const Token *Tok : Arguments[Index]) {
+    void *Mem = Alloc.allocate(sizeof(Token), alignof(Token));
+    Result.push_back(new (Mem) Token(*Tok));
+    Result.back()->setNext(nullptr);
+  }
+}
+
+static void pasteTokens(BumpPtrAllocator &Alloc, Lexer &Lex, Diagnostic &Diag,
+                        Token &LHS, const Token &RHS, const Token &PasteOp) {
+  std::string Spelling(LHS.getLoc(), LHS.getLen());
+  Spelling.append(RHS.getLoc(), RHS.getLen());
+  bool HasLeadingSpace = LHS.hasLeadingSpace();
+
+  char *Buffer = static_cast<char *>(
+      Alloc.allocate(Spelling.size() + 1, alignof(char)));
+  std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+  Token *Lexed = Lex.tokenize(Buffer);
+  if (Lexed->getNext()->isNot(Token::TK_EOF))
+    Diag.fatalAt(PasteOp.getLoc(),
+                 "pasting forms '{}', an invalid preprocessing token",
+                 Spelling);
+
+  LHS = *Lexed;
+  LHS.setNext(nullptr);
+  LHS.setSourceRange(PasteOp);
+  LHS.setHasLeadingSpace(HasLeadingSpace);
 }
 
 bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
@@ -131,23 +173,39 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
       continue;
     }
 
-    std::size_t Index = getParameterIndex(MI, Replacement);
-    if (Index != Parameters.size()) {
-      for (const Token *ArgTok : Arguments[Index]) {
-        void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
-        Token *Expanded = new (Mem) Token(*ArgTok);
-        Expanded->setNext(nullptr);
-        Curr->setNext(Expanded);
-        Curr = Expanded;
+    if (Replacement.is(Token::TK_HashHash))
+      Diag.fatalAt(Replacement.getLoc(),
+                   "'##' cannot appear at start of macro expansion");
+
+    std::vector<Token *> Operand;
+    copyOperandTokens(MacroTokenAlloc, MI, Arguments, Replacement, Operand);
+
+    while (I + 1 < ReplacementTokens.size() &&
+           ReplacementTokens[I + 1].is(Token::TK_HashHash)) {
+      const Token &PasteOp = ReplacementTokens[I + 1];
+      if (I + 2 == ReplacementTokens.size())
+        Diag.fatalAt(PasteOp.getLoc(),
+                     "'##' cannot appear at end of macro expansion");
+
+      std::vector<Token *> RHS;
+      copyOperandTokens(MacroTokenAlloc, MI, Arguments,
+                        ReplacementTokens[I + 2], RHS);
+      if (Operand.empty()) {
+        Operand = std::move(RHS);
+      } else if (!RHS.empty()) {
+        pasteTokens(MacroTokenAlloc, Lex, Diag, *Operand.back(), *RHS[0],
+                    PasteOp);
+        for (std::size_t J = 1; J < RHS.size(); ++J)
+          Operand.push_back(RHS[J]);
       }
-      continue;
+
+      I += 2;
     }
 
-    void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
-    Token *Expanded = new (Mem) Token(Replacement);
-    Expanded->setNext(nullptr);
-    Curr->setNext(Expanded);
-    Curr = Expanded;
+    for (Token *Expanded : Operand) {
+      Curr->setNext(Expanded);
+      Curr = Expanded;
+    }
   }
 
   Curr->setNext(ExpansionEnd);

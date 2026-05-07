@@ -218,5 +218,28 @@ int main() {
   assert('c', M11( a!b  `""c)[7], "M11( a!b  `\"\"c)[7]", 0);
   assert(0, M11( a!b  `""c)[8], "M11( a!b  `\"\"c)[8]", 0);
 
+  // [178] Add macro token-pasting operator (##)
+#define paste(x, y) x##y
+  assert(15, paste(1, 5), "paste(1,5)", 0);
+  assert(255, paste(0, xff), "paste(0,xff)", 0);
+  assert(3, ({ int foobar = 3; paste(foo, bar); }),
+         "({ int foobar=3; paste(foo,bar); })", 0);
+  assert(5, paste(5, ), "paste(5,)", 0);
+  assert(5, paste(, 5), "paste(,5)", 0);
+
+#define i 5
+  assert(101, ({ int i3 = 100; paste(1 + i, 3); }),
+         "({ int i3=100; paste(1+i,3); })", 0);
+#undef i
+
+#define paste2(x) x##5
+  assert(26, paste2(1 + 2), "paste2(1+2)", 0);
+
+#define paste3(x) 2##x
+  assert(23, paste3(1 + 2), "paste3(1+2)", 0);
+
+#define paste4(x, y, z) x##y##z
+  assert(123, paste4(1, 2, 3), "paste4(1,2,3)", 0);
+
   return 0;
 }
