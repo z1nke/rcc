@@ -5,6 +5,7 @@
 void assert(int expected, int actual, char *code, int line);
 
 int ret3(void) { return 3; }
+int dbl(int x) { return x * x; }
 
 int main() {
   // [160] Add #include "..."
@@ -199,6 +200,11 @@ int main() {
 
 #define M8(x, y) x *y
   assert(12, M8((2, 3), 4), "M8((2,3), 4)", 0);
+
+  // [176] Do not expand a token more than once for the same function-like macro
+#define dbl(x) M10(x) * x
+#define M10(x) dbl(x) + 3
+  assert(10, dbl(2), "dbl(2)", 0);
 
   return 0;
 }
