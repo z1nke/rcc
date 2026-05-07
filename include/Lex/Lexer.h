@@ -44,6 +44,7 @@ private:
   std::unordered_map<std::string_view, Token::TokenKind> Keywords;
   const char *CurrStart = nullptr;
   bool AtStartOfLine = true;
+  bool HasLeadingSpace = false;
 };
 
 } // namespace rcc

@@ -206,5 +206,17 @@ int main() {
 #define M10(x) dbl(x) + 3
   assert(10, dbl(2), "dbl(2)", 0);
 
+  // [177] Add macro stringizing operator (#)
+#define M11(x) #x
+  assert('a', M11( a!b  `""c)[0], "M11( a!b  `\"\"c)[0]", 0);
+  assert('!', M11( a!b  `""c)[1], "M11( a!b  `\"\"c)[1]", 0);
+  assert('b', M11( a!b  `""c)[2], "M11( a!b  `\"\"c)[2]", 0);
+  assert(' ', M11( a!b  `""c)[3], "M11( a!b  `\"\"c)[3]", 0);
+  assert('`', M11( a!b  `""c)[4], "M11( a!b  `\"\"c)[4]", 0);
+  assert('"', M11( a!b  `""c)[5], "M11( a!b  `\"\"c)[5]", 0);
+  assert('"', M11( a!b  `""c)[6], "M11( a!b  `\"\"c)[6]", 0);
+  assert('c', M11( a!b  `""c)[7], "M11( a!b  `\"\"c)[7]", 0);
+  assert(0, M11( a!b  `""c)[8], "M11( a!b  `\"\"c)[8]", 0);
+
   return 0;
 }

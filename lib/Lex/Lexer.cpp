@@ -25,16 +25,19 @@ Token *Lexer::tokenize(const char *P) {
   Token Dummy;
   Token *Curr = &Dummy;
   AtStartOfLine = true;
+  HasLeadingSpace = false;
 
   while (*P) {
     if (*P == '\n') {
       AtStartOfLine = true;
+      HasLeadingSpace = true;
       ++P;
       continue;
     }
 
     // Skip whitespace characters.
     if (std::isspace(*P)) {
+      HasLeadingSpace = true;
       ++P;
       continue;
     }
@@ -93,6 +96,7 @@ Token *Lexer::tokenize(const char *P) {
       }
 
       if (*(P + 1) == '/') {
+        HasLeadingSpace = true;
         P += 2;
         while (*P && *P != '\n')
           ++P;
@@ -100,6 +104,7 @@ Token *Lexer::tokenize(const char *P) {
       }
 
       if (*(P + 1) == '*') {
+        HasLeadingSpace = true;
         const char *End = strstr(P + 2, "*/");
         if (!End)
           Diag.fatalAt(P, "unclosed block comment");
@@ -214,7 +219,7 @@ Token *Lexer::tokenize(const char *P) {
       lexPunctuator(Curr, Token::TK_Hash, P);
       break;
     default:
-      Diag.fatalAt(P, "invalid character: {}", *P);
+      lexPunctuator(Curr, Token::TK_Unknown, P);
       break;
     }
   }
@@ -408,7 +413,9 @@ Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
   void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
   Token *Tok = new (Mem) Token(Kind, Start, End, Val, NumKind);
   Tok->setAtStartOfLine(AtStartOfLine);
+  Tok->setHasLeadingSpace(HasLeadingSpace);
   AtStartOfLine = false;
+  HasLeadingSpace = false;
   return Tok;
 }
 
@@ -418,7 +425,9 @@ Token *Lexer::newToken(Token::TokenKind Kind, const char *Start,
   void *Mem = TokAlloc.allocate(sizeof(Token), alignof(Token));
   Token *Tok = new (Mem) Token(Kind, Start, End, FVal, NumKind);
   Tok->setAtStartOfLine(AtStartOfLine);
+  Tok->setHasLeadingSpace(HasLeadingSpace);
   AtStartOfLine = false;
+  HasLeadingSpace = false;
   return Tok;
 }
 

@@ -47,8 +47,18 @@ public:
   bool isAtStartOfLine() const { return AtStartOfLine; }
   void setAtStartOfLine(bool Value = true) { AtStartOfLine = Value; }
 
+  bool hasLeadingSpace() const { return HasLeadingSpace; }
+  void setHasLeadingSpace(bool Value = true) { HasLeadingSpace = Value; }
+
   bool isExpandDisabled() const { return DisableExpand; }
   void disableExpand() { DisableExpand = true; }
+
+  const char *getSourceLoc() const { return SourceLoc ? SourceLoc : Loc; }
+  int getSourceLen() const { return SourceLoc ? SourceLen : Len; }
+  void setSourceRange(const Token &Tok) {
+    SourceLoc = Tok.getSourceLoc();
+    SourceLen = Tok.getSourceLen();
+  }
 
   std::string_view getIdentifer() const;
   std::int64_t getVal() const;
@@ -85,7 +95,10 @@ private:
   };
   int Len = 0;
   NumericLiteralKind NumKind = NumericLiteralKind::Int;
+  const char *SourceLoc = nullptr;
+  int SourceLen = 0;
   bool AtStartOfLine = false;
+  bool HasLeadingSpace = false;
   bool DisableExpand = false;
 };
 

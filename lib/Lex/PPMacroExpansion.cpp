@@ -3,7 +3,7 @@
 #include "Lex/Preprocessor.h"
 #include "Lex/Token.h"
 
-#include <algorithm>
+#include <cstring>
 #include <new>
 #include <string>
 #include <string_view>
@@ -11,6 +11,15 @@
 #include <vector>
 
 namespace rcc {
+
+static std::size_t getParameterIndex(const MacroInfo &MI, const Token &Tok) {
+  const auto &Parameters = MI.parameters();
+  std::string_view Spelling(Tok.getLoc(), Tok.getLen());
+  for (std::size_t I = 0; I < Parameters.size(); ++I)
+    if (Parameters[I] == Spelling)
+      return I;
+  return Parameters.size();
+}
 
 bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
   if (!isMacroIdentifier(Tok) || Tok->isExpandDisabled())
@@ -78,16 +87,52 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
   MI.disableMacro();
   Token Head;
   Token *Curr = &Head;
-  for (const Token &Replacement : MI.tokens()) {
-    auto Param = std::find_if(
-        MI.parameters().begin(), MI.parameters().end(),
-        [&Replacement](const std::string &Name) {
-          return std::string_view(Replacement.getLoc(), Replacement.getLen()) ==
-                 Name;
-        });
+  const auto &ReplacementTokens = MI.tokens();
+  const auto &Parameters = MI.parameters();
 
-    if (Param != MI.parameters().end()) {
-      std::size_t Index = Param - MI.parameters().begin();
+  for (std::size_t I = 0; I < ReplacementTokens.size(); ++I) {
+    const Token &Replacement = ReplacementTokens[I];
+    if (MI.isFunctionLike() && Replacement.is(Token::TK_Hash)) {
+      if (++I == ReplacementTokens.size())
+        Diag.fatalAt(Replacement.getLoc(),
+                     "'#' is not followed by a macro parameter");
+
+      std::size_t Index = getParameterIndex(MI, ReplacementTokens[I]);
+      if (Index == Parameters.size())
+        Diag.fatalAt(ReplacementTokens[I].getLoc(),
+                     "'#' is not followed by a macro parameter");
+
+      std::string Value;
+      for (std::size_t J = 0; J < Arguments[Index].size(); ++J) {
+        const Token *ArgTok = Arguments[Index][J];
+        if (J != 0 && ArgTok->hasLeadingSpace())
+          Value += ' ';
+        Value.append(ArgTok->getLoc(), ArgTok->getLen());
+      }
+
+      std::string Spelling = "\"";
+      for (char C : Value) {
+        if (C == '\\' || C == '"')
+          Spelling += '\\';
+        Spelling += C;
+      }
+      Spelling += '"';
+
+      char *Buffer = static_cast<char *>(
+          MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+      std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+      void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+      Token *Expanded = new (Mem)
+          Token(Token::TK_StrLiteral, Buffer, Buffer + Spelling.size());
+      Expanded->setSourceRange(Replacement);
+      Expanded->setHasLeadingSpace(Replacement.hasLeadingSpace());
+      Curr->setNext(Expanded);
+      Curr = Expanded;
+      continue;
+    }
+
+    std::size_t Index = getParameterIndex(MI, Replacement);
+    if (Index != Parameters.size()) {
       for (const Token *ArgTok : Arguments[Index]) {
         void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
         Token *Expanded = new (Mem) Token(*ArgTok);

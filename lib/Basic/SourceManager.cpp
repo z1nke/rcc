@@ -15,7 +15,7 @@ SourceLocation SourceManager::getLocForStartOfFile(FileID FID) const {
 }
 
 SourceLocation SourceManager::createBeginLocation(const Token *Tok) {
-  return createBeginLocation(Tok->getLoc());
+  return createBeginLocation(Tok->getSourceLoc());
 }
 
 SourceLocation SourceManager::createBeginLocation(const char *Loc) {
@@ -27,7 +27,7 @@ SourceLocation SourceManager::createBeginLocation(const char *Loc) {
 }
 
 SourceLocation SourceManager::createEndLocation(const Token *Tok) {
-  return createBeginLocation(Tok->getLoc() + Tok->getLen());
+  return createBeginLocation(Tok->getSourceLoc() + Tok->getSourceLen());
 }
 
 const char *SourceManager::getLoc(SourceLocation Loc) const {
