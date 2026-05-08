@@ -1,4 +1,5 @@
 #include "Basic/Diagnostic.h"
+#include "Basic/SourceManager.h"
 #include "Lex/Lexer.h"
 #include "Lex/MacroInfo.h"
 #include "Lex/Preprocessor.h"
@@ -25,12 +26,14 @@ static std::size_t getParameterIndex(const MacroInfo &MI, const Token &Tok) {
 static void
 copyOperandTokens(BumpPtrAllocator &Alloc, const MacroInfo &MI,
                   const std::vector<std::vector<const Token *>> &Arguments,
-                  const Token &Operand, std::vector<Token *> &Result) {
+                  const Token &Operand, const Token &MacroNameTok,
+                  std::vector<Token *> &Result) {
   std::size_t Index = getParameterIndex(MI, Operand);
   if (Index == MI.parameters().size()) {
     void *Mem = Alloc.allocate(sizeof(Token), alignof(Token));
     Result.push_back(new (Mem) Token(Operand));
     Result.back()->setNext(nullptr);
+    Result.back()->setSourceRange(MacroNameTok);
     return;
   }
 
@@ -46,6 +49,7 @@ static void pasteTokens(BumpPtrAllocator &Alloc, Lexer &Lex, Diagnostic &Diag,
   std::string Spelling(LHS.getLoc(), LHS.getLen());
   Spelling.append(RHS.getLoc(), RHS.getLen());
   bool HasLeadingSpace = LHS.hasLeadingSpace();
+  Token SourceToken = LHS;
 
   char *Buffer = static_cast<char *>(
       Alloc.allocate(Spelling.size() + 1, alignof(char)));
@@ -59,7 +63,7 @@ static void pasteTokens(BumpPtrAllocator &Alloc, Lexer &Lex, Diagnostic &Diag,
 
   LHS = *Lexed;
   LHS.setNext(nullptr);
-  LHS.setSourceRange(PasteOp);
+  LHS.setSourceRange(SourceToken);
   LHS.setHasLeadingSpace(HasLeadingSpace);
 }
 
@@ -68,6 +72,23 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
     return false;
 
   std::string_view NameView(Tok->getLoc(), Tok->getLen());
+  if (NameView == "__LINE__") {
+    SourceManager &SM = Diag.getSourceManager();
+    unsigned Line = SM.getLineNumber(SM.createBeginLocation(Tok));
+    std::string Spelling = std::to_string(Line);
+    char *Buffer = static_cast<char *>(
+        MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+    std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+    void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+    Token *Expanded =
+        new (Mem) Token(Token::TK_Num, Buffer, Buffer + Spelling.size(), Line);
+    Expanded->setSourceRange(*Tok);
+    Expanded->setNext(Tok->getNext());
+    Rest = Expanded;
+    return true;
+  }
+
   std::string Name(NameView);
   auto Iter = Macros.find(Name);
   if (Iter == Macros.end())
@@ -166,7 +187,7 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
       void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
       Token *Expanded = new (Mem)
           Token(Token::TK_StrLiteral, Buffer, Buffer + Spelling.size());
-      Expanded->setSourceRange(Replacement);
+      Expanded->setSourceRange(*Tok);
       Expanded->setHasLeadingSpace(Replacement.hasLeadingSpace());
       Curr->setNext(Expanded);
       Curr = Expanded;
@@ -178,7 +199,8 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
                    "'##' cannot appear at start of macro expansion");
 
     std::vector<Token *> Operand;
-    copyOperandTokens(MacroTokenAlloc, MI, Arguments, Replacement, Operand);
+    copyOperandTokens(MacroTokenAlloc, MI, Arguments, Replacement, *Tok,
+                      Operand);
 
     while (I + 1 < ReplacementTokens.size() &&
            ReplacementTokens[I + 1].is(Token::TK_HashHash)) {
@@ -189,7 +211,7 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
 
       std::vector<Token *> RHS;
       copyOperandTokens(MacroTokenAlloc, MI, Arguments,
-                        ReplacementTokens[I + 2], RHS);
+                        ReplacementTokens[I + 2], *Tok, RHS);
       if (Operand.empty()) {
         Operand = std::move(RHS);
       } else if (!RHS.empty()) {
