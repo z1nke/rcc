@@ -21,7 +21,7 @@ def main():
   common = Path(src).parent / "common"
 
   run(["riscv64-unknown-linux-gnu-gcc", "-c", "-xc", common, "-o", tmp_o])
-  run(["rcc", "-S", "-o", tmp_s, src])
+  run(["rcc", f"-I{Path(src).parent}", "-S", "-o", tmp_s, src])
   run(["riscv64-unknown-linux-gnu-gcc", "-static", "-o", tmp, tmp_s, tmp_o])
   run(["qemu-riscv64", tmp])
 

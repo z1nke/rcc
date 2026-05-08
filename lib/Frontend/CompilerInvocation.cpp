@@ -1,6 +1,8 @@
 #include "Frontend/CompilerInvocation.h"
 
+#include <format>
 #include <print>
+#include <string_view>
 
 namespace rcc {
 
@@ -71,6 +73,15 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-I") {
+      if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
+        Invocation->ErrMsg = "missing path after '-I'";
+        return Invocation;
+      }
+      Invocation->IncludePaths.emplace_back(Argv[++Idx]);
+      continue;
+    }
+
     if (Arg == "-ast-dump") {
       Invocation->AstDump = true;
       continue;
@@ -78,6 +89,11 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
 
     if (Arg.starts_with("-o")) {
       Invocation->OutputPath = Arg.substr(2);
+      continue;
+    }
+
+    if (Arg.starts_with("-I")) {
+      Invocation->IncludePaths.emplace_back(Arg.substr(2));
       continue;
     }
 

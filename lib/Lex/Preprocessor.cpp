@@ -88,6 +88,19 @@ std::string Preprocessor::readIncludeFilename(Token *&Rest, Token *Tok,
   Diag.fatalAt(Tok->getLoc(), "expected a filename");
 }
 
+std::string
+Preprocessor::searchIncludePaths(const std::string &Filename) const {
+  if (!Filename.empty() && Filename[0] == '/')
+    return Filename;
+
+  for (const std::string &Dir : IncludePaths) {
+    std::filesystem::path Path = std::filesystem::path(Dir) / Filename;
+    if (fileExists(Path))
+      return Path.string();
+  }
+  return {};
+}
+
 Token *Preprocessor::includeFile(Token *Rest, const std::string &Path,
                                  Token *FilenameTok) {
   std::error_code EC;
@@ -217,10 +230,9 @@ Token *Preprocessor::preprocess(Token *Toks) {
         Token *FilenameTok = Toks->getNext();
         std::string Filename =
             readIncludeFilename(Toks, FilenameTok, IsDquote);
-        (void)IsDquote;
 
-        // Non-absolute paths are first resolved relative to the including file.
-        if (!Filename.empty() && Filename[0] != '/') {
+        // Quoted includes are first resolved relative to the including file.
+        if (!Filename.empty() && Filename[0] != '/' && IsDquote) {
           SourceManager &SM = Diag.getSourceManager();
           SourceLocation Loc = SM.createBeginLocation(Start);
           std::filesystem::path IncludingFile(SM.getFilename(Loc));
@@ -232,7 +244,8 @@ Token *Preprocessor::preprocess(Token *Toks) {
           }
         }
 
-        Toks = includeFile(Toks, Filename, FilenameTok);
+        std::string Path = searchIncludePaths(Filename);
+        Toks = includeFile(Toks, Path.empty() ? Filename : Path, FilenameTok);
         continue;
       }
 

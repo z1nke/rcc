@@ -2,6 +2,7 @@
 #define RCC_FRONTEND_COMPILERINVOCATION_H
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace rcc {
@@ -17,6 +18,9 @@ public:
 
   const std::string &getErrorMsg() const { return ErrMsg; }
   const std::string &getOutputPath() const { return OutputPath; }
+  const std::vector<std::string> &getIncludePaths() const {
+    return IncludePaths;
+  }
   bool hasAstDump() const { return AstDump; }
   bool isCC1() const { return CC1; }
   bool shouldCompileOnly() const { return CompileOnly; }
@@ -26,6 +30,7 @@ public:
 
 private:
   std::vector<const char *> Inputs;
+  std::vector<std::string> IncludePaths;
   std::string CC1InputPath;
   std::string OutputPath;
   std::string ErrMsg;

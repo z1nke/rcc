@@ -43,6 +43,9 @@
 // RUN: echo 'int bar() { return 0; }' > %t.bar.c
 // RUN: rcc -o %t.multi %t.foo.c %t.bar.c
 // RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.multi
+// RUN: mkdir -p %t.dir
+// RUN: echo foo > %t.dir/i-option-test
+// RUN: echo '#include "i-option-test"' | rcc -I%t.dir -E - | grep -q foo
 // RUN: rcc --help
 
 int main() {
