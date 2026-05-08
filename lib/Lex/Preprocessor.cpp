@@ -5,7 +5,9 @@
 #include "Lex/Token.h"
 
 #include <filesystem>
+#include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace rcc {
@@ -37,6 +39,63 @@ static Token *append(Token *Included, Token *Rest) {
     Last = Last->getNext();
   Last->setNext(Rest);
   return Included;
+}
+
+static std::string joinTokens(Token *Tok, Token *End) {
+  std::string Buf;
+  for (Token *T = Tok; T != End && T->isNot(Token::TK_EOF); T = T->getNext()) {
+    if (T != Tok && T->hasLeadingSpace())
+      Buf += ' ';
+    Buf.append(T->getLoc(), T->getLen());
+  }
+  return Buf;
+}
+
+static bool fileExists(const std::filesystem::path &Path) {
+  std::error_code EC;
+  return std::filesystem::exists(Path, EC) && !EC;
+}
+
+std::string Preprocessor::readIncludeFilename(Token *&Rest, Token *Tok,
+                                              bool &IsDquote) {
+  // #include "foo.h"
+  if (Tok->is(Token::TK_StrLiteral)) {
+    // Include filenames are not escape-processed.
+    IsDquote = true;
+    Rest = skipLine(Tok->getNext(), Diag);
+    return std::string(Tok->getLoc() + 1, Tok->getLen() - 2);
+  }
+
+  // #include <foo.h>
+  if (Tok->is(Token::TK_Less)) {
+    Token *Start = Tok;
+    for (; Tok->isNot(Token::TK_Greater); Tok = Tok->getNext()) {
+      if (Tok->isAtStartOfLine() || Tok->is(Token::TK_EOF))
+        Diag.fatalAt(Tok->getLoc(), "expected '>'");
+    }
+
+    IsDquote = false;
+    Rest = skipLine(Tok->getNext(), Diag);
+    return joinTokens(Start->getNext(), Tok);
+  }
+
+  // #include FOO — FOO must expand to a string or a <...> sequence.
+  if (isMacroIdentifier(Tok)) {
+    Token *Expanded = expandMacroExpression(Rest, Tok);
+    return readIncludeFilename(Expanded, Expanded, IsDquote);
+  }
+
+  Diag.fatalAt(Tok->getLoc(), "expected a filename");
+}
+
+Token *Preprocessor::includeFile(Token *Rest, const std::string &Path,
+                                 Token *FilenameTok) {
+  std::error_code EC;
+  if (!std::filesystem::exists(Path, EC) || EC)
+    Diag.fatalAt(FilenameTok->getLoc(), "{}: cannot open file", Path);
+
+  Token *Included = Lex.tokenizeFile(Path.c_str());
+  return append(Included, Rest);
 }
 
 Token *Preprocessor::preprocess(Token *Toks) {
@@ -154,19 +213,26 @@ Token *Preprocessor::preprocess(Token *Toks) {
       }
 
       if (hasSpelling(Toks, "include")) {
+        bool IsDquote = false;
         Token *FilenameTok = Toks->getNext();
-        if (FilenameTok->isNot(Token::TK_StrLiteral))
-          Diag.fatalAt(FilenameTok->getLoc(), "expected a filename");
+        std::string Filename =
+            readIncludeFilename(Toks, FilenameTok, IsDquote);
+        (void)IsDquote;
 
-        SourceManager &SM = Diag.getSourceManager();
-        SourceLocation Loc = SM.createBeginLocation(FilenameTok);
-        std::filesystem::path IncludingFile(SM.getFilename(Loc));
-        std::filesystem::path IncludePath =
-            IncludingFile.parent_path() / FilenameTok->getStringLiteral(Diag);
+        // Non-absolute paths are first resolved relative to the including file.
+        if (!Filename.empty() && Filename[0] != '/') {
+          SourceManager &SM = Diag.getSourceManager();
+          SourceLocation Loc = SM.createBeginLocation(Start);
+          std::filesystem::path IncludingFile(SM.getFilename(Loc));
+          std::filesystem::path RelativePath =
+              IncludingFile.parent_path() / Filename;
+          if (fileExists(RelativePath)) {
+            Toks = includeFile(Toks, RelativePath.string(), FilenameTok);
+            continue;
+          }
+        }
 
-        Token *Included = Lex.tokenizeFile(IncludePath.c_str());
-        Token *Rest = skipLine(FilenameTok->getNext(), Diag);
-        Toks = append(Included, Rest);
+        Toks = includeFile(Toks, Filename, FilenameTok);
         continue;
       }
 

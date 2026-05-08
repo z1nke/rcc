@@ -30,6 +30,8 @@ private:
   std::int64_t evaluateDirectiveExpression(Token *&Rest, Token *Toks);
   void handleDefineDirective(Token *&Rest, Token *NameTok);
   void handleUndefDirective(Token *&Rest, Token *NameTok);
+  std::string readIncludeFilename(Token *&Rest, Token *Tok, bool &IsDquote);
+  Token *includeFile(Token *Rest, const std::string &Path, Token *FilenameTok);
   bool expandMacro(Token *&Rest, Token *Tok);
   Token *expandMacroExpression(Token *&Rest, Token *Toks);
   std::vector<const Token *>

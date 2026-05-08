@@ -300,5 +300,22 @@ int main() {
   assert(0, strcmp(M14(bar), "bar. foo"),
          "strcmp(M14(bar), \"bar. foo\")", 0);
 
+  // [184] Add #include <...>
+#include "include3.h"
+  assert(3, foo, "foo", 0);
+
+#include "include4.h"
+  assert(4, foo, "foo", 0);
+
+#define M13 "include3.h"
+#include M13
+  assert(3, foo, "foo", 0);
+
+#define M13 < include4.h
+#include M13 >
+  assert(4, foo, "foo", 0);
+
+#undef foo
+
   return 0;
 }
