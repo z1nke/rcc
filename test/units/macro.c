@@ -241,5 +241,36 @@ int main() {
 #define paste4(x, y, z) x##y##z
   assert(123, paste4(1, 2, 3), "paste4(1,2,3)", 0);
 
+  // [180] Add defined() macro operator
+#define M12
+#if defined(M12)
+  m = 3;
+#else
+  m = 4;
+#endif
+  assert(3, m, "m", 0);
+
+#define M12
+#if defined M12
+  m = 3;
+#else
+  m = 4;
+#endif
+  assert(3, m, "m", 0);
+
+#if defined(M12) - 1
+  m = 3;
+#else
+  m = 4;
+#endif
+  assert(4, m, "m", 0);
+
+#if defined(NO_SUCH_MACRO)
+  m = 3;
+#else
+  m = 4;
+#endif
+  assert(4, m, "m", 0);
+
   return 0;
 }

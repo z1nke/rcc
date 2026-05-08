@@ -51,8 +51,8 @@ static void pasteTokens(BumpPtrAllocator &Alloc, Lexer &Lex, Diagnostic &Diag,
   bool HasLeadingSpace = LHS.hasLeadingSpace();
   Token SourceToken = LHS;
 
-  char *Buffer = static_cast<char *>(
-      Alloc.allocate(Spelling.size() + 1, alignof(char)));
+  char *Buffer =
+      static_cast<char *>(Alloc.allocate(Spelling.size() + 1, alignof(char)));
   std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
 
   Token *Lexed = Lex.tokenize(Buffer);
@@ -247,10 +247,22 @@ void Preprocessor::finishMacroExpansions(Token *Tok) {
 Token *Preprocessor::expandMacroExpression(Token *&Rest, Token *Toks) {
   Token LineHead;
   Token *LineCurr = &LineHead;
+  bool ExpectDefinedOperand = false;
   while (Toks->isNot(Token::TK_EOF) && !Toks->isAtStartOfLine()) {
     void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
     Token *Copy = new (Mem) Token(*Toks);
     Copy->setNext(nullptr);
+
+    if (ExpectDefinedOperand) {
+      if (Copy->isNot(Token::TK_LParen)) {
+        Copy->disableExpand();
+        ExpectDefinedOperand = false;
+      }
+    } else if (Copy->is(Token::TK_Ident) &&
+               std::string_view(Copy->getLoc(), Copy->getLen()) == "defined") {
+      ExpectDefinedOperand = true;
+    }
+
     LineCurr->setNext(Copy);
     LineCurr = Copy;
     Toks = Toks->getNext();

@@ -4,7 +4,9 @@
 
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <string_view>
+#include <unordered_map>
 
 namespace rcc {
 
@@ -21,6 +23,7 @@ struct PPValue {
 struct EvalContext {
   Token *CurTok;
   Diagnostic &Diag;
+  const std::unordered_map<std::string, MacroInfo> &Macros;
 };
 
 enum Precedence : unsigned {
@@ -106,12 +109,12 @@ static void evaluateDefined(PPValue &Result, EvalContext &Ctx) {
     Ctx.Diag.fatalAt(Ctx.CurTok->getLoc(),
                      "expected identifier after 'defined'");
 
+  std::string Name(Ctx.CurTok->getLoc(), Ctx.CurTok->getLen());
+  Result.Val = Name == "__LINE__" || Ctx.Macros.contains(Name);
+  Result.IsUnsigned = false;
   Ctx.CurTok = Ctx.CurTok->getNext();
   if (HasParen)
     expect(Ctx, Token::TK_RParen, "expected ')'");
-
-  // Macro definitions are not implemented yet, so no identifier is defined.
-  Result = {};
 }
 
 static void evaluateValue(PPValue &Result, bool ValueLive, EvalContext &Ctx) {
@@ -344,7 +347,7 @@ static void evaluateDirectiveSubExpr(PPValue &LHS, unsigned MinPrec,
 std::int64_t Preprocessor::evaluateDirectiveExpression(Token *&Rest,
                                                        Token *Toks) {
   Token *ExpandedToks = expandMacroExpression(Rest, Toks);
-  EvalContext Ctx{ExpandedToks, Diag};
+  EvalContext Ctx{ExpandedToks, Diag, Macros};
   if (atEnd(Ctx))
     Diag.fatalAt(ExpandedToks->getLoc(), "no expression");
 
