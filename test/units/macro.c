@@ -272,5 +272,13 @@ int main() {
 #endif
   assert(4, m, "m", 0);
 
+  // [181] Replace remaining identifiers with 0 in macro constexpr
+#if no_such_symbol == 0
+  m = 5;
+#else
+  m = 6;
+#endif
+  assert(5, m, "m", 0);
+
   return 0;
 }
