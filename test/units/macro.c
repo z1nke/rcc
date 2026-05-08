@@ -3,6 +3,7 @@
 #include "Inputs/include1.h" extra tokens
 
 void assert(int expected, int actual, char *code, int line);
+int strcmp(char *p, char *q);
 
 int ret3(void) { return 3; }
 int dbl(int x) { return x * x; }
@@ -279,6 +280,25 @@ int main() {
   m = 6;
 #endif
   assert(5, m, "m", 0);
+
+  // [182] Preserve newline and space during macro expansion
+#define STR(x) #x
+#define M12(x) STR(x)
+#define M13(x) M12(foo.x)
+  assert(0, strcmp(M13(bar), "foo.bar"), "strcmp(M13(bar), \"foo.bar\")", 0);
+
+#define M13(x) M12(foo. x)
+  assert(0, strcmp(M13(bar), "foo. bar"),
+         "strcmp(M13(bar), \"foo. bar\")", 0);
+
+#define M12 foo
+#define M13(x) STR(x)
+#define M14(x) M13(x.M12)
+  assert(0, strcmp(M14(bar), "bar.foo"), "strcmp(M14(bar), \"bar.foo\")", 0);
+
+#define M14(x) M13(x. M12)
+  assert(0, strcmp(M14(bar), "bar. foo"),
+         "strcmp(M14(bar), \"bar. foo\")", 0);
 
   return 0;
 }

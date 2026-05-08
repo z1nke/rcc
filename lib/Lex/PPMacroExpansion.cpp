@@ -67,6 +67,37 @@ static void pasteTokens(BumpPtrAllocator &Alloc, Lexer &Lex, Diagnostic &Diag,
   LHS.setHasLeadingSpace(HasLeadingSpace);
 }
 
+std::vector<const Token *> Preprocessor::expandMacroArgument(
+    const std::vector<const Token *> &Argument) {
+  Token Head;
+  Token *Curr = &Head;
+  for (const Token *Tok : Argument) {
+    void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+    Curr->setNext(new (Mem) Token(*Tok));
+    Curr = Curr->getNext();
+    Curr->setNext(nullptr);
+  }
+
+  static const char Empty = '\0';
+  void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+  Token *EOFToken = new (Mem) Token(Token::TK_EOF, &Empty, &Empty);
+  Curr->setNext(EOFToken);
+
+  std::vector<const Token *> Result;
+  Token *Toks = Head.getNext();
+  while (Toks->isNot(Token::TK_EOF)) {
+    finishMacroExpansions(Toks);
+    Token *Tok = Toks;
+    if (expandMacro(Toks, Tok))
+      continue;
+
+    Result.push_back(Toks);
+    Toks = Toks->getNext();
+  }
+  finishMacroExpansions(Toks);
+  return Result;
+}
+
 bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
   if (!isMacroIdentifier(Tok) || Tok->isExpandDisabled())
     return false;
@@ -147,6 +178,11 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
     ExpansionEnd = ArgTok->getNext();
   }
 
+  std::vector<std::vector<const Token *>> ExpandedArguments;
+  ExpandedArguments.reserve(Arguments.size());
+  for (const auto &Argument : Arguments)
+    ExpandedArguments.push_back(expandMacroArgument(Argument));
+
   MI.disableMacro();
   Token Head;
   Token *Curr = &Head;
@@ -199,8 +235,13 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
                    "'##' cannot appear at start of macro expansion");
 
     std::vector<Token *> Operand;
-    copyOperandTokens(MacroTokenAlloc, MI, Arguments, Replacement, *Tok,
-                      Operand);
+    bool IsPasteChain =
+        I + 1 < ReplacementTokens.size() &&
+        ReplacementTokens[I + 1].is(Token::TK_HashHash);
+    const auto &SubstitutionArguments =
+        IsPasteChain ? Arguments : ExpandedArguments;
+    copyOperandTokens(MacroTokenAlloc, MI, SubstitutionArguments, Replacement,
+                      *Tok, Operand);
 
     while (I + 1 < ReplacementTokens.size() &&
            ReplacementTokens[I + 1].is(Token::TK_HashHash)) {
@@ -224,6 +265,11 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
       I += 2;
     }
 
+    if (!Operand.empty()) {
+      Operand.front()->setAtStartOfLine(Replacement.isAtStartOfLine());
+      Operand.front()->setHasLeadingSpace(Replacement.hasLeadingSpace());
+    }
+
     for (Token *Expanded : Operand) {
       Curr->setNext(Expanded);
       Curr = Expanded;
@@ -233,6 +279,8 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
   Curr->setNext(ExpansionEnd);
   MacroExpansionStack.push_back(MacroExpansionFrame{&MI, ExpansionEnd});
   Rest = Head.getNext();
+  Rest->setAtStartOfLine(Tok->isAtStartOfLine());
+  Rest->setHasLeadingSpace(Tok->hasLeadingSpace());
   return true;
 }
 

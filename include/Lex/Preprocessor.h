@@ -32,6 +32,8 @@ private:
   void handleUndefDirective(Token *&Rest, Token *NameTok);
   bool expandMacro(Token *&Rest, Token *Tok);
   Token *expandMacroExpression(Token *&Rest, Token *Toks);
+  std::vector<const Token *>
+  expandMacroArgument(const std::vector<const Token *> &Argument);
   void finishMacroExpansions(Token *Tok);
   static bool isMacroIdentifier(const Token *Tok);
 
