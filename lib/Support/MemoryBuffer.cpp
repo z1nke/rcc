@@ -40,12 +40,45 @@ std::unique_ptr<MemoryBuffer> MemoryBuffer::fromStdin() {
   if (!std::cin.eof())
     fatalError("failed to read from stdin");
 
+  Data.push_back('\0');
   return std::make_unique<MemoryBuffer>(std::move(Data));
 }
 
 std::unique_ptr<MemoryBuffer> MemoryBuffer::fromString(const std::string &Str) {
   std::vector<char> Data(Str.begin(), Str.end());
   return std::make_unique<MemoryBuffer>(std::move(Data));
+}
+
+void MemoryBuffer::removeBackslashNewline() {
+  if (Data.empty())
+    return;
+
+  // Ensure the buffer is null-terminated so we can scan with C-string logic.
+  if (Data.back() != '\0')
+    Data.push_back('\0');
+
+  char *P = Data.data();
+  int I = 0, J = 0;
+  // Number of deleted continued newlines pending re-insertion.
+  int N = 0;
+
+  while (P[I]) {
+    if (P[I] == '\\' && P[I + 1] == '\n') {
+      I += 2;
+      ++N;
+    } else if (P[I] == '\n') {
+      P[J++] = P[I++];
+      for (; N > 0; --N)
+        P[J++] = '\n';
+    } else {
+      P[J++] = P[I++];
+    }
+  }
+
+  for (; N > 0; --N)
+    P[J++] = '\n';
+  P[J] = '\0';
+  Data.resize(static_cast<std::size_t>(J) + 1);
 }
 
 } // namespace rcc

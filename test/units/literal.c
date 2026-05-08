@@ -97,6 +97,10 @@ int main() {
   ASSERT(8, sizeof(5.l));
   ASSERT(8, sizeof(2.0L));
 
+  // [183] Support line continuation
+  ASSERT(1, size\
+of(char));
+
   printf("OK\n");
   return 0;
 }
