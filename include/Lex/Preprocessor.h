@@ -24,6 +24,7 @@ public:
   Token *preprocess(Token *Toks);
 
 private:
+  Token *joinAdjacentStringLiterals(Token *Toks);
   struct MacroExpansionFrame {
     MacroInfo *MI;
     Token *End;

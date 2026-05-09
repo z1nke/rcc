@@ -4,6 +4,8 @@
 #include "Lex/Lexer.h"
 #include "Lex/Token.h"
 
+#include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -277,6 +279,88 @@ Token *Preprocessor::preprocess(Token *Toks) {
                  "unterminated conditional directive");
 
   Curr->setNext(Toks);
+  return joinAdjacentStringLiterals(Head.getNext());
+}
+
+Token *Preprocessor::joinAdjacentStringLiterals(Token *Toks) {
+  Token Head;
+  Head.setNext(Toks);
+
+  for (Token *Prev = &Head; Prev->getNext()->isNot(Token::TK_EOF);) {
+    Token *Tok = Prev->getNext();
+    if (Tok->isNot(Token::TK_StrLiteral) ||
+        Tok->getNext()->isNot(Token::TK_StrLiteral)) {
+      Prev = Tok;
+      continue;
+    }
+
+    Token *End = Tok->getNext();
+    while (End->is(Token::TK_StrLiteral))
+      End = End->getNext();
+
+    std::string Content;
+    for (Token *T = Tok; T != End; T = T->getNext())
+      Content += T->getStringLiteral(Diag);
+
+    std::string Spelling = "\"";
+    for (unsigned char C : Content) {
+      switch (C) {
+      case '\a':
+        Spelling += "\\a";
+        break;
+      case '\b':
+        Spelling += "\\b";
+        break;
+      case '\f':
+        Spelling += "\\f";
+        break;
+      case '\n':
+        Spelling += "\\n";
+        break;
+      case '\r':
+        Spelling += "\\r";
+        break;
+      case '\t':
+        Spelling += "\\t";
+        break;
+      case '\v':
+        Spelling += "\\v";
+        break;
+      case '\\':
+        Spelling += "\\\\";
+        break;
+      case '"':
+        Spelling += "\\\"";
+        break;
+      default:
+        if (C >= 0x20 && C < 0x7f) {
+          Spelling += static_cast<char>(C);
+        } else {
+          // Use a fixed-width octal escape so the next character cannot extend
+          // it (e.g. "\x9" "0" must stay "\t0", not "\x90").
+          char Buf[8];
+          std::snprintf(Buf, sizeof(Buf), "\\%03o", C);
+          Spelling += Buf;
+        }
+        break;
+      }
+    }
+    Spelling += '"';
+
+    char *Buffer = static_cast<char *>(
+        MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+    std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+    void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+    Token *Joined =
+        new (Mem) Token(Token::TK_StrLiteral, Buffer, Buffer + Spelling.size());
+    Joined->setAtStartOfLine(Tok->isAtStartOfLine());
+    Joined->setHasLeadingSpace(Tok->hasLeadingSpace());
+    Joined->setSourceRange(*Tok);
+    Joined->setNext(End);
+    Prev->setNext(Joined);
+    Prev = Joined;
+  }
   return Head.getNext();
 }
 
