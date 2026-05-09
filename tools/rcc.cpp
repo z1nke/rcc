@@ -230,6 +230,7 @@ int main(int Argc, char **Argv) {
   }
 
   if (Invocation->isCC1()) {
+    Invocation->addDefaultIncludePaths(Argv[0]);
     auto CI = CompilerInstance::create(std::move(Invocation));
     if (!CI)
       return 1;

@@ -1,5 +1,6 @@
 #include "Frontend/CompilerInvocation.h"
 
+#include <filesystem>
 #include <format>
 #include <print>
 #include <string_view>
@@ -10,6 +11,19 @@ namespace rcc {
 static void usage(int Status) {
   std::println(stderr, "{}", "rcc [-o <output>] input-files");
   std::exit(Status);
+}
+
+void CompilerInvocation::addDefaultIncludePaths(const char *Argv0) {
+  // rcc-specific headers are expected under ./include relative to argv[0].
+  std::filesystem::path Dir = std::filesystem::path(Argv0).parent_path();
+  if (Dir.empty())
+    Dir = ".";
+  IncludePaths.push_back((Dir / "include").string());
+
+  // Standard system include paths.
+  IncludePaths.emplace_back("/usr/local/include");
+  IncludePaths.emplace_back("/usr/include/riscv64-linux-gnu");
+  IncludePaths.emplace_back("/usr/include");
 }
 
 std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,

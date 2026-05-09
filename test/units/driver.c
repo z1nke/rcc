@@ -46,6 +46,9 @@
 // RUN: mkdir -p %t.dir
 // RUN: echo foo > %t.dir/i-option-test
 // RUN: echo '#include "i-option-test"' | rcc -I%t.dir -E - | grep -q foo
+// RUN: mkdir -p include
+// RUN: echo foo > include/default-include-test
+// RUN: echo '#include <default-include-test>' | rcc -E - | grep -q foo
 // RUN: rcc --help
 
 int main() {

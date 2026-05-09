@@ -11,6 +11,10 @@ class CompilerInvocation {
 public:
   static std::unique_ptr<CompilerInvocation> create(int Argc, char **Argv);
 
+  // Append compiler-relative and system default include directories.
+  // Call after parsing so user -I paths take precedence.
+  void addDefaultIncludePaths(const char *Argv0);
+
   const std::vector<const char *> &getInputs() const { return Inputs; }
   const char *getCC1InputPath() const {
     return CC1InputPath.empty() ? Inputs[0] : CC1InputPath.c_str();
