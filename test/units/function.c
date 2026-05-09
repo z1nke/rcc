@@ -161,6 +161,11 @@ char *func_fn(void) {
   return __func__;
 }
 
+// [192] [GNU] Add __FUNCTION__
+char *function_fn(void) {
+  return __FUNCTION__;
+}
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -281,6 +286,10 @@ int main() {
   ASSERT(5, sizeof(__func__));
   ASSERT(0, strcmp("main", __func__));
   ASSERT(0, strcmp("func_fn", func_fn()));
+
+  // [192] [GNU] Add __FUNCTION__
+  ASSERT(0, strcmp("main", __FUNCTION__));
+  ASSERT(0, strcmp("function_fn", function_fn()));
 
   printf("OK\n");
   return 0;
