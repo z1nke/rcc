@@ -49,6 +49,8 @@
 // RUN: mkdir -p include
 // RUN: echo foo > include/default-include-test
 // RUN: echo '#include <default-include-test>' | rcc -E - | grep -q foo
+// RUN: ! echo '#error' | rcc -E - 2> %t.error
+// RUN: grep -q 'error: error' %t.error
 // RUN: rcc --help
 
 int main() {

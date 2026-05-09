@@ -249,6 +249,9 @@ Token *Preprocessor::preprocess(Token *Toks) {
         continue;
       }
 
+      if (hasSpelling(Toks, "error"))
+        Diag.fatalAt(Toks->getLoc(), "error");
+
       Diag.fatalAt(Toks->getLoc(), "invalid preprocessor directive");
     }
 

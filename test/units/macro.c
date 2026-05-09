@@ -317,5 +317,10 @@ int main() {
 
 #undef foo
 
+  // [187] Add #error
+#if 0
+#error "this should be ignored"
+#endif
+
   return 0;
 }
