@@ -112,6 +112,8 @@ Token *Preprocessor::includeFile(Token *Rest, const std::string &Path,
 }
 
 Token *Preprocessor::preprocess(Token *Toks) {
+  initMacros();
+
   struct ConditionalFrame {
     Token *Start;
     bool ParentActive;

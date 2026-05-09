@@ -32,6 +32,8 @@ private:
   std::int64_t evaluateDirectiveExpression(Token *&Rest, Token *Toks);
   void handleDefineDirective(Token *&Rest, Token *NameTok);
   void handleUndefDirective(Token *&Rest, Token *NameTok);
+  void defineMacro(const char *Name, const char *Body);
+  void initMacros();
   std::string readIncludeFilename(Token *&Rest, Token *Tok, bool &IsDquote);
   std::string searchIncludePaths(const std::string &Filename) const;
   Token *includeFile(Token *Rest, const std::string &Path, Token *FilenameTok);

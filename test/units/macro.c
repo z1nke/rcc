@@ -322,5 +322,17 @@ int main() {
 #error "this should be ignored"
 #endif
 
+  // [188] Add predefined macros such as __STDC__
+  assert(1, __STDC__, "__STDC__", 0);
+  assert(1, __STDC_HOSTED__, "__STDC_HOSTED__", 0);
+  assert(1, __rcc__, "__rcc__", 0);
+  assert(1, __riscv, "__riscv", 0);
+  assert(64, __riscv_xlen, "__riscv_xlen", 0);
+  assert(8, __SIZEOF_LONG__, "__SIZEOF_LONG__", 0);
+  assert(8, __SIZEOF_POINTER__, "__SIZEOF_POINTER__", 0);
+  assert(4, __SIZEOF_INT__, "__SIZEOF_INT__", 0);
+  assert(1, _LP64, "_LP64", 0);
+  assert(1, __LP64__, "__LP64__", 0);
+
   return 0;
 }

@@ -1,8 +1,10 @@
 #include "Basic/Diagnostic.h"
 #include "Lex/MacroInfo.h"
+#include "Lex/Lexer.h"
 #include "Lex/Preprocessor.h"
 #include "Lex/Token.h"
 
+#include <cstring>
 #include <cctype>
 #include <string>
 #include <utility>
@@ -23,6 +25,69 @@ bool Preprocessor::isMacroIdentifier(const Token *Tok) {
       return false;
   }
   return true;
+}
+
+void Preprocessor::defineMacro(const char *Name, const char *Body) {
+  std::size_t Len = std::strlen(Body);
+  char *Buf = static_cast<char *>(
+      MacroTokenAlloc.allocate(Len + 1, alignof(char)));
+  std::memcpy(Buf, Body, Len + 1);
+
+  MacroInfo MI;
+  for (Token *Tok = Lex.tokenize(Buf); Tok->isNot(Token::TK_EOF);
+       Tok = Tok->getNext())
+    MI.addTokenToBody(*Tok);
+
+  Macros.insert_or_assign(Name, std::move(MI));
+}
+
+void Preprocessor::initMacros() {
+  defineMacro("_LP64", "1");
+  defineMacro("__C99_MACRO_WITH_VA_ARGS", "1");
+  defineMacro("__ELF__", "1");
+  defineMacro("__LP64__", "1");
+  defineMacro("__SIZEOF_DOUBLE__", "8");
+  defineMacro("__SIZEOF_FLOAT__", "4");
+  defineMacro("__SIZEOF_INT__", "4");
+  defineMacro("__SIZEOF_LONG_DOUBLE__", "8");
+  defineMacro("__SIZEOF_LONG_LONG__", "8");
+  defineMacro("__SIZEOF_LONG__", "8");
+  defineMacro("__SIZEOF_POINTER__", "8");
+  defineMacro("__SIZEOF_PTRDIFF_T__", "8");
+  defineMacro("__SIZEOF_SHORT__", "2");
+  defineMacro("__SIZEOF_SIZE_T__", "8");
+  defineMacro("__SIZE_TYPE__", "unsigned long");
+  defineMacro("__STDC_HOSTED__", "1");
+  defineMacro("__STDC_NO_ATOMICS__", "1");
+  defineMacro("__STDC_NO_COMPLEX__", "1");
+  defineMacro("__STDC_NO_THREADS__", "1");
+  defineMacro("__STDC_NO_VLA__", "1");
+  defineMacro("__STDC_VERSION__", "201112L");
+  defineMacro("__STDC__", "1");
+  defineMacro("__USER_LABEL_PREFIX__", "");
+  defineMacro("__alignof__", "_Alignof");
+  defineMacro("__rcc__", "1");
+  defineMacro("__const__", "const");
+  defineMacro("__gnu_linux__", "1");
+  defineMacro("__inline__", "inline");
+  defineMacro("__linux", "1");
+  defineMacro("__linux__", "1");
+  defineMacro("__signed__", "signed");
+  defineMacro("__typeof__", "typeof");
+  defineMacro("__unix", "1");
+  defineMacro("__unix__", "1");
+  defineMacro("__volatile__", "volatile");
+  defineMacro("linux", "1");
+  defineMacro("unix", "1");
+  defineMacro("__riscv_mul", "1");
+  defineMacro("__riscv_muldiv", "1");
+  defineMacro("__riscv_fdiv", "1");
+  defineMacro("__riscv_xlen", "64");
+  defineMacro("__riscv", "1");
+  defineMacro("__riscv64", "1");
+  defineMacro("__riscv_div", "1");
+  defineMacro("__riscv_float_abi_double", "1");
+  defineMacro("__riscv_flen", "64");
 }
 
 void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {
