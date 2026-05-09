@@ -110,6 +110,15 @@ void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {
     MI.setIsFunctionLike();
     Tok = Tok->getNext();
     while (Tok->isNot(Token::TK_RParen)) {
+      if (Tok->is(Token::TK_Ellipsis)) {
+        MI.setIsVariadic();
+        MI.addParameter("__VA_ARGS__");
+        Tok = Tok->getNext();
+        if (Tok->isNot(Token::TK_RParen))
+          Diag.fatalAt(Tok->getLoc(), "expected ')'");
+        break;
+      }
+
       if (!isMacroIdentifier(Tok))
         Diag.fatalAt(Tok->getLoc(), "expected an identifier");
 

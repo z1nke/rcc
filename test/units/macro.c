@@ -15,6 +15,12 @@ int main_line2 = LINE();
 int ret3(void) { return 3; }
 int dbl(int x) { return x * x; }
 
+// [190] Add __VA_ARGS__
+int add2(int x, int y) { return x + y; }
+int add6(int a, int b, int c, int d, int e, int f) {
+  return a + b + c + d + e + f;
+}
+
 int main() {
   // [160] Add #include "..."
   assert(5, include1, "include1", 9);
@@ -349,6 +355,26 @@ int main() {
   assert(1, strstr(include1_filename, "include1.h") != 0,
          "strstr(include1_filename, \"include1.h\")", 0);
   assert(5, include1_line, "include1_line", 0);
+
+  // [190] Add __VA_ARGS__
+#define M14(...) 3
+  assert(3, M14(), "M14()", 0);
+
+#define M14(...) __VA_ARGS__
+  assert(2, M14() 2, "M14() 2", 0);
+  assert(5, M14(5), "M14(5)", 0);
+
+#define M14(...) add2(__VA_ARGS__)
+  assert(8, M14(2, 6), "M14(2, 6)", 0);
+
+#define M14(...) add6(1,2,__VA_ARGS__,6)
+  assert(21, M14(3,4,5), "M14(3,4,5)", 0);
+
+#define M14(x, ...) add6(1,2,x,__VA_ARGS__,6)
+  assert(21, M14(3,4,5), "M14(3,4,5)", 0);
+
+#define M14(x, ...) x
+  assert(5, M14(5), "M14(5)", 0);
 
   return 0;
 }

@@ -31,6 +31,9 @@ public:
   }
   const std::vector<std::string> &parameters() const { return Parameters; }
 
+  bool isVariadic() const { return IsVariadic; }
+  void setIsVariadic() { IsVariadic = true; }
+
   bool isDisabled() const { return IsDisabled; }
   void disableMacro() { IsDisabled = true; }
   void enableMacro() { IsDisabled = false; }
@@ -44,6 +47,7 @@ private:
   std::vector<std::string> Parameters;
   BuiltinMacroFn Handler = nullptr;
   bool IsFunctionLike = false;
+  bool IsVariadic = false;
   bool IsDisabled = false;
 };
 

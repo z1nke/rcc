@@ -132,12 +132,14 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
   if (MI.isFunctionLike()) {
     Token *ArgTok = ExpansionEnd->getNext();
     const auto &Parameters = MI.parameters();
+    std::size_t NamedCount =
+        MI.isVariadic() ? Parameters.size() - 1 : Parameters.size();
 
     if (Parameters.empty()) {
       if (ArgTok->isNot(Token::TK_RParen))
         Diag.fatalAt(ArgTok->getLoc(), "expected ')'");
     } else {
-      for (std::size_t I = 0; I < Parameters.size(); ++I) {
+      for (std::size_t I = 0; I < NamedCount; ++I) {
         std::vector<const Token *> Argument;
         unsigned ParenDepth = 0;
         while (ArgTok->isNot(Token::TK_EOF)) {
@@ -156,13 +158,42 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
         }
         Arguments.push_back(std::move(Argument));
 
-        if (I + 1 < Parameters.size()) {
+        if (I + 1 < NamedCount) {
           if (ArgTok->isNot(Token::TK_Comma))
             Diag.fatalAt(ArgTok->getLoc(), "too few arguments");
           ArgTok = ArgTok->getNext();
-        } else if (ArgTok->is(Token::TK_Comma)) {
-          Diag.fatalAt(ArgTok->getLoc(), "too many arguments");
         }
+      }
+
+      if (MI.isVariadic()) {
+        std::vector<const Token *> Argument;
+        if (ArgTok->is(Token::TK_RParen)) {
+          // Empty __VA_ARGS__.
+        } else {
+          if (NamedCount != 0) {
+            if (ArgTok->isNot(Token::TK_Comma))
+              Diag.fatalAt(ArgTok->getLoc(), "too few arguments");
+            ArgTok = ArgTok->getNext();
+          }
+
+          // Collect the remaining tokens, including commas.
+          unsigned ParenDepth = 0;
+          while (ArgTok->isNot(Token::TK_EOF)) {
+            if (ArgTok->is(Token::TK_LParen)) {
+              ++ParenDepth;
+            } else if (ArgTok->is(Token::TK_RParen)) {
+              if (ParenDepth == 0)
+                break;
+              --ParenDepth;
+            }
+
+            Argument.push_back(ArgTok);
+            ArgTok = ArgTok->getNext();
+          }
+        }
+        Arguments.push_back(std::move(Argument));
+      } else if (ArgTok->is(Token::TK_Comma)) {
+        Diag.fatalAt(ArgTok->getLoc(), "too many arguments");
       }
 
       if (ArgTok->isNot(Token::TK_RParen))
