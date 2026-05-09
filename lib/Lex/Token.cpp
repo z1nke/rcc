@@ -100,7 +100,10 @@ static unsigned escapeChar(const char *&P, Diagnostic &Diag) {
 
 unsigned Token::getCharLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_CharLiteral && "expect a character literal");
-  const char *P = Loc + 1; // Skip the opening '\''.
+  const char *P = Loc;
+  if (*P == 'L')
+    ++P; // skip wide-character prefix
+  ++P;   // Skip the opening '\''.
   assert(P < Loc + Len - 1);
   if (*P != '\\')
     return static_cast<unsigned>(*P);

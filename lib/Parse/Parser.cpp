@@ -1371,8 +1371,10 @@ Expr *Parser::parsePrimaryExpr() {
     unsigned Val = CurTok->getCharLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
+    // Wide character literals (L'x') have type int (Linux wchar_t size).
+    QualType Ty = CurTok->getLoc()[0] == 'L' ? Ctx.IntTy : Ctx.CharTy;
     skip();
-    return S.actOnCharacterLiteral(BegLoc, EndLoc, Ctx.CharTy, Val);
+    return S.actOnCharacterLiteral(BegLoc, EndLoc, Ty, Val);
   }
 
   if (CurTok->is(Token::TK_StrLiteral)) {

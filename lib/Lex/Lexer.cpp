@@ -47,6 +47,11 @@ Token *Lexer::tokenize(const char *P) {
       continue;
     }
 
+    if (*P == 'L' && *(P + 1) == '\'') {
+      lexCharLiteral(Curr, P);
+      continue;
+    }
+
     if (isIdent0(*P)) {
       const char *Start = P;
       do {
@@ -360,7 +365,9 @@ void Lexer::lexFloatingLiteral(Token *&Curr, const char *Start,
 
 void Lexer::lexCharLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
-  ++P; // skip opening '\''
+  if (*P == 'L')
+    ++P; // skip wide-character prefix
+  ++P;   // skip opening '\''
 
   for (; *P != '\''; ++P) {
     if (*P == '\n' || *P == '\0')
