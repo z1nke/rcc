@@ -9,6 +9,11 @@
 
 namespace rcc {
 
+class Preprocessor;
+
+// Builtin macro expander, e.g. for __FILE__ / __LINE__.
+using BuiltinMacroFn = Token *(*)(Preprocessor &PP, Token *Tmpl);
+
 class MacroInfo {
 public:
   void addTokenToBody(const Token &Tok) {
@@ -30,9 +35,14 @@ public:
   void disableMacro() { IsDisabled = true; }
   void enableMacro() { IsDisabled = false; }
 
+  void setHandler(BuiltinMacroFn Fn) { Handler = Fn; }
+  BuiltinMacroFn getHandler() const { return Handler; }
+  bool hasHandler() const { return Handler != nullptr; }
+
 private:
   std::vector<Token> ReplacementTokens;
   std::vector<std::string> Parameters;
+  BuiltinMacroFn Handler = nullptr;
   bool IsFunctionLike = false;
   bool IsDisabled = false;
 };

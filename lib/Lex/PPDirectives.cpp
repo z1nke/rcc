@@ -41,6 +41,12 @@ void Preprocessor::defineMacro(const char *Name, const char *Body) {
   Macros.insert_or_assign(Name, std::move(MI));
 }
 
+void Preprocessor::addBuiltin(const char *Name, BuiltinMacroFn Fn) {
+  MacroInfo MI;
+  MI.setHandler(Fn);
+  Macros.insert_or_assign(Name, std::move(MI));
+}
+
 void Preprocessor::initMacros() {
   defineMacro("_LP64", "1");
   defineMacro("__C99_MACRO_WITH_VA_ARGS", "1");
@@ -88,6 +94,9 @@ void Preprocessor::initMacros() {
   defineMacro("__riscv_div", "1");
   defineMacro("__riscv_float_abi_double", "1");
   defineMacro("__riscv_flen", "64");
+
+  addBuiltin("__FILE__", &Preprocessor::handleFileMacro);
+  addBuiltin("__LINE__", &Preprocessor::handleLineMacro);
 }
 
 void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {

@@ -26,14 +26,15 @@ static std::size_t getParameterIndex(const MacroInfo &MI, const Token &Tok) {
 static void
 copyOperandTokens(BumpPtrAllocator &Alloc, const MacroInfo &MI,
                   const std::vector<std::vector<const Token *>> &Arguments,
-                  const Token &Operand, const Token &MacroNameTok,
+                  const Token &Operand, Token *MacroNameTok,
                   std::vector<Token *> &Result) {
   std::size_t Index = getParameterIndex(MI, Operand);
   if (Index == MI.parameters().size()) {
     void *Mem = Alloc.allocate(sizeof(Token), alignof(Token));
     Result.push_back(new (Mem) Token(Operand));
     Result.back()->setNext(nullptr);
-    Result.back()->setSourceRange(MacroNameTok);
+    Result.back()->setSourceRange(*MacroNameTok);
+    Result.back()->setOrigin(MacroNameTok);
     return;
   }
 
@@ -41,6 +42,7 @@ copyOperandTokens(BumpPtrAllocator &Alloc, const MacroInfo &MI,
     void *Mem = Alloc.allocate(sizeof(Token), alignof(Token));
     Result.push_back(new (Mem) Token(*Tok));
     Result.back()->setNext(nullptr);
+    Result.back()->setOrigin(MacroNameTok);
   }
 }
 
@@ -102,30 +104,21 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
   if (!isMacroIdentifier(Tok) || Tok->isExpandDisabled())
     return false;
 
-  std::string_view NameView(Tok->getLoc(), Tok->getLen());
-  if (NameView == "__LINE__") {
-    SourceManager &SM = Diag.getSourceManager();
-    unsigned Line = SM.getLineNumber(SM.createBeginLocation(Tok));
-    std::string Spelling = std::to_string(Line);
-    char *Buffer = static_cast<char *>(
-        MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
-    std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
-
-    void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
-    Token *Expanded =
-        new (Mem) Token(Token::TK_Num, Buffer, Buffer + Spelling.size(), Line);
-    Expanded->setSourceRange(*Tok);
-    Expanded->setNext(Tok->getNext());
-    Rest = Expanded;
-    return true;
-  }
-
-  std::string Name(NameView);
+  std::string Name(Tok->getLoc(), Tok->getLen());
   auto Iter = Macros.find(Name);
   if (Iter == Macros.end())
     return false;
 
   MacroInfo &MI = Iter->second;
+  if (BuiltinMacroFn Handler = MI.getHandler()) {
+    Token *Expanded = Handler(*this, Tok);
+    Expanded->setNext(Tok->getNext());
+    Expanded->setAtStartOfLine(Tok->isAtStartOfLine());
+    Expanded->setHasLeadingSpace(Tok->hasLeadingSpace());
+    Rest = Expanded;
+    return true;
+  }
+
   Token *ExpansionEnd = Tok->getNext();
   if (MI.isFunctionLike() && ExpansionEnd->isNot(Token::TK_LParen))
     return false;
@@ -224,6 +217,7 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
       Token *Expanded = new (Mem)
           Token(Token::TK_StrLiteral, Buffer, Buffer + Spelling.size());
       Expanded->setSourceRange(*Tok);
+      Expanded->setOrigin(Tok);
       Expanded->setHasLeadingSpace(Replacement.hasLeadingSpace());
       Curr->setNext(Expanded);
       Curr = Expanded;
@@ -241,7 +235,7 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
     const auto &SubstitutionArguments =
         IsPasteChain ? Arguments : ExpandedArguments;
     copyOperandTokens(MacroTokenAlloc, MI, SubstitutionArguments, Replacement,
-                      *Tok, Operand);
+                      Tok, Operand);
 
     while (I + 1 < ReplacementTokens.size() &&
            ReplacementTokens[I + 1].is(Token::TK_HashHash)) {
@@ -252,7 +246,7 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
 
       std::vector<Token *> RHS;
       copyOperandTokens(MacroTokenAlloc, MI, Arguments,
-                        ReplacementTokens[I + 2], *Tok, RHS);
+                        ReplacementTokens[I + 2], Tok, RHS);
       if (Operand.empty()) {
         Operand = std::move(RHS);
       } else if (!RHS.empty()) {
@@ -338,6 +332,62 @@ Token *Preprocessor::expandMacroExpression(Token *&Rest, Token *Toks) {
   finishMacroExpansions(Toks);
   ResultCurr->setNext(Toks);
   return ResultHead.getNext();
+}
+
+static Token *getExpansionPoint(Token *Tmpl) {
+  while (Tmpl->getOrigin())
+    Tmpl = Tmpl->getOrigin();
+  return Tmpl;
+}
+
+Token *Preprocessor::handleFileMacro(Preprocessor &PP, Token *Tmpl) {
+  return PP.expandFileMacro(Tmpl);
+}
+
+Token *Preprocessor::handleLineMacro(Preprocessor &PP, Token *Tmpl) {
+  return PP.expandLineMacro(Tmpl);
+}
+
+Token *Preprocessor::expandFileMacro(Token *Tmpl) {
+  Token *Origin = getExpansionPoint(Tmpl);
+  SourceManager &SM = Diag.getSourceManager();
+  std::string_view Filename =
+      SM.getFilename(SM.createBeginLocation(Origin));
+
+  std::string Spelling = "\"";
+  for (char C : Filename) {
+    if (C == '\\' || C == '"')
+      Spelling += '\\';
+    Spelling += C;
+  }
+  Spelling += '"';
+
+  char *Buffer = static_cast<char *>(
+      MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+  std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+  void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+  Token *Expanded =
+      new (Mem) Token(Token::TK_StrLiteral, Buffer, Buffer + Spelling.size());
+  Expanded->setSourceRange(*Origin);
+  return Expanded;
+}
+
+Token *Preprocessor::expandLineMacro(Token *Tmpl) {
+  Token *Origin = getExpansionPoint(Tmpl);
+  SourceManager &SM = Diag.getSourceManager();
+  unsigned Line = SM.getLineNumber(SM.createBeginLocation(Origin));
+  std::string Spelling = std::to_string(Line);
+
+  char *Buffer = static_cast<char *>(
+      MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+  std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+  void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+  Token *Expanded =
+      new (Mem) Token(Token::TK_Num, Buffer, Buffer + Spelling.size(), Line);
+  Expanded->setSourceRange(*Origin);
+  return Expanded;
 }
 
 } // namespace rcc

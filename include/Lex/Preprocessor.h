@@ -33,7 +33,12 @@ private:
   void handleDefineDirective(Token *&Rest, Token *NameTok);
   void handleUndefDirective(Token *&Rest, Token *NameTok);
   void defineMacro(const char *Name, const char *Body);
+  void addBuiltin(const char *Name, BuiltinMacroFn Fn);
   void initMacros();
+  Token *expandFileMacro(Token *Tmpl);
+  Token *expandLineMacro(Token *Tmpl);
+  static Token *handleFileMacro(Preprocessor &PP, Token *Tmpl);
+  static Token *handleLineMacro(Preprocessor &PP, Token *Tmpl);
   std::string readIncludeFilename(Token *&Rest, Token *Tok, bool &IsDquote);
   std::string searchIncludePaths(const std::string &Filename) const;
   Token *includeFile(Token *Rest, const std::string &Path, Token *FilenameTok);

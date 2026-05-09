@@ -60,6 +60,9 @@ public:
     SourceLen = Tok.getSourceLen();
   }
 
+  Token *getOrigin() const { return Origin; }
+  void setOrigin(Token *Tok) { Origin = Tok; }
+
   std::string_view getIdentifer() const;
   std::int64_t getVal() const;
   double getFVal() const;
@@ -97,6 +100,7 @@ private:
   NumericLiteralKind NumKind = NumericLiteralKind::Int;
   const char *SourceLoc = nullptr;
   int SourceLen = 0;
+  Token *Origin = nullptr;
   bool AtStartOfLine = false;
   bool HasLeadingSpace = false;
   bool DisableExpand = false;

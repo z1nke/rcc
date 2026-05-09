@@ -110,7 +110,7 @@ static void evaluateDefined(PPValue &Result, EvalContext &Ctx) {
                      "expected identifier after 'defined'");
 
   std::string Name(Ctx.CurTok->getLoc(), Ctx.CurTok->getLen());
-  Result.Val = Name == "__LINE__" || Ctx.Macros.contains(Name);
+  Result.Val = Ctx.Macros.contains(Name);
   Result.IsUnsigned = false;
   Ctx.CurTok = Ctx.CurTok->getNext();
   if (HasParen)

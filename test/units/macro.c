@@ -4,6 +4,13 @@
 
 void assert(int expected, int actual, char *code, int line);
 int strcmp(char *p, char *q);
+char *strstr(char *p, char *q);
+
+// [189] Add __FILE__ and __LINE__
+char *main_filename1 = __FILE__;
+int main_line1 = __LINE__;
+#define LINE() __LINE__
+int main_line2 = LINE();
 
 int ret3(void) { return 3; }
 int dbl(int x) { return x * x; }
@@ -333,6 +340,15 @@ int main() {
   assert(4, __SIZEOF_INT__, "__SIZEOF_INT__", 0);
   assert(1, _LP64, "_LP64", 0);
   assert(1, __LP64__, "__LP64__", 0);
+
+  // [189] Add __FILE__ and __LINE__
+  assert(1, strstr(main_filename1, "macro.c") != 0,
+         "strstr(main_filename1, \"macro.c\")", 0);
+  assert(11, main_line1, "main_line1", 0);
+  assert(13, main_line2, "main_line2", 0);
+  assert(1, strstr(include1_filename, "include1.h") != 0,
+         "strstr(include1_filename, \"include1.h\")", 0);
+  assert(5, include1_line, "include1_line", 0);
 
   return 0;
 }

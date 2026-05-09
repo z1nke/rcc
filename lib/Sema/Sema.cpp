@@ -535,15 +535,13 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   }
 
   if (const auto *SL = dynCast<StringLiteral>(Init)) {
-    if (!isCharArrayType(Ctx, VarType))
-      Diag.fatalAt(Var->getLocation(), "invalid variable init type");
-    checkStringLiteralInit(Ctx, Diag, VarType, SL);
-    Var->setInit(Init);
-    Var->setEndLoc(Init->getEndLoc());
-    return;
-  }
-
-  if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+    if (isCharArrayType(Ctx, VarType)) {
+      checkStringLiteralInit(Ctx, Diag, VarType, SL);
+      Var->setInit(Init);
+      Var->setEndLoc(Init->getEndLoc());
+      return;
+    }
+  } else if (const auto *ILE = dynCast<InitListExpr>(Init)) {
     if (!VarType->isArraryType() && !VarType->isRecordType()) {
       while (const auto *ScalarILE = dynCast<InitListExpr>(Init)) {
         if (ScalarILE->getNumInits() != 1)
