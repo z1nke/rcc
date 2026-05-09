@@ -156,6 +156,10 @@ int (*fnptr(int (*fn)(int n, ...)))(int, ...) {
 // [152] Decay a function to a pointer in the func param context
 int param_decay2(int x()) { return x(); }
 
+// [191] Add __func__
+char *func_fn(void) {
+  return __func__;
+}
 
 int main() {
   // [12] Support return
@@ -272,6 +276,11 @@ int main() {
 
   // [152] Decay a function to a pointer in the func param context
   ASSERT(3, param_decay2(ret3));
+
+  // [191] Add __func__
+  ASSERT(5, sizeof(__func__));
+  ASSERT(0, strcmp("main", __func__));
+  ASSERT(0, strcmp("func_fn", func_fn()));
 
   printf("OK\n");
   return 0;

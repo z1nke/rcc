@@ -300,6 +300,21 @@ void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
       Diag.fatalAt(Param->getBeginLoc(), "parameter name omitted");
   }
 
+  // __func__ is a static local char array holding the current function name.
+  const std::string &Name = FD->getName();
+  QualType FuncNameTy =
+      Ctx.getConstantArrayType(Ctx.CharTy, Name.size() + 1);
+  VarDecl *FuncName =
+      VarDecl::create(Ctx, FD->getLocation(), FD->getBeginLoc(),
+                      FD->getEndLoc(), FuncNameTy, "__func__");
+  FuncName->setGlobalStorage(true);
+  FuncName->setStaticLocal();
+  Expr *FuncNameInit = actOnStringLiteral(FD->getBeginLoc(), FD->getEndLoc(),
+                                          FuncNameTy, Name);
+  complete(FuncName, FuncNameInit);
+  addDecl(FuncName);
+  TU->addDecl(FuncName);
+
   const auto *FT = FD->getType()->getAs<FunctionType>();
   if (!FT || !FT->isVariadic())
     return;
