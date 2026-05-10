@@ -303,8 +303,9 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   }
 
   // If the next character indicates a floating constant, reparse with strtod.
-  // Parse '.', 'e'/'E', or 'f'/'F' after the integer.
-  if (*P && std::strchr(".eEfF", *P)) {
+  // Decimal: '.', 'e'/'E', or 'f'/'F'. Hex: 'p'/'P' binary exponent.
+  bool IsHexFloat = Base == 16 && (*P == 'p' || *P == 'P');
+  if (*P && (std::strchr(".eEfF", *P) || IsHexFloat)) {
     P = Start;
     lexFloatingLiteral(Curr, Start, P);
     return;

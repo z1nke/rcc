@@ -4,6 +4,7 @@
 #include <format>
 #include <print>
 #include <string_view>
+#include <system_error>
 
 namespace rcc {
 
@@ -14,11 +15,29 @@ static void usage(int Status) {
 }
 
 void CompilerInvocation::addDefaultIncludePaths(const char *Argv0) {
-  // rcc-specific headers are expected under ./include relative to argv[0].
-  std::filesystem::path Dir = std::filesystem::path(Argv0).parent_path();
+  // dirname(argv[0])/include — used by tests and local overrides.
+  std::filesystem::path ArgvPath = Argv0;
+  std::filesystem::path Dir = ArgvPath.parent_path();
   if (Dir.empty())
     Dir = ".";
   IncludePaths.push_back((Dir / "include").string());
+
+  // Resolve the real executable so freestanding headers are found even when
+  // argv[0] is a bare name from PATH.
+  // bin/rcc  ->  lib/rcc/include.
+  std::error_code EC;
+  std::filesystem::path Exe = ArgvPath;
+  if (!ArgvPath.has_parent_path())
+    Exe = std::filesystem::read_symlink("/proc/self/exe", EC);
+  else
+    Exe = std::filesystem::weakly_canonical(Exe, EC);
+
+  if (!EC && !Exe.empty()) {
+    auto ResourceInclude = Exe.parent_path() / ".." / "lib" / "rcc" / "include";
+    ResourceInclude = std::filesystem::weakly_canonical(ResourceInclude, EC);
+    if (!EC)
+      IncludePaths.push_back(ResourceInclude.string());
+  }
 
   // Standard system include paths.
   IncludePaths.emplace_back("/usr/local/include");
