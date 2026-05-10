@@ -2118,6 +2118,9 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   const auto *Func = CE->getCalleeDecl();
   const unsigned NumParams = Func ? Func->getNumParams() : FT->getNumParams();
   const bool IsVariadic = FT->isVariadic();
+  const VarDecl *RetBuf = CE->getRetBuffer();
+  const bool LargeRet =
+      RetBuf && CE->getTypePtr()->getSize() > 16;
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
   enum class ArgKind { Scalar, Struct };
@@ -2125,6 +2128,11 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   std::vector<std::pair<bool, const char *>> ArgDest(NumArgs);
   std::vector<bool> PassByStack(NumArgs, false);
   int GP = 0, FP = 0, Stack = 0;
+
+  // Hidden first argument: pointer to the caller-allocated return buffer.
+  if (LargeRet)
+    ++GP;
+
   for (int I = 0; I < NumArgs; ++I) {
     const Type *Ty = CE->getArg(I)->getType().getTypePtr();
     const bool VariadicTail =
@@ -2203,6 +2211,13 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
       PushArg(CE->getArg(I), I);
   }
 
+  if (LargeRet) {
+    emit("  # push pointer to struct return buffer");
+    emit("  li t0, {}", RetBuf->getOffset());
+    emit("  add a0, fp, t0");
+    push();
+  }
+
   if (!Func) {
     genExpr(CE->getCallee());
     emit("  mv t5, a0");
@@ -2210,6 +2225,11 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
 
   GP = 0;
   FP = 0;
+  if (LargeRet) {
+    emit("  # large struct return: a0 points to return buffer");
+    pop(ArgReg[GP++]);
+  }
+
   for (int I = 0; I < NumArgs; ++I) {
     if (ArgKinds[I] == ArgKind::Struct) {
       popStructArgToRegs(CE->getArg(I)->getType().getTypePtr(), GP, FP,
@@ -2275,6 +2295,14 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     default:
       break;
     }
+  }
+
+  // Small struct/union returns arrive in registers; copy into the buffer and
+  // leave a0 pointing at it (large returns already wrote through a0/sret).
+  if (RetBuf && RetTy->getSize() <= 16) {
+    copyRetBuffer(RetBuf);
+    emit("  li t0, {}", RetBuf->getOffset());
+    emit("  add a0, fp, t0");
   }
 }
 
@@ -2373,6 +2401,14 @@ void CodeGen::genAddr(const Expr *E) {
   case Stmt::SK_MemberExpr:
     genAddr(cast<MemberExpr>(E));
     return;
+  case Stmt::SK_CallExpr: {
+    const auto *CE = cast<CallExpr>(E);
+    if (CE->getRetBuffer()) {
+      genExpr(CE);
+      return;
+    }
+    break;
+  }
   default:
     break;
   }
@@ -2580,6 +2616,48 @@ void CodeGen::storeStructParam(const Type *Ty, int Offset, int &GP, int &FP,
     return;
   }
   storeGenReg(GP++, Offset, static_cast<int>(Sz));
+}
+
+void CodeGen::copyRetBuffer(const VarDecl *Buf) {
+  const Type *Ty = Buf->getType().getTypePtr();
+  int Offset = Buf->getOffset();
+  int GP = 0, FP = 0;
+
+  emit("  # copy struct return value into buffer");
+  FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
+  if (PassInfo.IsFloatStruct) {
+    const Type *Regs[2] = {PassInfo.Reg1Ty, PassInfo.Reg2Ty};
+    int PartOff = 0;
+    for (int I = 0; I < 2; ++I) {
+      if (!Regs[I])
+        break;
+      if (Regs[I]->isFloatingType())
+        storeFloatReg(FP++, Offset + PartOff,
+                      static_cast<int>(Regs[I]->getSize()));
+      else
+        storeGenReg(GP++, Offset + PartOff,
+                    static_cast<int>(Regs[I]->getSize()));
+      if (I == 0 && Regs[1])
+        PartOff = static_cast<int>(
+            std::max(Regs[0]->getSize(), Regs[1]->getSize()));
+    }
+    return;
+  }
+
+  int Sz = static_cast<int>(Ty->getSize());
+  for (int Off = 0; Off < Sz; Off += 8) {
+    int Rem = Sz - Off;
+    int StoreSize;
+    if (Rem == 1)
+      StoreSize = 1;
+    else if (Rem == 2)
+      StoreSize = 2;
+    else if (Rem == 3 || Rem == 4)
+      StoreSize = 4;
+    else
+      StoreSize = 8;
+    storeGenReg(GP++, Offset + Off, StoreSize);
+  }
 }
 
 int CodeGen::createBigStructCallSpace(const CallExpr *CE) {

@@ -300,18 +300,18 @@ void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
       Diag.fatalAt(Param->getBeginLoc(), "parameter name omitted");
   }
 
-  // __func__ / [GNU] __FUNCTION__: static local char arrays of the function name.
+  // __func__ / [GNU] __FUNCTION__: static local char arrays of the function
+  // name.
   const std::string &Name = FD->getName();
-  QualType FuncNameTy =
-      Ctx.getConstantArrayType(Ctx.CharTy, Name.size() + 1);
+  QualType FuncNameTy = Ctx.getConstantArrayType(Ctx.CharTy, Name.size() + 1);
   for (const char *Ident : {"__func__", "__FUNCTION__"}) {
     VarDecl *FuncName =
         VarDecl::create(Ctx, FD->getLocation(), FD->getBeginLoc(),
                         FD->getEndLoc(), FuncNameTy, Ident);
     FuncName->setGlobalStorage(true);
     FuncName->setStaticLocal();
-    Expr *FuncNameInit = actOnStringLiteral(
-        FD->getBeginLoc(), FD->getEndLoc(), FuncNameTy, Name);
+    Expr *FuncNameInit = actOnStringLiteral(FD->getBeginLoc(), FD->getEndLoc(),
+                                            FuncNameTy, Name);
     complete(FuncName, FuncNameInit);
     addDecl(FuncName);
     TU->addDecl(FuncName);
@@ -1098,8 +1098,19 @@ Expr *Sema::actOnCallExpr(SourceLocation EndLoc, Expr *Callee,
     Args[I] = Arg;
   }
 
-  return CallExpr::create(Ctx, Callee->getBeginLoc(), EndLoc, RetType, Callee,
-                          FT, std::move(Args));
+  auto *Call = CallExpr::create(Ctx, Callee->getBeginLoc(), EndLoc, RetType,
+                                Callee, FT, std::move(Args));
+
+  // Caller allocates a temporary for struct/union return values.
+  if (RetType->isRecordType()) {
+    auto CBegLoc = Callee->getBeginLoc();
+    auto CEndLoc = Callee->getEndLoc();
+    auto *Buf = VarDecl::create(Ctx, CBegLoc, CEndLoc, EndLoc, RetType, "");
+    LocalVars.push_back(Buf);
+    Call->setRetBuffer(Buf);
+  }
+
+  return Call;
 }
 
 Expr *Sema::actOnCastExpr(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -1386,8 +1397,7 @@ static QualType handleArithConv(const Sema &S, Expr *&LHS, Expr *&RHS,
   // but isn't actually any bigger (like unsigned int and long
   // on most 32-bit systems).  Use the unsigned type corresponding
   // to the signed type.
-  QualType Result =
-      Ctx.getCorrespondingUnsignedType(IsLS ? LType : RType);
+  QualType Result = Ctx.getCorrespondingUnsignedType(IsLS ? LType : RType);
   if (!IsCompAssign)
     LHS = (*doLHSCast)(S, LHS, Result);
   RHS = (*doRHSCast)(S, RHS, Result);
@@ -1920,16 +1930,14 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
     break;
   case DeclSpec::TST_Float:
     if (DS.getTypeSpecWidth() != DeclSpec::TSW_Unspecified)
-      Diag.fatalAt(DS.getTypeSpecLoc(),
-                   "cannot combine '{}' with 'float'",
+      Diag.fatalAt(DS.getTypeSpecLoc(), "cannot combine '{}' with 'float'",
                    DeclSpec::getSpecifierName(DS.getTypeSpecWidth()));
     T = Ctx.FloatTy;
     break;
   case DeclSpec::TST_Double:
     if (DS.getTypeSpecWidth() != DeclSpec::TSW_Unspecified &&
         DS.getTypeSpecWidth() != DeclSpec::TSW_Long)
-      Diag.fatalAt(DS.getTypeSpecLoc(),
-                   "cannot combine '{}' with 'double'",
+      Diag.fatalAt(DS.getTypeSpecLoc(), "cannot combine '{}' with 'double'",
                    DeclSpec::getSpecifierName(DS.getTypeSpecWidth()));
     T = Ctx.DoubleTy;
     break;

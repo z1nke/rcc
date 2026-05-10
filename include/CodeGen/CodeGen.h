@@ -99,6 +99,7 @@ private:
   void popStructArgToRegs(const Type *Ty, int &GP, int &FP, bool OnStack);
   void storeStructParam(const Type *Ty, int Offset, int &GP, int &FP,
                         bool HalfByStack = false);
+  void copyRetBuffer(const VarDecl *Buf);
   int createBigStructCallSpace(const CallExpr *CE);
 
   /// Returns the RISC-V load/store width suffix ("b"/"h"/"w"/"d").

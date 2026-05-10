@@ -690,6 +690,10 @@ public:
   Expr *getArg(unsigned Idx) const { return Args[Idx]; }
   const std::vector<Expr *> &getArgs() const { return Args; }
 
+  /// Temporary local holding a struct/union return value (caller-allocated).
+  VarDecl *getRetBuffer() const { return RetBuffer; }
+  void setRetBuffer(VarDecl *Buf) { RetBuffer = Buf; }
+
 private:
   CallExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
            Expr *Callee, const FunctionType *FuncType,
@@ -699,6 +703,7 @@ private:
   Expr *Callee;
   const FunctionType *FuncType;
   std::vector<Expr *> Args;
+  VarDecl *RetBuffer = nullptr;
 };
 
 class UnaryExprOrTypeTraitExpr final : public Expr {
