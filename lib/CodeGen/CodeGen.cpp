@@ -1595,10 +1595,54 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   const char *Suffix = LType->getSize() <= 4 ? "w" : "";
 
   if (BO->isCompoundAssign()) {
-    // A op= B
-    // push &A
+    // A op= B  =>  A = (typeof A)((common)A op (common)B)
     genAddr(LHS);
     push();
+
+    auto BaseOp = BO->getOpForCompoundAssign();
+
+    if (LType.isFloatingType() || RType.isFloatingType()) {
+      QualType CompTy = LType;
+      if (RType.isFloatingType() &&
+          (!LType.isFloatingType() || RType->getSize() > LType->getSize()))
+        CompTy = RType;
+
+      genExpr(RHS);
+      pushF();
+      genExpr(LHS);
+      if (!LType.isFloatingType() || LType->getSize() != CompTy->getSize())
+        genScalarCast(LType.getTypePtr(), CompTy.getTypePtr());
+      popF("fa1");
+
+      const char *FSuffix = CompTy->getSize() == 4 ? "s" : "d";
+      switch (BaseOp) {
+      case BinaryOperator::BO_Add:
+        emit("  # fa0 + fa1");
+        emit("  fadd.{} fa0, fa0, fa1", FSuffix);
+        break;
+      case BinaryOperator::BO_Sub:
+        emit("  # fa0 - fa1");
+        emit("  fsub.{} fa0, fa0, fa1", FSuffix);
+        break;
+      case BinaryOperator::BO_Mul:
+        emit("  # fa0 * fa1");
+        emit("  fmul.{} fa0, fa0, fa1", FSuffix);
+        break;
+      case BinaryOperator::BO_Div:
+        emit("  # fa0 / fa1");
+        emit("  fdiv.{} fa0, fa0, fa1", FSuffix);
+        break;
+      default:
+        Diag.fatalAt(BO->getOpLocation(),
+                     "invalid floating compound assignment: {}",
+                     BO->getOpcodeStr());
+      }
+
+      if (!LType.isFloatingType() || LType->getSize() != CompTy->getSize())
+        genScalarCast(CompTy.getTypePtr(), LType.getTypePtr());
+      store(LType.getTypePtr());
+      return;
+    }
 
     // a0 = LHS, a1 = RHS
     genExpr(RHS);
@@ -1606,7 +1650,6 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     genExpr(LHS);
     pop("a1");
 
-    auto BaseOp = BO->getOpForCompoundAssign();
     // a0 = LHS op RHS
     emitBinaryArithmeticResult(BaseOp, LType, RType, Suffix);
     // *&A = a0
@@ -1858,8 +1901,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   assert(FT);
   const auto *Func = CE->getCalleeDecl();
   // Prefer FunctionDecl param count when available.
-  const unsigned NumParams =
-      Func ? Func->getNumParams() : FT->getNumParams();
+  const unsigned NumParams = Func ? Func->getNumParams() : FT->getNumParams();
   const bool IsVariadic = FT->isVariadic();
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
