@@ -1905,38 +1905,68 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   const bool IsVariadic = FT->isVariadic();
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
-  std::vector<std::pair<bool, const char *>> ArgDest;
-  ArgDest.resize(NumArgs);
-  int GP = 0, FP = 0;
+  // ArgDest[I] = {IsFloatReg, RegName}.
+  std::vector<std::pair<bool, const char *>> ArgDest(NumArgs);
+  std::vector<bool> PassByStack(NumArgs, false);
+  int GP = 0, FP = 0, Stack = 0;
   for (int I = 0; I < NumArgs; ++I) {
     const bool IsFloat = CE->getArg(I)->getType().isFloatingType();
     const bool VariadicTail =
         IsVariadic && static_cast<unsigned>(I) >= NumParams;
     if (VariadicTail) {
-      assert(GP < 8 && "too many variadic arguments");
-      ArgDest[I] = {false, ArgReg[GP++]};
+      // Variadic args always use GP registers, then the stack.
+      if (GP < 8)
+        ArgDest[I] = {false, ArgReg[GP++]};
+      else {
+        PassByStack[I] = true;
+        ++Stack;
+      }
     } else if (IsFloat) {
       if (FP < 8)
         ArgDest[I] = {true, FaArgReg[FP++]};
-      else {
-        assert(GP < 8 && "too many floating-point arguments");
+      else if (GP < 8)
         ArgDest[I] = {false, ArgReg[GP++]};
+      else {
+        PassByStack[I] = true;
+        ++Stack;
       }
-    } else {
-      assert(GP < 8 && "too many integer arguments");
+    } else if (GP < 8) {
       ArgDest[I] = {false, ArgReg[GP++]};
+    } else {
+      PassByStack[I] = true;
+      ++Stack;
     }
   }
 
-  if (NumArgs != 0) {
+  // Keep sp 16-byte aligned once stack args (plus any padding) are in place.
+  if ((Depth + Stack) % 2 == 1) {
+    emit("  # align stack args to 16-byte boundary");
+    emit("  addi sp, sp, -8");
+    ++Depth;
+    ++Stack;
+  }
+
+  auto PushArg = [this](const Expr *Arg) {
+    genExpr(Arg);
+    if (Arg->getType().isFloatingType())
+      pushF();
+    else
+      push();
+  };
+
+  if (NumArgs != 0)
     emit("  # set call args");
-    for (const Expr *Arg : CE->getArgs()) {
-      genExpr(Arg);
-      if (Arg->getType().isFloatingType())
-        pushF();
-      else
-        push();
-    }
+
+  // First pass: stack-passed args (reverse so the first stack arg is nearest
+  // to sp after register args are popped).
+  for (int I = NumArgs - 1; I >= 0; --I) {
+    if (PassByStack[I])
+      PushArg(CE->getArg(I));
+  }
+  // Second pass: register-passed args.
+  for (int I = NumArgs - 1; I >= 0; --I) {
+    if (!PassByStack[I])
+      PushArg(CE->getArg(I));
   }
 
   // Indirect call: evaluate callee before restoring argument registers.
@@ -1945,34 +1975,29 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     emit("  mv t5, a0");
   }
 
-  for (int I = NumArgs - 1; I >= 0; --I) {
+  for (int I = 0; I < NumArgs; ++I) {
+    if (PassByStack[I])
+      continue;
     if (ArgDest[I].first)
       popF(ArgDest[I].second);
     else
       pop(ArgDest[I].second);
   }
 
-  // RISC-V ABI requires sp to be 16-byte aligned at call sites. Each push
-  // adjusts sp by 8, so an odd depth means sp is only 8-byte aligned.
+  // Depth is even here after the stack-arg alignment above.
   if (Func) {
     const std::string &Name = Func->getName();
-    if (Depth % 2 == 0) {
-      emit("  # call {}", Name);
-      emit("  call {}", Name);
-    } else {
-      emit("  # align sp to 16-byte boundary and call {}", Name);
-      emit("  addi sp, sp, -8");
-      emit("  call {}", Name);
-      emit("  addi sp, sp, 8");
-    }
-  } else if (Depth % 2 == 0) {
+    emit("  # call {}", Name);
+    emit("  call {}", Name);
+  } else {
     emit("  # indirect call");
     emit("  jalr t5");
-  } else {
-    emit("  # align sp to 16-byte boundary and indirect call");
-    emit("  addi sp, sp, -8");
-    emit("  jalr t5");
-    emit("  addi sp, sp, 8");
+  }
+
+  if (Stack > 0) {
+    emit("  # reclaim {} stack argument slots", Stack);
+    emit("  addi sp, sp, {}", Stack * 8);
+    Depth -= Stack;
   }
 
   // Truncate/sign-extend a0 for narrow integer return types.
