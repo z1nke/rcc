@@ -85,7 +85,7 @@ double add10_int_double(int a0, int a1, int a2, int a3, int a4, int a5, int a6,
   return s2 + fs4;
 }
 
-// [200] Allow struct parameter
+// [200] Allow struct argument
 typedef struct {_Bool a;} StTy1_1;
 typedef struct {short a;} StTy1_2;
 typedef struct {unsigned a;} StTy1_3;

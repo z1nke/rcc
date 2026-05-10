@@ -173,9 +173,33 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
       }
       PassByStack = true;
     } else if (Ty->isRecordType()) {
-      countStructArgRegs(Ty, GP, FP, PassByStack);
-      if (!PassByStack)
+      FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
+      if (PassInfo.IsFloatStruct) {
+        const Type *Regs[2] = {PassInfo.Reg1Ty, PassInfo.Reg2Ty};
+        for (int I = 0; I < 2; ++I) {
+          if (!Regs[I])
+            break;
+          if (Regs[I]->isFloatingType())
+            ++FP;
+          if (Regs[I]->isIntegerType())
+            ++GP;
+        }
         continue;
+      }
+
+      // 9–16 byte integer structs use two GP registers; if only one remains,
+      // the upper half is passed on the stack.
+      if (Ty->getSize() > 8 && Ty->getSize() <= 16) {
+        if (GP == GPMAX - 1)
+          Param->setHalfByStack(true);
+        if (GP < GPMAX)
+          ++GP;
+      }
+      if (GP < GPMAX) {
+        ++GP;
+        continue;
+      }
+      PassByStack = true;
     } else if (GP < GPMAX) {
       ++GP;
       continue;
@@ -186,7 +210,10 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
     if (PassByStack) {
       ReOffset = alignTo(ReOffset, 8);
       Param->setOffset(ReOffset);
-      ReOffset += static_cast<int>(Ty->getSize());
+      // Half-by-stack: only the upper half lives in the caller arg area.
+      ReOffset += Param->isHalfByStack()
+                      ? static_cast<int>(Ty->getSize()) - 8
+                      : static_cast<int>(Ty->getSize());
     }
   }
 
@@ -198,8 +225,9 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   }
 
   for (auto *Param : FD->getParams()) {
-    // Stack-passed params already have a positive caller-area offset.
-    if (Param->getOffset() > 0)
+    // Fully stack-passed params keep their positive caller-area offset.
+    // Half-by-stack params are copied into a local slot in the prologue.
+    if (Param->getOffset() > 0 && !Param->isHalfByStack())
       continue;
     Offset += Param->getType()->getSize();
     Offset = alignTo(Offset, Param->getAlign());
@@ -802,7 +830,8 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   }
 
   // Save register-passed arguments from a*/fa* into the stack frame.
-  // Stack-passed params (Offset > 0) stay in the caller's argument area.
+  // Fully stack-passed params (Offset > 0) stay in the caller's argument area.
+  // Half-by-stack structs are reconstructed into a local slot.
   unsigned NumParams = FD->getNumParams();
   int GP = 0, FP = 0;
   if (NumParams > 0) {
@@ -810,12 +839,12 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     for (unsigned I = 0; I < NumParams; ++I) {
       const auto *Param = FD->getParam(I);
       int Offset = Param->getOffset();
-      if (Offset > 0)
+      if (Offset > 0 && !Param->isHalfByStack())
         continue;
 
       const Type *Ty = Param->getType().getTypePtr();
       if (Ty->isRecordType()) {
-        storeStructParam(Ty, Offset, GP, FP);
+        storeStructParam(Ty, Offset, GP, FP, Param->isHalfByStack());
         continue;
       }
 
@@ -2496,7 +2525,8 @@ void CodeGen::popStructArgToRegs(const Type *Ty, int &GP, int &FP,
   }
 }
 
-void CodeGen::storeStructParam(const Type *Ty, int Offset, int &GP, int &FP) {
+void CodeGen::storeStructParam(const Type *Ty, int Offset, int &GP, int &FP,
+                               bool HalfByStack) {
   std::size_t Sz = Ty->getSize();
   if (isLargeStructByPointer(Ty)) {
     emit("  # copy large struct parameter from a{}", GP);
@@ -2530,9 +2560,23 @@ void CodeGen::storeStructParam(const Type *Ty, int Offset, int &GP, int &FP) {
     return;
   }
 
+  // First 8 bytes in a GP register; remainder copied from the caller area
+  // at fp+16 (this half-struct is the first stack-resident argument).
+  if (HalfByStack) {
+    emit("  # store half-register / half-stack struct parameter");
+    storeGenReg(GP++, Offset, 8);
+    for (std::size_t I = 0; I < Sz - 8; ++I) {
+      emit("  lb t0, {}(fp)", 16 + static_cast<int>(I));
+      emit("  li t1, {}", Offset + 8 + static_cast<int>(I));
+      emit("  add t1, fp, t1");
+      emit("  sb t0, 0(t1)");
+    }
+    return;
+  }
+
   if (Sz > 8 && Sz <= 16) {
     storeGenReg(GP++, Offset, 8);
-    storeGenReg(GP++, Offset + 8, 8);
+    storeGenReg(GP++, Offset + 8, static_cast<int>(Sz - 8));
     return;
   }
   storeGenReg(GP++, Offset, static_cast<int>(Sz));

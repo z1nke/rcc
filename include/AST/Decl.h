@@ -144,6 +144,11 @@ public:
   int getOffset() const { return Offset; }
   void setOffset(int Offset) { this->Offset = Offset; }
 
+  /// True when a 9–16 byte struct is split: first 8 bytes in a GP register,
+  /// the rest on the caller's stack (RISC-V LP64 ABI).
+  bool isHalfByStack() const { return IsHalfByStack; }
+  void setHalfByStack(bool V = true) { IsHalfByStack = V; }
+
   const Expr *getInit() const { return Init; }
   Expr *getInit() { return Init; }
   void setInit(Expr *E) { Init = E; }
@@ -172,6 +177,7 @@ private:
   Expr *Init = nullptr;
   // Temporary handling.
   int Offset = 0;
+  bool IsHalfByStack = false;
   bool IsGlobalStorage = false;
   bool IsStaticLocal = false;
   bool IsDefinition = true;
