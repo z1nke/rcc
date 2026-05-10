@@ -318,7 +318,20 @@ void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
   }
 
   const auto *FT = FD->getType()->getAs<FunctionType>();
-  if (!FT || !FT->isVariadic())
+  if (!FT)
+    return;
+
+  // Hidden local for the caller-provided return buffer (RISC-V sret).
+  QualType RetTy = FT->getReturnType();
+  if (RetTy->isRecordType() && RetTy->getSize() > 16) {
+    QualType PtrTy = Ctx.getPointerType(RetTy);
+    VarDecl *Sret = VarDecl::create(Ctx, FD->getLocation(), FD->getBeginLoc(),
+                                    FD->getEndLoc(), PtrTy, "__sret__");
+    LocalVars.push_back(Sret);
+    addDecl(Sret);
+  }
+
+  if (!FT->isVariadic())
     return;
 
   // Inject an implementation local that CodeGen uses as the RISC-V varargs
@@ -837,6 +850,11 @@ Stmt *Sema::actOnReturnStmt(SourceLocation BegLoc, SourceLocation EndLoc,
 
   if (!RetVal)
     Diag.fatalAt(BegLoc, "non-void function must return a value");
+
+  // Struct/union returns are passed by value via registers or a hidden
+  // buffer; do not insert scalar casts.
+  if (RetType->isRecordType())
+    return ReturnStmt::create(Ctx, BegLoc, EndLoc, RetVal);
 
   RetVal = usualUnaryConv(RetVal);
   assert(RetVal);

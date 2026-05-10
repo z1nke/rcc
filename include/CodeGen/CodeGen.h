@@ -95,11 +95,15 @@ private:
 
   void storeGenReg(int Reg, int Offset, int Size);
   void storeFloatReg(int Reg, int Offset, int Size);
+  void loadGenRegFromT1(int Reg, int Offset, int Size);
+  void loadFloatRegFromT1(int Reg, int Offset, int Size);
   void pushStructArg(const Type *Ty, bool OnStack);
   void popStructArgToRegs(const Type *Ty, int &GP, int &FP, bool OnStack);
   void storeStructParam(const Type *Ty, int Offset, int &GP, int &FP,
                         bool HalfByStack = false);
   void copyRetBuffer(const VarDecl *Buf);
+  void copyStructReg();
+  void copyStructMem();
   int createBigStructCallSpace(const CallExpr *CE);
 
   /// Returns the RISC-V load/store width suffix ("b"/"h"/"w"/"d").

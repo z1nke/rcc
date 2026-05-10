@@ -152,6 +152,22 @@ static bool useFloatStructStackPass(const FloatStructPassInfo &PassInfo) {
 
 } // namespace
 
+static const VarDecl *findVaAreaVar(const FunctionDecl *FD) {
+  for (const VarDecl *Var : FD->getLocalVars()) {
+    if (Var->getName() == "__va_area__")
+      return Var;
+  }
+  return nullptr;
+}
+
+static const VarDecl *findSretVar(const FunctionDecl *FD) {
+  for (const VarDecl *Var : FD->getLocalVars()) {
+    if (Var->getName() == "__sret__")
+      return Var;
+  }
+  return nullptr;
+}
+
 // Returns stack size for locals / register-passed params (below fp).
 // Stack-passed params keep positive offsets at fp+16 and above (caller area).
 static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
@@ -159,6 +175,9 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   // begin at fp+16.
   int ReOffset = 16;
   int GP = 0, FP = 0;
+  // Hidden sret pointer occupies a0 when returning a large struct/union.
+  if (findSretVar(FD))
+    ++GP;
   for (auto *Param : FD->getParams()) {
     const Type *Ty = Param->getType().getTypePtr();
     bool PassByStack = false;
@@ -235,14 +254,6 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   }
 
   return alignTo(Offset, 16);
-}
-
-static const VarDecl *findVaAreaVar(const FunctionDecl *FD) {
-  for (const VarDecl *Var : FD->getLocalVars()) {
-    if (Var->getName() == "__va_area__")
-      return Var;
-  }
-  return nullptr;
 }
 
 static const char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
@@ -834,6 +845,10 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   // Half-by-stack structs are reconstructed into a local slot.
   unsigned NumParams = FD->getNumParams();
   int GP = 0, FP = 0;
+  if (const VarDecl *Sret = findSretVar(FD)) {
+    emit("  # save struct return buffer pointer from a0");
+    storeGenReg(GP++, Sret->getOffset(), 8);
+  }
   if (NumParams > 0) {
     emit("  # store register parameters to local frame");
     for (unsigned I = 0; I < NumParams; ++I) {
@@ -910,8 +925,16 @@ void CodeGen::genStmt(const Stmt *S) {
   }
   case Stmt::SK_ReturnStmt:
     emit("  # return stmt");
-    if (const Expr *RetVal = cast<ReturnStmt>(S)->getRetValue())
+    if (const Expr *RetVal = cast<ReturnStmt>(S)->getRetValue()) {
       genExpr(RetVal);
+      const Type *Ty = RetVal->getTypePtr();
+      if (Ty->isRecordType()) {
+        if (Ty->getSize() <= 16)
+          copyStructReg();
+        else
+          copyStructMem();
+      }
+    }
     emit("  j .L.return.{}", CurrFunc->getName());
     break;
   case Stmt::SK_NullStmt:
@@ -1171,6 +1194,8 @@ void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,
     }
     return;
   }
+  if (ElemInit->getType().getTypePtr() != ElemTy.getTypePtr())
+    genScalarCast(ElemInit->getTypePtr(), ElemTy.getTypePtr());
   push();
   genAddr(Var);
   emit("  addi a1, a0, {}", Offset);
@@ -2660,6 +2685,70 @@ void CodeGen::copyRetBuffer(const VarDecl *Buf) {
   }
 }
 
+void CodeGen::copyStructReg() {
+  const auto *FT = CurrFunc->getType()->getAs<FunctionType>();
+  assert(FT);
+  const Type *Ty = FT->getReturnType().getTypePtr();
+  int GP = 0, FP = 0;
+
+  emit("  # copy small struct return into registers");
+  emit("  mv t1, a0");
+
+  FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
+  if (PassInfo.IsFloatStruct) {
+    const Type *Regs[2] = {PassInfo.Reg1Ty, PassInfo.Reg2Ty};
+    int PartOff = 0;
+    for (int I = 0; I < 2; ++I) {
+      if (!Regs[I])
+        break;
+      if (Regs[I]->isFloatingType())
+        loadFloatRegFromT1(FP++, PartOff,
+                           static_cast<int>(Regs[I]->getSize()));
+      else
+        loadGenRegFromT1(GP++, PartOff,
+                         static_cast<int>(Regs[I]->getSize()));
+      if (I == 0 && Regs[1])
+        PartOff = static_cast<int>(
+            std::max(Regs[0]->getSize(), Regs[1]->getSize()));
+    }
+    return;
+  }
+
+  int Sz = static_cast<int>(Ty->getSize());
+  for (int Off = 0; Off < Sz; Off += 8) {
+    int Rem = Sz - Off;
+    int LoadSize;
+    if (Rem == 1)
+      LoadSize = 1;
+    else if (Rem == 2)
+      LoadSize = 2;
+    else if (Rem == 3 || Rem == 4)
+      LoadSize = 4;
+    else
+      LoadSize = 8;
+    loadGenRegFromT1(GP++, Off, LoadSize);
+  }
+}
+
+void CodeGen::copyStructMem() {
+  const auto *FT = CurrFunc->getType()->getAs<FunctionType>();
+  assert(FT);
+  const Type *Ty = FT->getReturnType().getTypePtr();
+  const VarDecl *Sret = findSretVar(CurrFunc);
+  assert(Sret && "large struct return requires __sret__");
+
+  emit("  # copy large struct return into caller buffer");
+  emit("  li t0, {}", Sret->getOffset());
+  emit("  add t0, fp, t0");
+  emit("  ld t1, 0(t0)");
+  for (std::size_t I = 0; I < Ty->getSize(); ++I) {
+    emit("  lb t0, {}(a0)", I);
+    emit("  sb t0, {}(t1)", I);
+  }
+  // ABI: return the address of the buffer in a0.
+  emit("  mv a0, t1");
+}
+
 int CodeGen::createBigStructCallSpace(const CallExpr *CE) {
   int BSStack = 0;
   for (const Expr *Arg : CE->getArgs()) {
@@ -2785,6 +2874,19 @@ void CodeGen::storeFloatReg(int Reg, int Offset, int Size) {
   else {
     assert(Size == 8);
     emit("  fsd {}, 0(t0)", FaArgReg[Reg]);
+  }
+}
+
+void CodeGen::loadGenRegFromT1(int Reg, int Offset, int Size) {
+  emit("  l{} {}, {}(t1)", getWidthSuffix(Size), ArgReg[Reg], Offset);
+}
+
+void CodeGen::loadFloatRegFromT1(int Reg, int Offset, int Size) {
+  if (Size == 4)
+    emit("  flw {}, {}(t1)", FaArgReg[Reg], Offset);
+  else {
+    assert(Size == 8);
+    emit("  fld {}, {}(t1)", FaArgReg[Reg], Offset);
   }
 }
 
