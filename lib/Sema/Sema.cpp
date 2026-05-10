@@ -1041,6 +1041,10 @@ Expr *Sema::actOnConditionalOperator(SourceLocation QLoc,
 
 Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
                                unsigned Op) {
+  // *func is equivalent to func (C function designators).
+  if (Op == UnaryOperator::UO_Deref && SubExpr->getType()->isFunctionType())
+    return SubExpr;
+
   QualType ResType = getUnaryOperatorType(OpLoc, SubExpr, Op);
   return UnaryOperator::create(Ctx, OpLoc, SubExpr->getEndLoc(), ResType,
                                SubExpr, static_cast<UnaryOperator::Opcode>(Op));

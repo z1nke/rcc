@@ -1173,6 +1173,9 @@ int main() {
   ASSERT(10, ({ struct_type_8_2_test_4().a; }));
   ASSERT(20, ({ struct_type_8_2_test_4().b; }));
 
+  // [206] Dereferencing a function shouldn't do anything
+  ASSERT(5, (***add2)(2, 3));
+
   printf("OK\n");
   return 0;
 }
