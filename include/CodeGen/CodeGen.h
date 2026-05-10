@@ -95,6 +95,10 @@ private:
 
   void storeGenReg(int Reg, int Offset, int Size);
   void storeFloatReg(int Reg, int Offset, int Size);
+  void pushStructArg(const Type *Ty, bool OnStack);
+  void popStructArgToRegs(const Type *Ty, int &GP, int &FP, bool OnStack);
+  void storeStructParam(const Type *Ty, int Offset, int &GP, int &FP);
+  int createBigStructCallSpace(const CallExpr *CE);
 
   /// Returns the RISC-V load/store width suffix ("b"/"h"/"w"/"d").
   /// When \p IsUnsigned is true, returns the zero-extending load suffix
@@ -119,6 +123,7 @@ private:
   Diagnostic &Diag;
   const FunctionDecl *CurrFunc = nullptr;
   int Depth = 0;
+  int BigStructDepth = 0;
   std::vector<int> BreakCounts;
   std::vector<int> ContinueCounts;
   std::vector<int> SwitchCounts;

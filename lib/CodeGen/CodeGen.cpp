@@ -26,6 +26,130 @@ namespace {
 
 static bool shouldEmitInBss(const VarDecl *Var) { return !Var->getInit(); }
 
+static constexpr int GPMAX = 8;
+static constexpr int FPMAX = 8;
+
+struct FloatStructPassInfo {
+  const Type *Reg1Ty = nullptr;
+  const Type *Reg2Ty = nullptr;
+  bool IsFloatStruct = false;
+};
+
+static void collectFloatStructMembers(const Type *Ty, const Type *RegsTy[2],
+                                      int &Idx) {
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    if (RT->getDecl()->isUnion()) {
+      Idx += 2;
+      return;
+    }
+    for (const FieldDecl *Field : RT->getDecl()->fields())
+      collectFloatStructMembers(Field->getType().getTypePtr(), RegsTy, Idx);
+    return;
+  }
+  if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+    for (std::size_t I = 0; I < CAT->getLength(); ++I)
+      collectFloatStructMembers(CAT->getElementType().getTypePtr(), RegsTy,
+                                Idx);
+    return;
+  }
+  if (Idx < 2)
+    RegsTy[Idx] = Ty;
+  ++Idx;
+}
+
+static FloatStructPassInfo getFloatStructPassInfo(const Type *Ty, int GP,
+                                                  int FP) {
+  FloatStructPassInfo Info;
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    if (RT->getDecl()->isUnion())
+      return Info;
+  }
+
+  const Type *RegsTy[2] = {nullptr, nullptr};
+  int Idx = 0;
+  collectFloatStructMembers(Ty, RegsTy, Idx);
+  if (Idx > 2)
+    return Info;
+
+  if ((RegsTy[0] && RegsTy[0]->isFloatingType() && !RegsTy[1] &&
+       FP < FPMAX) ||
+      (RegsTy[0] && RegsTy[0]->isFloatingType() && RegsTy[1] &&
+       RegsTy[1]->isIntegerType() && FP < FPMAX && GP < GPMAX) ||
+      (RegsTy[0] && RegsTy[0]->isIntegerType() && RegsTy[1] &&
+       RegsTy[1]->isFloatingType() && FP < FPMAX && GP < GPMAX) ||
+      (RegsTy[0] && RegsTy[0]->isFloatingType() && RegsTy[1] &&
+       RegsTy[1]->isFloatingType() && FP + 1 < FPMAX)) {
+    Info.Reg1Ty = RegsTy[0];
+    Info.Reg2Ty = RegsTy[1];
+    Info.IsFloatStruct = true;
+  }
+  return Info;
+}
+
+static bool isLargeStructByPointer(const Type *Ty) {
+  if (Ty->getSize() <= 16)
+    return false;
+  const auto *RT = Ty->getAs<RecordType>();
+  return RT && !RT->getDecl()->isUnion();
+}
+
+static void countStructArgRegs(const Type *Ty, int &GP, int &FP,
+                                bool &PassByStack) {
+  PassByStack = false;
+  if (isLargeStructByPointer(Ty)) {
+    if (GP < GPMAX)
+      ++GP;
+    else
+      PassByStack = true;
+    return;
+  }
+
+  FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
+  if (PassInfo.IsFloatStruct) {
+    const Type *Regs[2] = {PassInfo.Reg1Ty, PassInfo.Reg2Ty};
+    int GPNeeded = 0;
+    int FPNeeded = 0;
+    for (int I = 0; I < 2; ++I) {
+      if (!Regs[I])
+        break;
+      if (Regs[I]->isFloatingType())
+        ++FPNeeded;
+      else
+        ++GPNeeded;
+    }
+    if (GPNeeded <= GPMAX - GP && FPNeeded <= FPMAX - FP) {
+      GP += GPNeeded;
+      FP += FPNeeded;
+    } else {
+      PassByStack = true;
+    }
+    return;
+  }
+
+  int Regs = (Ty->getSize() > 8 && Ty->getSize() <= 16) ? 2 : 1;
+  for (int I = 0; I < Regs; ++I) {
+    if (GP < GPMAX)
+      ++GP;
+    else
+      PassByStack = true;
+  }
+}
+
+static int countStructArgStackSlots(const Type *Ty) {
+  if (isLargeStructByPointer(Ty))
+    return 1;
+  return static_cast<int>(alignTo(Ty->getSize(), 8) / 8);
+}
+
+static bool useFloatStructStackPass(const FloatStructPassInfo &PassInfo) {
+  if (!PassInfo.IsFloatStruct)
+    return false;
+  if (PassInfo.Reg2Ty && PassInfo.Reg2Ty->isFloatingType())
+    return true;
+  return PassInfo.Reg1Ty && PassInfo.Reg1Ty->isFloatingType() &&
+         PassInfo.Reg2Ty;
+}
+
 } // namespace
 
 // Returns stack size for locals / register-passed params (below fp).
@@ -37,23 +161,33 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   int GP = 0, FP = 0;
   for (auto *Param : FD->getParams()) {
     const Type *Ty = Param->getType().getTypePtr();
+    bool PassByStack = false;
     if (Ty->isFloatingType()) {
-      if (FP < 8) {
+      if (FP < FPMAX) {
         ++FP;
         continue;
       }
-      if (GP < 8) {
+      if (GP < GPMAX) {
         ++GP;
         continue;
       }
-    } else if (GP < 8) {
+      PassByStack = true;
+    } else if (Ty->isRecordType()) {
+      countStructArgRegs(Ty, GP, FP, PassByStack);
+      if (!PassByStack)
+        continue;
+    } else if (GP < GPMAX) {
       ++GP;
       continue;
+    } else {
+      PassByStack = true;
     }
 
-    ReOffset = alignTo(ReOffset, 8);
-    Param->setOffset(ReOffset);
-    ReOffset += static_cast<int>(Ty->getSize());
+    if (PassByStack) {
+      ReOffset = alignTo(ReOffset, 8);
+      Param->setOffset(ReOffset);
+      ReOffset += static_cast<int>(Ty->getSize());
+    }
   }
 
   int Offset = 0;
@@ -680,6 +814,11 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
         continue;
 
       const Type *Ty = Param->getType().getTypePtr();
+      if (Ty->isRecordType()) {
+        storeStructParam(Ty, Offset, GP, FP);
+        continue;
+      }
+
       int Size = static_cast<int>(Ty->getSize());
       if (Ty->isFloatingType()) {
         if (FP < 8) {
@@ -988,6 +1127,21 @@ void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,
     Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
 
   genExpr(ElemInit);
+  if (ElemTy->isFloatingType()) {
+    if (!ElemInit->getType().isFloatingType())
+      genScalarCast(ElemInit->getTypePtr(), ElemTy.getTypePtr());
+    genAddr(Var);
+    emit("  addi a1, a0, {}", Offset);
+    if (ElemTy->getSize() == 4) {
+      if (ElemInit->getType().isFloatingType() &&
+          ElemInit->getTypePtr()->getSize() == 8)
+        emit("  fcvt.s.d fa0, fa0");
+      emit("  fsw fa0, 0(a1)");
+    } else {
+      emit("  fsd fa0, 0(a1)");
+    }
+    return;
+  }
   push();
   genAddr(Var);
   emit("  addi a1, a0, {}", Offset);
@@ -1933,37 +2087,53 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   const auto *FT = CE->getCalleeFunctionType();
   assert(FT);
   const auto *Func = CE->getCalleeDecl();
-  // Prefer FunctionDecl param count when available.
   const unsigned NumParams = Func ? Func->getNumParams() : FT->getNumParams();
   const bool IsVariadic = FT->isVariadic();
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
-  // ArgDest[I] = {IsFloatReg, RegName}.
+  enum class ArgKind { Scalar, Struct };
+  std::vector<ArgKind> ArgKinds(NumArgs, ArgKind::Scalar);
   std::vector<std::pair<bool, const char *>> ArgDest(NumArgs);
   std::vector<bool> PassByStack(NumArgs, false);
   int GP = 0, FP = 0, Stack = 0;
   for (int I = 0; I < NumArgs; ++I) {
-    const bool IsFloat = CE->getArg(I)->getType().isFloatingType();
+    const Type *Ty = CE->getArg(I)->getType().getTypePtr();
     const bool VariadicTail =
         IsVariadic && static_cast<unsigned>(I) >= NumParams;
     if (VariadicTail) {
-      // Variadic args always use GP registers, then the stack.
-      if (GP < 8)
+      if (GP < GPMAX)
         ArgDest[I] = {false, ArgReg[GP++]};
       else {
         PassByStack[I] = true;
         ++Stack;
       }
-    } else if (IsFloat) {
-      if (FP < 8)
+      continue;
+    }
+
+    if (Ty->isRecordType()) {
+      ArgKinds[I] = ArgKind::Struct;
+      bool OnStack = false;
+      int GPBefore = GP;
+      int FPBefore = FP;
+      countStructArgRegs(Ty, GP, FP, OnStack);
+      PassByStack[I] = OnStack;
+      if (OnStack) {
+        int Used = (GP - GPBefore) + (FP - FPBefore);
+        Stack += countStructArgStackSlots(Ty) - Used;
+      }
+      continue;
+    }
+
+    if (Ty->isFloatingType()) {
+      if (FP < FPMAX)
         ArgDest[I] = {true, FaArgReg[FP++]};
-      else if (GP < 8)
+      else if (GP < GPMAX)
         ArgDest[I] = {false, ArgReg[GP++]};
       else {
         PassByStack[I] = true;
         ++Stack;
       }
-    } else if (GP < 8) {
+    } else if (GP < GPMAX) {
       ArgDest[I] = {false, ArgReg[GP++]};
     } else {
       PassByStack[I] = true;
@@ -1971,7 +2141,9 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     }
   }
 
-  // Keep sp 16-byte aligned once stack args (plus any padding) are in place.
+  createBigStructCallSpace(CE);
+  int BSStack = BigStructDepth;
+
   if ((Depth + Stack) % 2 == 1) {
     emit("  # align stack args to 16-byte boundary");
     emit("  addi sp, sp, -8");
@@ -1979,9 +2151,12 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     ++Stack;
   }
 
-  auto PushArg = [this](const Expr *Arg) {
+  auto PushArg = [this, &PassByStack](const Expr *Arg, int I) {
     genExpr(Arg);
-    if (Arg->getType().isFloatingType())
+    const Type *Ty = Arg->getType().getTypePtr();
+    if (Ty->isRecordType())
+      pushStructArg(Ty, PassByStack[I]);
+    else if (Arg->getType().isFloatingType())
       pushF();
     else
       push();
@@ -1990,34 +2165,39 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   if (NumArgs != 0)
     emit("  # set call args");
 
-  // First pass: stack-passed args (reverse so the first stack arg is nearest
-  // to sp after register args are popped).
   for (int I = NumArgs - 1; I >= 0; --I) {
     if (PassByStack[I])
-      PushArg(CE->getArg(I));
+      PushArg(CE->getArg(I), I);
   }
-  // Second pass: register-passed args.
   for (int I = NumArgs - 1; I >= 0; --I) {
     if (!PassByStack[I])
-      PushArg(CE->getArg(I));
+      PushArg(CE->getArg(I), I);
   }
 
-  // Indirect call: evaluate callee before restoring argument registers.
   if (!Func) {
     genExpr(CE->getCallee());
     emit("  mv t5, a0");
   }
 
+  GP = 0;
+  FP = 0;
   for (int I = 0; I < NumArgs; ++I) {
+    if (ArgKinds[I] == ArgKind::Struct) {
+      popStructArgToRegs(CE->getArg(I)->getType().getTypePtr(), GP, FP,
+                         PassByStack[I]);
+      continue;
+    }
     if (PassByStack[I])
       continue;
-    if (ArgDest[I].first)
+    if (ArgDest[I].first) {
       popF(ArgDest[I].second);
-    else
+      ++FP;
+    } else {
       pop(ArgDest[I].second);
+      ++GP;
+    }
   }
 
-  // Depth is even here after the stack-arg alignment above.
   if (Func) {
     const std::string &Name = Func->getName();
     emit("  # call {}", Name);
@@ -2027,14 +2207,13 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     emit("  jalr t5");
   }
 
-  if (Stack > 0) {
-    emit("  # reclaim {} stack argument slots", Stack);
-    emit("  addi sp, sp, {}", Stack * 8);
-    Depth -= Stack;
+  if (Stack > 0 || BSStack > 0) {
+    emit("  # reclaim {} stack argument slots", Stack + BSStack);
+    emit("  addi sp, sp, {}", (Stack + BSStack) * 8);
+    Depth -= Stack + BSStack;
   }
+  BigStructDepth = 0;
 
-  // Truncate/sign-extend a0 for narrow integer return types.
-  // Float/double returns stay in fa0 for subsequent float consumers/casts.
   const Type *RetTy = CE->getTypePtr();
   if (const auto *BT = dynCast<BuiltinType>(RetTy)) {
     switch (BT->getKind()) {
@@ -2232,6 +2411,148 @@ void CodeGen::genAddr(const MemberExpr *ME) {
   }
   emit("  li t0, {}", ME->getMemberDecl()->getOffset()); // t0 = offset
   emit("  add a0, a0, t0"); // a0 = addrof base + offset
+}
+
+void CodeGen::pushStructArg(const Type *Ty, bool OnStack) {
+  std::size_t Sz = Ty->getSize();
+  if (isLargeStructByPointer(Ty)) {
+    int Aligned = static_cast<int>(alignTo(Sz, 8));
+    BigStructDepth -= Aligned / 8;
+    int BSOffset = BigStructDepth * 8;
+    emit("  # copy large struct argument to {}(t6)", BSOffset);
+    for (int I = 0; I < Aligned; ++I) {
+      emit("  lb t0, {}(a0)", I);
+      emit("  sb t0, {}(t6)", BSOffset + I);
+    }
+    emit("  addi a0, t6, {}", BSOffset);
+    push();
+    return;
+  }
+
+  FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, 0, 0);
+  if (!OnStack && useFloatStructStackPass(PassInfo)) {
+    emit("  # push float struct argument");
+    emit("  addi sp, sp, -16");
+    Depth += 2;
+    emit("  ld t0, 0(a0)");
+    emit("  sd t0, 0(sp)");
+    int Off = static_cast<int>(std::max(
+        PassInfo.Reg1Ty ? PassInfo.Reg1Ty->getSize() : 0,
+        PassInfo.Reg2Ty ? PassInfo.Reg2Ty->getSize() : 0));
+    emit("  ld t0, {}(a0)", Off);
+    emit("  sd t0, 8(sp)");
+    return;
+  }
+
+  int Aligned = static_cast<int>(alignTo(Sz, 8));
+  emit("  # push struct argument ({} bytes)", Aligned);
+  emit("  addi sp, sp, -{}", Aligned);
+  Depth += Aligned / 8;
+  for (std::size_t I = 0; I < Sz; ++I) {
+    emit("  lb t0, {}(a0)", I);
+    emit("  sb t0, {}(sp)", I);
+  }
+}
+
+void CodeGen::popStructArgToRegs(const Type *Ty, int &GP, int &FP,
+                                 bool OnStack) {
+  std::size_t Sz = Ty->getSize();
+  if (isLargeStructByPointer(Ty)) {
+    if (GP < GPMAX)
+      pop(ArgReg[GP++]);
+    return;
+  }
+
+  FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
+  if (!OnStack && PassInfo.IsFloatStruct) {
+    const Type *Regs[2] = {PassInfo.Reg1Ty, PassInfo.Reg2Ty};
+    for (int I = 0; I < 2; ++I) {
+      if (!Regs[I])
+        break;
+      if (Regs[I]->isFloatingType()) {
+        if (FP >= FPMAX)
+          continue;
+        if (Regs[I]->getSize() == 4) {
+          emit("  # pop float struct part to fa{}", FP);
+          emit("  flw fa{}, 0(sp)", FP);
+          emit("  addi sp, sp, 8");
+          --Depth;
+          ++FP;
+        } else {
+          popF(FaArgReg[FP++]);
+        }
+      } else if (Regs[I]->isIntegerType()) {
+        if (GP < GPMAX)
+          pop(ArgReg[GP++]);
+      }
+    }
+    return;
+  }
+
+  int Regs = (Sz > 8 && Sz <= 16) ? 2 : 1;
+  for (int I = 0; I < Regs; ++I) {
+    if (GP < GPMAX)
+      pop(ArgReg[GP++]);
+  }
+}
+
+void CodeGen::storeStructParam(const Type *Ty, int Offset, int &GP, int &FP) {
+  std::size_t Sz = Ty->getSize();
+  if (isLargeStructByPointer(Ty)) {
+    emit("  # copy large struct parameter from a{}", GP);
+    for (std::size_t I = 0; I < Sz; ++I) {
+      emit("  lb t0, {}(a{})", I, GP);
+      emit("  li t1, {}", Offset + static_cast<int>(I));
+      emit("  add t1, fp, t1");
+      emit("  sb t0, 0(t1)");
+    }
+    ++GP;
+    return;
+  }
+
+  FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
+  if (PassInfo.IsFloatStruct) {
+    const Type *Regs[2] = {PassInfo.Reg1Ty, PassInfo.Reg2Ty};
+    int PartOff = 0;
+    for (int I = 0; I < 2; ++I) {
+      if (!Regs[I])
+        break;
+      if (Regs[I]->isFloatingType())
+        storeFloatReg(FP++, Offset + PartOff,
+                      static_cast<int>(Regs[I]->getSize()));
+      else
+        storeGenReg(GP++, Offset + PartOff,
+                    static_cast<int>(Regs[I]->getSize()));
+      if (I == 0 && Regs[1])
+        PartOff = static_cast<int>(
+            std::max(Regs[0]->getSize(), Regs[1]->getSize()));
+    }
+    return;
+  }
+
+  if (Sz > 8 && Sz <= 16) {
+    storeGenReg(GP++, Offset, 8);
+    storeGenReg(GP++, Offset + 8, 8);
+    return;
+  }
+  storeGenReg(GP++, Offset, static_cast<int>(Sz));
+}
+
+int CodeGen::createBigStructCallSpace(const CallExpr *CE) {
+  int BSStack = 0;
+  for (const Expr *Arg : CE->getArgs()) {
+    const Type *Ty = Arg->getType().getTypePtr();
+    if (!isLargeStructByPointer(Ty))
+      continue;
+    int Aligned = static_cast<int>(alignTo(Ty->getSize(), 8));
+    emit("  # reserve stack space for large struct argument");
+    emit("  addi sp, sp, -{}", Aligned);
+    emit("  mv t6, sp");
+    Depth += Aligned / 8;
+    BigStructDepth += Aligned / 8;
+    BSStack += Aligned / 8;
+  }
+  return BSStack;
 }
 
 void CodeGen::push() {

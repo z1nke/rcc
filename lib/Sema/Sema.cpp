@@ -1494,6 +1494,9 @@ std::optional<unsigned> Sema::getCastKind(QualType ToType,
   if (FromPtrTy && ToIsInt)
     return CastExpr::CK_PointerToIntegral;
 
+  if (ToType->isRecordType() && FromType->isRecordType())
+    return CastExpr::CK_NoOp;
+
   return std::nullopt;
 }
 
