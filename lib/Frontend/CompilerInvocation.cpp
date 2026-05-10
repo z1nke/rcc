@@ -115,6 +115,15 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-D") {
+      if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
+        Invocation->ErrMsg = "missing macro after '-D'";
+        return Invocation;
+      }
+      Invocation->MacroDefs.emplace_back(Argv[++Idx]);
+      continue;
+    }
+
     if (Arg == "-ast-dump") {
       Invocation->AstDump = true;
       continue;
@@ -127,6 +136,11 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
 
     if (Arg.starts_with("-I")) {
       Invocation->IncludePaths.emplace_back(Arg.substr(2));
+      continue;
+    }
+
+    if (Arg.starts_with("-D")) {
+      Invocation->MacroDefs.emplace_back(Arg.substr(2));
       continue;
     }
 

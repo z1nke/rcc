@@ -51,6 +51,8 @@
 // RUN: echo '#include <default-include-test>' | rcc -E - | grep -q foo
 // RUN: ! echo '#error' | rcc -E - 2> %t.error
 // RUN: grep -q 'error: error' %t.error
+// RUN: echo foo | rcc -Dfoo -E - | grep -q 1
+// RUN: echo foo | rcc -Dfoo=bar -E - | grep -q bar
 // RUN: rcc --help
 
 int main() {

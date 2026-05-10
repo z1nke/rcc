@@ -18,8 +18,10 @@ class Token;
 class Preprocessor {
 public:
   Preprocessor(Diagnostic &Diag, Lexer &Lex,
-               const std::vector<std::string> &IncludePaths)
-      : Diag(Diag), Lex(Lex), IncludePaths(IncludePaths) {}
+               const std::vector<std::string> &IncludePaths,
+               const std::vector<std::string> &MacroDefs)
+      : Diag(Diag), Lex(Lex), IncludePaths(IncludePaths), MacroDefs(MacroDefs) {
+  }
 
   Token *preprocess(Token *Toks);
 
@@ -34,6 +36,7 @@ private:
   void handleDefineDirective(Token *&Rest, Token *NameTok);
   void handleUndefDirective(Token *&Rest, Token *NameTok);
   void defineMacro(const char *Name, const char *Body);
+  void defineCommandLineMacro(const std::string &Def);
   void addBuiltin(const char *Name, BuiltinMacroFn Fn);
   void initMacros();
   Token *expandFileMacro(Token *Tmpl);
@@ -53,6 +56,7 @@ private:
   Diagnostic &Diag;
   Lexer &Lex;
   const std::vector<std::string> &IncludePaths;
+  const std::vector<std::string> &MacroDefs;
   std::unordered_map<std::string, MacroInfo> Macros;
   std::vector<MacroExpansionFrame> MacroExpansionStack;
   BumpPtrAllocator MacroTokenAlloc;

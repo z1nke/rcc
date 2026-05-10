@@ -41,6 +41,17 @@ void Preprocessor::defineMacro(const char *Name, const char *Body) {
   Macros.insert_or_assign(Name, std::move(MI));
 }
 
+void Preprocessor::defineCommandLineMacro(const std::string &Def) {
+  std::size_t Eq = Def.find('=');
+  if (Eq == std::string::npos) {
+    defineMacro(Def.c_str(), "1");
+    return;
+  }
+
+  std::string Name = Def.substr(0, Eq);
+  defineMacro(Name.c_str(), Def.c_str() + Eq + 1);
+}
+
 void Preprocessor::addBuiltin(const char *Name, BuiltinMacroFn Fn) {
   MacroInfo MI;
   MI.setHandler(Fn);
@@ -97,6 +108,9 @@ void Preprocessor::initMacros() {
 
   addBuiltin("__FILE__", &Preprocessor::handleFileMacro);
   addBuiltin("__LINE__", &Preprocessor::handleLineMacro);
+
+  for (const std::string &Def : MacroDefs)
+    defineCommandLineMacro(Def);
 }
 
 void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {

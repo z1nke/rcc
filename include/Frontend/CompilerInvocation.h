@@ -25,6 +25,7 @@ public:
   const std::vector<std::string> &getIncludePaths() const {
     return IncludePaths;
   }
+  const std::vector<std::string> &getMacroDefs() const { return MacroDefs; }
   bool hasAstDump() const { return AstDump; }
   bool isCC1() const { return CC1; }
   bool shouldCompileOnly() const { return CompileOnly; }
@@ -35,6 +36,7 @@ public:
 private:
   std::vector<const char *> Inputs;
   std::vector<std::string> IncludePaths;
+  std::vector<std::string> MacroDefs;
   std::string CC1InputPath;
   std::string OutputPath;
   std::string ErrMsg;
