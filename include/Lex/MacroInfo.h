@@ -51,6 +51,12 @@ private:
   bool IsDisabled = false;
 };
 
+/// A command-line -D or -U macro action, applied in order after builtins.
+struct CommandLineMacro {
+  enum Kind { Define, Undef } Action = Define;
+  std::string Text; // Define: "name" or "name=value"; Undef: "name"
+};
+
 } // namespace rcc
 
 #endif

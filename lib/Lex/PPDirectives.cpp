@@ -52,6 +52,17 @@ void Preprocessor::defineCommandLineMacro(const std::string &Def) {
   defineMacro(Name.c_str(), Def.c_str() + Eq + 1);
 }
 
+void Preprocessor::undefMacro(const std::string &Name) { Macros.erase(Name); }
+
+void Preprocessor::applyCommandLineMacros() {
+  for (const CommandLineMacro &M : CommandLineMacros) {
+    if (M.Action == CommandLineMacro::Undef)
+      undefMacro(M.Text);
+    else
+      defineCommandLineMacro(M.Text);
+  }
+}
+
 void Preprocessor::addBuiltin(const char *Name, BuiltinMacroFn Fn) {
   MacroInfo MI;
   MI.setHandler(Fn);
@@ -109,8 +120,7 @@ void Preprocessor::initMacros() {
   addBuiltin("__FILE__", &Preprocessor::handleFileMacro);
   addBuiltin("__LINE__", &Preprocessor::handleLineMacro);
 
-  for (const std::string &Def : MacroDefs)
-    defineCommandLineMacro(Def);
+  applyCommandLineMacros();
 }
 
 void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {

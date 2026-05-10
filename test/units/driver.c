@@ -53,6 +53,7 @@
 // RUN: grep -q 'error: error' %t.error
 // RUN: echo foo | rcc -Dfoo -E - | grep -q 1
 // RUN: echo foo | rcc -Dfoo=bar -E - | grep -q bar
+// RUN: echo foo | rcc -Dfoo=bar -Ufoo -E - | grep -q foo
 // RUN: rcc --help
 
 int main() {

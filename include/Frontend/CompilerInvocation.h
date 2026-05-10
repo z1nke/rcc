@@ -1,6 +1,8 @@
 #ifndef RCC_FRONTEND_COMPILERINVOCATION_H
 #define RCC_FRONTEND_COMPILERINVOCATION_H
 
+#include "Lex/MacroInfo.h"
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,7 +27,9 @@ public:
   const std::vector<std::string> &getIncludePaths() const {
     return IncludePaths;
   }
-  const std::vector<std::string> &getMacroDefs() const { return MacroDefs; }
+  const std::vector<CommandLineMacro> &getCommandLineMacros() const {
+    return CommandLineMacros;
+  }
   bool hasAstDump() const { return AstDump; }
   bool isCC1() const { return CC1; }
   bool shouldCompileOnly() const { return CompileOnly; }
@@ -36,7 +40,7 @@ public:
 private:
   std::vector<const char *> Inputs;
   std::vector<std::string> IncludePaths;
-  std::vector<std::string> MacroDefs;
+  std::vector<CommandLineMacro> CommandLineMacros;
   std::string CC1InputPath;
   std::string OutputPath;
   std::string ErrMsg;

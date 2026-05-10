@@ -60,7 +60,7 @@ void CompilerInstance::run() {
   if (!Toks)
     Diag->fatal("tokenize failed");
   Preprocessor PP(*Diag, TheLexer, Invocation->getIncludePaths(),
-                  Invocation->getMacroDefs());
+                  Invocation->getCommandLineMacros());
   Toks = PP.preprocess(Toks);
   if (!Toks)
     Diag->fatal("preprocess failed");
