@@ -88,6 +88,12 @@ public:
 
   void dump() const;
 
+  /// Convert a TK_PPNum token into a TK_Num integer literal.
+  void becomeIntegerLiteral(std::int64_t Value, NumericLiteralKind Kind);
+
+  /// Convert a TK_PPNum token into a TK_Num floating literal.
+  void becomeFloatingLiteral(double Value, NumericLiteralKind Kind);
+
 private:
   const char *Loc = nullptr;
   Token *Next = nullptr;

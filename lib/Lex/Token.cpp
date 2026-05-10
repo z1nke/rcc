@@ -29,6 +29,18 @@ bool Token::isFloatingLiteral() const {
          NumKind == NumericLiteralKind::Double;
 }
 
+void Token::becomeIntegerLiteral(std::int64_t Value, NumericLiteralKind Kind) {
+  this->Kind = TK_Num;
+  this->Val = Value;
+  this->NumKind = Kind;
+}
+
+void Token::becomeFloatingLiteral(double Value, NumericLiteralKind Kind) {
+  this->Kind = TK_Num;
+  this->FVal = Value;
+  this->NumKind = Kind;
+}
+
 static int fromHex(char C) {
   if ('0' <= C && C <= '9')
     return C - '0';

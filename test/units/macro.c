@@ -1,6 +1,7 @@
 // RUN: %check_rcc_pp_run %s %t
 
 #include "Inputs/include1.h" extra tokens
+#include "test.h"
 
 void assert(int expected, int actual, char *code, int line);
 int strcmp(char *p, char *q);
@@ -23,13 +24,13 @@ int add6(int a, int b, int c, int d, int e, int f) {
 
 int main() {
   // [160] Add #include "..."
-  assert(5, include1, "include1", 9);
-  assert(7, include2, "include2", 10);
+  ASSERT(5, include1);
+  ASSERT(7, include2);
 
   // [163] Add #if and #endif
 #if 0
 #include "/no/such/file"
-  assert(0, 1, "1", 15);
+  ASSERT(0, 1);
 
   // [164] Skip nested #if in a skipped #if-clause
 #if nested
@@ -46,7 +47,7 @@ int main() {
 #if UNDEFINED_IDENTIFIER
   m = 0;
 #endif
-  assert(7, m, "m", 32);
+  ASSERT(7, m);
 
   // [165] Add #else
   int n = 0;
@@ -55,7 +56,7 @@ int main() {
 #else
   n = 3;
 #endif
-  assert(2, n, "n", 41);
+  ASSERT(2, n);
 
 #if 0
   n = 4;
@@ -66,7 +67,7 @@ int main() {
   n = 6;
 #endif
 #endif
-  assert(5, n, "n", 52);
+  ASSERT(5, n);
 
   // [166] Add #elif
 #if 0
@@ -78,7 +79,7 @@ int main() {
 #elif 1 / 0
   n = 4;
 #endif
-  assert(3, n, "n", 64);
+  ASSERT(3, n);
 
 #if 1
   n = 4;
@@ -87,20 +88,20 @@ int main() {
 #else
   n = 6;
 #endif
-  assert(4, n, "n", 73);
+  ASSERT(4, n);
 
   // [167] Add object-like #define
   int M1 = 5;
 #define M1 3
-  assert(3, M1, "M1", 0);
+  ASSERT(3, M1);
 #define M1 4
-  assert(4, M1, "M1", 0);
+  ASSERT(4, M1);
 
 #define M1 3 + 4 +
-  assert(12, M1 5, "M1 5", 0);
+  ASSERT(12, M1 5);
 
 #define M1 3 + 4
-  assert(23, M1 * 5, "M1 * 5", 0);
+  ASSERT(23, M1 * 5);
 
 #define ASSERT_ assert(
 #define if 5
@@ -115,7 +116,7 @@ int main() {
 #undef END
 #undef M1
   if (0);
-  assert(5, M1, "M1", 0);
+  ASSERT(5, M1);
 
   // [169] Expand macros in #if and #elif arguments
 #define M 5
@@ -124,27 +125,27 @@ int main() {
 #else
   m = 6;
 #endif
-  assert(5, m, "m", 0);
+  ASSERT(5, m);
 
 #if M - 5
   m = 6;
 #elif M
   m = 5;
 #endif
-  assert(5, m, "m", 0);
+  ASSERT(5, m);
 
   // [170] Expand each token only once for the same macro
   int M2 = 6;
 #define M2 M2 + 3
-  assert(9, M2, "M2", 0);
+  ASSERT(9, M2);
 
 #define M3 M2 + 3
-  assert(12, M3, "M3", 0);
+  ASSERT(12, M3);
 
   int M4 = 3;
 #define M4 M5 * 5
 #define M5 M4 + 2
-  assert(13, M4, "M4", 0);
+  ASSERT(13, M4);
 
   // [171] Add #ifdef and #ifndef
 #ifdef M6
@@ -152,7 +153,7 @@ int main() {
 #else
   m = 3;
 #endif
-  assert(3, m, "m", 0);
+  ASSERT(3, m);
 
 #define M6
 #ifdef M6
@@ -160,14 +161,14 @@ int main() {
 #else
   m = 3;
 #endif
-  assert(5, m, "m", 0);
+  ASSERT(5, m);
 
 #ifndef M7
   m = 3;
 #else
   m = 5;
 #endif
-  assert(3, m, "m", 0);
+  ASSERT(3, m);
 
 #define M7
 #ifndef M7
@@ -175,7 +176,7 @@ int main() {
 #else
   m = 5;
 #endif
-  assert(5, m, "m", 0);
+  ASSERT(5, m);
 
 #if 0
 #ifdef NO_SUCH_MACRO
@@ -188,72 +189,70 @@ int main() {
   // [172] Add zero-arity function-like #define
 #define M7() 1
   int M7 = 5;
-  assert(1, M7(), "M7()", 0);
-  assert(5, M7, "M7", 0);
+  ASSERT(1, M7());
+  ASSERT(5, M7);
 
 #define M7 ()
-  assert(3, ret3 M7, "ret3 M7", 0);
+  ASSERT(3, ret3 M7);
 
   // [173] Add multi-arity funclike #define
 #define M8(x, y) x + y
-  assert(7, M8(3, 4), "M8(3, 4)");
+  ASSERT(7, M8(3, 4));
 
 #define M8(x, y) x *y
-  assert(24, M8(3 + 4, 4 + 5), "M8(3+4, 4+5)");
+  ASSERT(24, M8(3 + 4, 4 + 5));
 
 #define M8(x, y) (x) * (y)
-  assert(63, M8(3 + 4, 4 + 5), "M8(3+4, 4+5)");
+  ASSERT(63, M8(3 + 4, 4 + 5));
 
   // [174] Allow empty macro arguments
 #define M8(x, y) x y
-  assert(9, M8(, 4 + 5), "M8(, 4+5)");
+  ASSERT(9, M8(, 4 + 5));
 
   // [175] Allow parenthesized expressions as macro arguments
 #define M8(x, y) x *y
-  assert(20, M8((2 + 3), 4), "M8((2+3), 4)", 0);
+  ASSERT(20, M8((2 + 3), 4));
 
 #define M8(x, y) x *y
-  assert(12, M8((2, 3), 4), "M8((2,3), 4)", 0);
+  ASSERT(12, M8((2, 3), 4));
 
   // [176] Do not expand a token more than once for the same function-like macro
 #define dbl(x) M10(x) * x
 #define M10(x) dbl(x) + 3
-  assert(10, dbl(2), "dbl(2)", 0);
+  ASSERT(10, dbl(2));
 
   // [177] Add macro stringizing operator (#)
 #define M11(x) #x
-  assert('a', M11( a!b  `""c)[0], "M11( a!b  `\"\"c)[0]", 0);
-  assert('!', M11( a!b  `""c)[1], "M11( a!b  `\"\"c)[1]", 0);
-  assert('b', M11( a!b  `""c)[2], "M11( a!b  `\"\"c)[2]", 0);
-  assert(' ', M11( a!b  `""c)[3], "M11( a!b  `\"\"c)[3]", 0);
-  assert('`', M11( a!b  `""c)[4], "M11( a!b  `\"\"c)[4]", 0);
-  assert('"', M11( a!b  `""c)[5], "M11( a!b  `\"\"c)[5]", 0);
-  assert('"', M11( a!b  `""c)[6], "M11( a!b  `\"\"c)[6]", 0);
-  assert('c', M11( a!b  `""c)[7], "M11( a!b  `\"\"c)[7]", 0);
-  assert(0, M11( a!b  `""c)[8], "M11( a!b  `\"\"c)[8]", 0);
+  ASSERT('a', M11( a!b  `""c)[0]);
+  ASSERT('!', M11( a!b  `""c)[1]);
+  ASSERT('b', M11( a!b  `""c)[2]);
+  ASSERT(' ', M11( a!b  `""c)[3]);
+  ASSERT('`', M11( a!b  `""c)[4]);
+  ASSERT('"', M11( a!b  `""c)[5]);
+  ASSERT('"', M11( a!b  `""c)[6]);
+  ASSERT('c', M11( a!b  `""c)[7]);
+  ASSERT(0, M11( a!b  `""c)[8]);
 
   // [178] Add macro token-pasting operator (##)
 #define paste(x, y) x##y
-  assert(15, paste(1, 5), "paste(1,5)", 0);
-  assert(255, paste(0, xff), "paste(0,xff)", 0);
-  assert(3, ({ int foobar = 3; paste(foo, bar); }),
-         "({ int foobar=3; paste(foo,bar); })", 0);
-  assert(5, paste(5, ), "paste(5,)", 0);
-  assert(5, paste(, 5), "paste(,5)", 0);
+  ASSERT(15, paste(1, 5));
+  ASSERT(255, paste(0, xff));
+  ASSERT(3, ({ int foobar = 3; paste(foo, bar); }));
+  ASSERT(5, paste(5, ));
+  ASSERT(5, paste(, 5));
 
 #define i 5
-  assert(101, ({ int i3 = 100; paste(1 + i, 3); }),
-         "({ int i3=100; paste(1+i,3); })", 0);
+  ASSERT(101, ({ int i3 = 100; paste(1 + i, 3); }));
 #undef i
 
 #define paste2(x) x##5
-  assert(26, paste2(1 + 2), "paste2(1+2)", 0);
+  ASSERT(26, paste2(1 + 2));
 
 #define paste3(x) 2##x
-  assert(23, paste3(1 + 2), "paste3(1+2)", 0);
+  ASSERT(23, paste3(1 + 2));
 
 #define paste4(x, y, z) x##y##z
-  assert(123, paste4(1, 2, 3), "paste4(1,2,3)", 0);
+  ASSERT(123, paste4(1, 2, 3));
 
   // [180] Add defined() macro operator
 #define M12
@@ -262,7 +261,7 @@ int main() {
 #else
   m = 4;
 #endif
-  assert(3, m, "m", 0);
+  ASSERT(3, m);
 
 #define M12
 #if defined M12
@@ -270,21 +269,21 @@ int main() {
 #else
   m = 4;
 #endif
-  assert(3, m, "m", 0);
+  ASSERT(3, m);
 
 #if defined(M12) - 1
   m = 3;
 #else
   m = 4;
 #endif
-  assert(4, m, "m", 0);
+  ASSERT(4, m);
 
 #if defined(NO_SUCH_MACRO)
   m = 3;
 #else
   m = 4;
 #endif
-  assert(4, m, "m", 0);
+  ASSERT(4, m);
 
   // [181] Replace remaining identifiers with 0 in macro constexpr
 #if no_such_symbol == 0
@@ -292,41 +291,39 @@ int main() {
 #else
   m = 6;
 #endif
-  assert(5, m, "m", 0);
+  ASSERT(5, m);
 
   // [182] Preserve newline and space during macro expansion
 #define STR(x) #x
 #define M12(x) STR(x)
 #define M13(x) M12(foo.x)
-  assert(0, strcmp(M13(bar), "foo.bar"), "strcmp(M13(bar), \"foo.bar\")", 0);
+  ASSERT(0, strcmp(M13(bar), "foo.bar"));
 
 #define M13(x) M12(foo. x)
-  assert(0, strcmp(M13(bar), "foo. bar"),
-         "strcmp(M13(bar), \"foo. bar\")", 0);
+  ASSERT(0, strcmp(M13(bar), "foo. bar"));
 
 #define M12 foo
 #define M13(x) STR(x)
 #define M14(x) M13(x.M12)
-  assert(0, strcmp(M14(bar), "bar.foo"), "strcmp(M14(bar), \"bar.foo\")", 0);
+  ASSERT(0, strcmp(M14(bar), "bar.foo"));
 
 #define M14(x) M13(x. M12)
-  assert(0, strcmp(M14(bar), "bar. foo"),
-         "strcmp(M14(bar), \"bar. foo\")", 0);
+  ASSERT(0, strcmp(M14(bar), "bar. foo"));
 
   // [184] Add #include <...>
 #include "include3.h"
-  assert(3, foo, "foo", 0);
+  ASSERT(3, foo);
 
 #include "include4.h"
-  assert(4, foo, "foo", 0);
+  ASSERT(4, foo);
 
 #define M13 "include3.h"
 #include M13
-  assert(3, foo, "foo", 0);
+  ASSERT(3, foo);
 
 #define M13 < include4.h
 #include M13 >
-  assert(4, foo, "foo", 0);
+  ASSERT(4, foo);
 
 #undef foo
 
@@ -336,45 +333,48 @@ int main() {
 #endif
 
   // [188] Add predefined macros such as __STDC__
-  assert(1, __STDC__, "__STDC__", 0);
-  assert(1, __STDC_HOSTED__, "__STDC_HOSTED__", 0);
-  assert(1, __rcc__, "__rcc__", 0);
-  assert(1, __riscv, "__riscv", 0);
-  assert(64, __riscv_xlen, "__riscv_xlen", 0);
-  assert(8, __SIZEOF_LONG__, "__SIZEOF_LONG__", 0);
-  assert(8, __SIZEOF_POINTER__, "__SIZEOF_POINTER__", 0);
-  assert(4, __SIZEOF_INT__, "__SIZEOF_INT__", 0);
-  assert(1, _LP64, "_LP64", 0);
-  assert(1, __LP64__, "__LP64__", 0);
+  ASSERT(1, __STDC__);
+  ASSERT(1, __STDC_HOSTED__);
+  ASSERT(1, __rcc__);
+  ASSERT(1, __riscv);
+  ASSERT(64, __riscv_xlen);
+  ASSERT(8, __SIZEOF_LONG__);
+  ASSERT(8, __SIZEOF_POINTER__);
+  ASSERT(4, __SIZEOF_INT__);
+  ASSERT(1, _LP64);
+  ASSERT(1, __LP64__);
 
   // [189] Add __FILE__ and __LINE__
-  assert(1, strstr(main_filename1, "macro.c") != 0,
-         "strstr(main_filename1, \"macro.c\")", 0);
-  assert(11, main_line1, "main_line1", 0);
-  assert(13, main_line2, "main_line2", 0);
-  assert(1, strstr(include1_filename, "include1.h") != 0,
-         "strstr(include1_filename, \"include1.h\")", 0);
-  assert(5, include1_line, "include1_line", 0);
+  ASSERT(1, strstr(main_filename1, "macro.c") != 0);
+  ASSERT(12, main_line1);
+  ASSERT(14, main_line2);
+  ASSERT(1, strstr(include1_filename, "include1.h") != 0);
+  ASSERT(5, include1_line);
 
   // [190] Add __VA_ARGS__
 #define M14(...) 3
-  assert(3, M14(), "M14()", 0);
+  ASSERT(3, M14());
 
 #define M14(...) __VA_ARGS__
-  assert(2, M14() 2, "M14() 2", 0);
-  assert(5, M14(5), "M14(5)", 0);
+  ASSERT(2, M14() 2);
+  ASSERT(5, M14(5));
 
 #define M14(...) add2(__VA_ARGS__)
-  assert(8, M14(2, 6), "M14(2, 6)", 0);
+  ASSERT(8, M14(2, 6));
 
 #define M14(...) add6(1,2,__VA_ARGS__,6)
-  assert(21, M14(3,4,5), "M14(3,4,5)", 0);
+  ASSERT(21, M14(3,4,5));
 
 #define M14(x, ...) add6(1,2,x,__VA_ARGS__,6)
-  assert(21, M14(3,4,5), "M14(3,4,5)", 0);
+  ASSERT(21, M14(3,4,5));
 
 #define M14(x, ...) x
-  assert(5, M14(5), "M14(5)", 0);
+  ASSERT(5, M14(5));
+
+  // [207] Tokenize numeric tokens as pp-numbers
+#define CONCAT(x,y) x##y
+  ASSERT(5, ({ int f0zz=5; CONCAT(f,0zz); }));
+  ASSERT(5, ({ CONCAT(4,.57) + 0.5; }));
 
   return 0;
 }

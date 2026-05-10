@@ -244,13 +244,24 @@ Token *Lexer::tokenizeFile(const char *Path) {
 }
 
 void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
-  const char *Start = P;
-
-  // Floating literal that begins with '.'.
-  if (*P == '.') {
-    lexFloatingLiteral(Curr, Start, P);
-    return;
+  // C preprocessing numbers are more permissive than C numeric constants so
+  // that token pasting (e.g. 4 ## .57 or f ## 0zz) can form valid tokens.
+  const char *Start = P++;
+  while (true) {
+    if (P[0] && P[1] && std::strchr("eEpP", P[0]) && std::strchr("+-", P[1]))
+      P += 2;
+    else if (std::isalnum(static_cast<unsigned char>(*P)) || *P == '.')
+      ++P;
+    else
+      break;
   }
+  Curr->setNext(newToken(Token::TK_PPNum, Start, P));
+  Curr = Curr->getNext();
+}
+
+bool Lexer::convertPPInt(Token *Tok) {
+  const char *P = Tok->getLoc();
+  const char *End = Tok->getLoc() + Tok->getLen();
 
   int Base = 10;
   if (*P == '0') {
@@ -266,7 +277,9 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
     }
   }
 
-  std::uint64_t Val = std::strtoul(P, &const_cast<char *&>(P), Base);
+  char *ParseEnd = nullptr;
+  std::uint64_t Val = std::strtoul(P, &ParseEnd, Base);
+  P = ParseEnd;
 
   // Parse integer suffixes in any order, matching clang NumericLiteralParser:
   // - u/U -> unsigned;
@@ -276,20 +289,20 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   bool IsLong = false;
   bool IsLongLong = false;
   bool HasSize = false;
-  for (; *P; ++P) {
+  for (; P < End; ++P) {
     switch (*P) {
     case 'u':
     case 'U':
       if (IsUnsigned)
-        break;
+        return false;
       IsUnsigned = true;
       continue;
     case 'l':
     case 'L':
       if (HasSize)
-        break;
+        return false;
       HasSize = true;
-      if (P[1] == *P) {
+      if (P + 1 < End && P[1] == *P) {
         IsLongLong = true;
         ++P; // Eat the second L/l.
       } else {
@@ -297,22 +310,12 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
       }
       continue;
     default:
-      break;
+      return false;
     }
-    break;
   }
 
-  // If the next character indicates a floating constant, reparse with strtod.
-  // Decimal: '.', 'e'/'E', or 'f'/'F'. Hex: 'p'/'P' binary exponent.
-  bool IsHexFloat = Base == 16 && (*P == 'p' || *P == 'P');
-  if (*P && (std::strchr(".eEfF", *P) || IsHexFloat)) {
-    P = Start;
-    lexFloatingLiteral(Curr, Start, P);
-    return;
-  }
-
-  if (std::isalnum(*P))
-    Diag.fatalAt(P, "invalid numeric literal suffix: {}", *P);
+  if (P != End)
+    return false;
 
   // Infer the literal type (C99 6.4.4.1 / LP64).
   using NLK = Token::NumericLiteralKind;
@@ -335,33 +338,39 @@ void Lexer::lexNumericLiteral(Token *&Curr, const char *&P) {
   else
     NumKind = NLK::Int;
 
-  Curr->setNext(newToken(Token::TK_Num, Start, P,
-                         static_cast<std::int64_t>(Val), NumKind));
-  Curr = Curr->getNext();
+  Tok->becomeIntegerLiteral(static_cast<std::int64_t>(Val), NumKind);
+  return true;
 }
 
-void Lexer::lexFloatingLiteral(Token *&Curr, const char *Start,
-                               const char *&P) {
+void Lexer::convertPPNumber(Token *Tok) {
+  if (convertPPInt(Tok))
+    return;
+
   char *End = nullptr;
-  double Val = std::strtod(Start, &End);
-  P = End;
+  double Val = std::strtod(Tok->getLoc(), &End);
 
   using NLK = Token::NumericLiteralKind;
   NLK NumKind = NLK::Double;
-  if (*P == 'f' || *P == 'F') {
+  if (*End == 'f' || *End == 'F') {
     NumKind = NLK::Float;
-    ++P;
-  } else if (*P == 'l' || *P == 'L') {
-    // long double is treated as double(RV64).
+    ++End;
+  } else if (*End == 'l' || *End == 'L') {
+    // long double is treated as double (RV64).
     NumKind = NLK::Double;
-    ++P;
+    ++End;
   }
 
-  if (std::isalnum(*P))
-    Diag.fatalAt(P, "invalid numeric literal suffix: {}", *P);
+  if (Tok->getLoc() + Tok->getLen() != End)
+    Diag.fatalAt(Tok->getLoc(), "invalid numeric constant");
 
-  Curr->setNext(newToken(Token::TK_Num, Start, P, Val, NumKind));
-  Curr = Curr->getNext();
+  Tok->becomeFloatingLiteral(Val, NumKind);
+}
+
+void Lexer::convertPPTokens(Token *Tok) {
+  for (; Tok->isNot(Token::TK_EOF); Tok = Tok->getNext()) {
+    if (Tok->is(Token::TK_PPNum))
+      convertPPNumber(Tok);
+  }
 }
 
 void Lexer::lexCharLiteral(Token *&Curr, const char *&P) {

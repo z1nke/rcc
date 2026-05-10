@@ -17,14 +17,19 @@ public:
   Token *tokenize(const char *P);
   Token *tokenizeFile(const char *Path);
 
+  /// Convert TK_PPNum tokens to TK_Num after preprocessing / token pasting.
+  void convertPPTokens(Token *Tok);
+
 private:
   void lexPunctuator(Token *&Curr, Token::TokenKind Kind, const char *&P,
                      int Len = 1);
 
   void lexNumericLiteral(Token *&Curr, const char *&P);
-  void lexFloatingLiteral(Token *&Curr, const char *Start, const char *&P);
   void lexCharLiteral(Token *&Curr, const char *&P);
   void lexStringLiteral(Token *&Curr, const char *&P);
+
+  bool convertPPInt(Token *Tok);
+  void convertPPNumber(Token *Tok);
 
   Token::TokenKind getTokenKindOfIdent(std::string_view Ident);
   Token::TokenKind getTokenKindOfIdent(const char *Start, const char *End);

@@ -1,4 +1,5 @@
 #include "Basic/Diagnostic.h"
+#include "Lex/Lexer.h"
 #include "Lex/Preprocessor.h"
 #include "Lex/Token.h"
 
@@ -347,6 +348,7 @@ static void evaluateDirectiveSubExpr(PPValue &LHS, unsigned MinPrec,
 std::int64_t Preprocessor::evaluateDirectiveExpression(Token *&Rest,
                                                        Token *Toks) {
   Token *ExpandedToks = expandMacroExpression(Rest, Toks);
+  Lex.convertPPTokens(ExpandedToks);
   EvalContext Ctx{ExpandedToks, Diag, Macros};
   if (atEnd(Ctx))
     Diag.fatalAt(ExpandedToks->getLoc(), "no expression");

@@ -279,6 +279,7 @@ Token *Preprocessor::preprocess(Token *Toks) {
                  "unterminated conditional directive");
 
   Curr->setNext(Toks);
+  Lex.convertPPTokens(Head.getNext());
   return joinAdjacentStringLiterals(Head.getNext());
 }
 
