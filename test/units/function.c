@@ -180,6 +180,29 @@ double add10_int_double(int a0, int a1, int a2, int a3, int a4, int a5, int a6,
                         double fa2, double fa3, double fa4, double fa5,
                         double fa6, double fa7, double fs3, double fs4);
 
+// [199] Support passed-on-stack parameters
+int many_args1(int a, int b, int c, int d, int e, int f, int g, int h) {
+  return g / h;
+}
+
+double many_args2(double a, double b, double c, double d, double e, double f,
+                  double g, double h, double i, double j) {
+  return i / j;
+}
+
+int many_args3(int a, double b, int c, int d, double e, int f, double g, int h,
+               double i, double j, double k, double l, double m, int n, int o,
+               double p) {
+  return o / p;
+}
+
+double many_args4(int a0, int a1, int a2, int a3, int a4, int a5, int a6,
+                  int a7, int s1, int s2, double fa0, double fa1, double fa2,
+                  double fa3, double fa4, double fa5, double fa6, double fa7,
+                  double fs3, double fs4) {
+  return s2 / fs4;
+}
+
 int main() {
   // [12] Support return
   ASSERT(1, main1());
@@ -311,6 +334,12 @@ int main() {
   ASSERT(55, add10_double(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
   ASSERT(55, add10_double_int(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
   ASSERT(18, add10_int_double(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+
+  // [199] Support passed-on-stack parameters
+  ASSERT(4, many_args1(1, 2, 3, 4, 5, 6, 40, 10));
+  ASSERT(4, many_args2(1, 2, 3, 4, 5, 6, 7, 8, 40, 10));
+  ASSERT(8, many_args3(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 80, 10));
+  ASSERT(1, many_args4(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
 
   ASSERT(0, ({
            char buf[200];

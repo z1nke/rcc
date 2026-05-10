@@ -28,8 +28,34 @@ static bool shouldEmitInBss(const VarDecl *Var) { return !Var->getInit(); }
 
 } // namespace
 
-// Returns stack size.
+// Returns stack size for locals / register-passed params (below fp).
+// Stack-passed params keep positive offsets at fp+16 and above (caller area).
 static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
+  // After the prologue saves ra/fp (16 bytes), the caller's stack arguments
+  // begin at fp+16.
+  int ReOffset = 16;
+  int GP = 0, FP = 0;
+  for (auto *Param : FD->getParams()) {
+    const Type *Ty = Param->getType().getTypePtr();
+    if (Ty->isFloatingType()) {
+      if (FP < 8) {
+        ++FP;
+        continue;
+      }
+      if (GP < 8) {
+        ++GP;
+        continue;
+      }
+    } else if (GP < 8) {
+      ++GP;
+      continue;
+    }
+
+    ReOffset = alignTo(ReOffset, 8);
+    Param->setOffset(ReOffset);
+    ReOffset += static_cast<int>(Ty->getSize());
+  }
+
   int Offset = 0;
   for (auto *Var : FD->getLocalVars()) {
     Offset += Var->getType()->getSize();
@@ -38,6 +64,9 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   }
 
   for (auto *Param : FD->getParams()) {
+    // Stack-passed params already have a positive caller-area offset.
+    if (Param->getOffset() > 0)
+      continue;
     Offset += Param->getType()->getSize();
     Offset = alignTo(Offset, Param->getAlign());
     Param->setOffset(-Offset);
@@ -638,15 +667,19 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     emit("  add sp, sp, t0");
   }
 
-  // Save incoming arguments from a*/fa* into the stack frame (LP64 ABI).
+  // Save register-passed arguments from a*/fa* into the stack frame.
+  // Stack-passed params (Offset > 0) stay in the caller's argument area.
   unsigned NumParams = FD->getNumParams();
   int GP = 0, FP = 0;
   if (NumParams > 0) {
-    emit("  # store {} parameters to stack", NumParams);
+    emit("  # store register parameters to local frame");
     for (unsigned I = 0; I < NumParams; ++I) {
       const auto *Param = FD->getParam(I);
-      const Type *Ty = Param->getType().getTypePtr();
       int Offset = Param->getOffset();
+      if (Offset > 0)
+        continue;
+
+      const Type *Ty = Param->getType().getTypePtr();
       int Size = static_cast<int>(Ty->getSize());
       if (Ty->isFloatingType()) {
         if (FP < 8) {
