@@ -15,3 +15,6 @@ int sprintf(char *buf, char *fmt, ...);
 
 // [136] Ignore const, volatile, auto, register, restrict or _Noreturn
 void exit(int n);
+
+// [204] Allow variadic function to take more than 6 parameters
+int vsprintf(char *buf, char *fmt, void *ap);

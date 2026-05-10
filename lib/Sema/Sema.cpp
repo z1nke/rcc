@@ -334,9 +334,9 @@ void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
   if (!FT->isVariadic())
     return;
 
-  // Inject an implementation local that CodeGen uses as the RISC-V varargs
-  // register save area.
-  QualType ArrTy = Ctx.getConstantArrayType(Ctx.CharTy, 64);
+  // Zero-sized marker; CodeGen places the register save area at a positive
+  // fp offset so it is contiguous with stack-passed variadic arguments.
+  QualType ArrTy = Ctx.getConstantArrayType(Ctx.CharTy, 0);
   VarDecl *VaArea = VarDecl::create(Ctx, FD->getLocation(), FD->getBeginLoc(),
                                     FD->getEndLoc(), ArrTy, "__va_area__");
   LocalVars.push_back(VaArea);

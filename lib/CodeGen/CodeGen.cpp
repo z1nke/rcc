@@ -168,6 +168,46 @@ static const VarDecl *findSretVar(const FunctionDecl *FD) {
   return nullptr;
 }
 
+/// Count GP registers that named parameters (and sret) would consume.
+static int countNamedParamGPs(const FunctionDecl *FD) {
+  int GP = 0, FP = 0;
+  if (findSretVar(FD))
+    ++GP;
+  for (const auto *Param : FD->getParams()) {
+    const Type *Ty = Param->getType().getTypePtr();
+    if (Ty->isFloatingType()) {
+      if (FP < FPMAX)
+        ++FP;
+      else
+        ++GP;
+      continue;
+    }
+    if (Ty->isRecordType()) {
+      FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
+      if (PassInfo.IsFloatStruct) {
+        const Type *Regs[2] = {PassInfo.Reg1Ty, PassInfo.Reg2Ty};
+        for (int I = 0; I < 2; ++I) {
+          if (!Regs[I])
+            break;
+          if (Regs[I]->isFloatingType())
+            ++FP;
+          if (Regs[I]->isIntegerType())
+            ++GP;
+        }
+        continue;
+      }
+      if (isLargeStructByPointer(Ty) || Ty->getSize() <= 8 ||
+          Param->isHalfByStack())
+        ++GP;
+      else
+        GP += 2;
+      continue;
+    }
+    ++GP;
+  }
+  return GP;
+}
+
 // Returns stack size for locals / register-passed params (below fp).
 // Stack-passed params keep positive offsets at fp+16 and above (caller area).
 static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
@@ -236,8 +276,18 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
     }
   }
 
+  // Place __va_area__ at a positive offset so saved register args are
+  // contiguous with stack-passed variadic arguments (caller area).
+  if (VarDecl *VaArea = const_cast<VarDecl *>(findVaAreaVar(FD))) {
+    ReOffset = alignTo(ReOffset, 8);
+    VaArea->setOffset(ReOffset);
+  }
+
   int Offset = 0;
   for (auto *Var : FD->getLocalVars()) {
+    // __va_area__ already has a positive caller-area offset.
+    if (Var->getOffset() > 0)
+      continue;
     Offset += Var->getType()->getSize();
     Offset = alignTo(Offset, Var->getAlign());
     Var->setOffset(-Offset);
@@ -815,18 +865,32 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   emit("  .text");
   emit("{}:", Name);
 
-  // stack frame
-  //-------------------------------// sp
+  // stack frame (variadic):
+  //-------------------------------// sp (on entry) = caller stack args
+  //        VaArea (remaining GPs)
+  //-------------------------------//
   //              ra
-  //-------------------------------// ra = sp-8
+  //-------------------------------//
   //              fp
-  //-------------------------------// fp = sp-16
+  //-------------------------------//      fp
   //                                       |
   //          local vars               StackSize
   //                                       |
-  //-------------------------------// sp = sp-16-StackSize
+  //-------------------------------//      sp
   //        eval-expression
   //-------------------------------//
+
+  // Reserve space for unused GP argument registers so the save area sits
+  // immediately below the caller's stack arguments (contiguous for va_arg).
+  int VaSize = 0;
+  if (findVaAreaVar(FD)) {
+    int NamedGPs = countNamedParamGPs(FD);
+    if (NamedGPs < GPMAX) {
+      VaSize = (GPMAX - NamedGPs) * 8;
+      emit("  # reserve {} bytes for variadic register save area", VaSize);
+      emit("  addi sp, sp, -{}", VaSize);
+    }
+  }
 
   emit("  # create stack frame for ra, fp");
   emit("  addi sp, sp, -16");
@@ -883,8 +947,9 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
 
   if (const VarDecl *VaArea = findVaAreaVar(FD)) {
     int Offset = VaArea->getOffset();
-    emit("  # store variadic args to {}", VaArea->getName());
-    while (GP < 8) {
+    emit("  # store remaining GP args to {} (offset {})", VaArea->getName(),
+         Offset);
+    while (GP < GPMAX) {
       storeGenReg(GP++, Offset, 8);
       Offset += 8;
     }
@@ -903,6 +968,10 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   emit("  ld fp, 0(sp)"); // pop fp
   emit("  ld ra, 8(sp)"); // pop ra
   emit("  addi sp, sp, 16");
+  if (VaSize > 0) {
+    emit("  # release variadic register save area");
+    emit("  addi sp, sp, {}", VaSize);
+  }
   emit("  ret");
   emit("  # end of function '{}'", Name);
 }
