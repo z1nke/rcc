@@ -64,7 +64,8 @@ private:
                                QualType AggTy, std::size_t BaseOffset,
                                std::size_t &Idx);
   void genInitListElement(const VarDecl *Var, const Expr *ElemInit,
-                          QualType ElemTy, std::size_t Offset);
+                          QualType ElemTy, std::size_t Offset,
+                          const FieldDecl *Field = nullptr);
   void genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
                             QualType ArrTy, std::size_t BaseOffset);
   void genZeroInit(const VarDecl *Var, QualType Ty, std::size_t BaseOffset);
@@ -89,6 +90,11 @@ private:
   void popF(const char *Reg);
   void load(const Type *Ty);
   void store(const Type *Ty);
+
+  /// Extract a bit-field from a0 into a0 (after a full-width load).
+  void loadBitField(const FieldDecl *Field);
+  /// Merge a0 into the bit-field at the address on the stack (0(sp)).
+  void storeBitField(const FieldDecl *Field);
 
   /// If \p Ty is floating, set a0 to 1 when fa0 != 0.0, else 0.
   void emitIsNotZero(const Type *Ty);

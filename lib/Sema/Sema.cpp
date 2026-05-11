@@ -127,6 +127,10 @@ static QualType materializeFlexibleArrayRecordType(ASTContext &Ctx,
         OldField->getEndLoc(), FieldTy, OldField->getName(), NewRD);
     NewField->setOffset(OldField->getOffset());
     NewField->setAlign(OldField->getAlign());
+    if (OldField->isBitField()) {
+      NewField->setBitField(OldField->getBitWidth());
+      NewField->setBitOffset(OldField->getBitOffset());
+    }
     NewFields.push_back(NewField);
   }
   NewRD->setFields(std::move(NewFields));
@@ -417,16 +421,30 @@ void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
     std::size_t Size = 0;
     std::size_t Align = 1;
     if (Record->isStruct()) {
-      std::size_t Offset = 0;
+      // Track offsets in bits so consecutive bit-fields can pack into the
+      // same container (matching GCC/rvcc layout).
+      std::size_t Bits = 0;
       for (auto *Field : Fields) {
         std::size_t FieldAlign = Field->getAlign();
-        Offset = alignTo(Offset, FieldAlign);
-        Field->setOffset(Offset);
-        Offset += Field->getType()->getSize();
+        if (Field->isBitField()) {
+          std::size_t Sz = Field->getType()->getSize();
+          int BitWidth = Field->getBitWidth();
+          // If the field would cross a container boundary, start a new one.
+          if (Bits / (Sz * 8) != (Bits + BitWidth - 1) / (Sz * 8))
+            Bits = alignTo(Bits, Sz * 8);
+
+          Field->setOffset(static_cast<int>(alignDown(Bits / 8, Sz)));
+          Field->setBitOffset(static_cast<int>(Bits % (Sz * 8)));
+          Bits += BitWidth;
+        } else {
+          Bits = alignTo(Bits, FieldAlign * 8);
+          Field->setOffset(static_cast<int>(Bits / 8));
+          Bits += Field->getType()->getSize() * 8;
+        }
         if (Align < FieldAlign)
           Align = FieldAlign;
       }
-      Size = alignTo(Offset, Align);
+      Size = alignTo(Bits, Align * 8) / 8;
     } else {
       for (auto *Field : Fields) {
         std::size_t FieldAlign = Field->getAlign();

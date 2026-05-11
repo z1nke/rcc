@@ -248,6 +248,15 @@ public:
   std::size_t getAlign() const { return Align; }
   void setAlign(std::size_t Align) { this->Align = Align; }
 
+  bool isBitField() const { return IsBitField; }
+  int getBitOffset() const { return BitOffset; }
+  int getBitWidth() const { return BitWidth; }
+  void setBitField(int Width) {
+    IsBitField = true;
+    BitWidth = Width;
+  }
+  void setBitOffset(int Offset) { BitOffset = Offset; }
+
   RecordDecl *getParent() const { return Parent; }
 
 private:
@@ -258,6 +267,9 @@ private:
 private:
   int Offset = 0;
   std::size_t Align = 0;
+  bool IsBitField = false;
+  int BitOffset = 0;
+  int BitWidth = 0;
   RecordDecl *Parent = nullptr; // Temporary handling.
 };
 

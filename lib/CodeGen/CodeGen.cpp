@@ -1194,7 +1194,7 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
       genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
     } else {
       ++Idx;
-      genInitListElement(Var, E, FieldTy, Offset);
+      genInitListElement(Var, E, FieldTy, Offset, Field);
     }
     return;
   }
@@ -1222,13 +1222,14 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
       genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
     } else {
       ++Idx;
-      genInitListElement(Var, E, FieldTy, Offset);
+      genInitListElement(Var, E, FieldTy, Offset, Field);
     }
   }
 }
 
 void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,
-                                 QualType ElemTy, std::size_t Offset) {
+                                 QualType ElemTy, std::size_t Offset,
+                                 const FieldDecl *Field) {
   if (const auto *SubList = dynCast<InitListExpr>(ElemInit)) {
     if (!ElemTy->isArraryType() && !ElemTy->isRecordType())
       Diag.fatalAt(SubList->getBeginLoc(), "invalid nested initializer list");
@@ -1246,6 +1247,18 @@ void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,
 
   if (ElemTy->isRecordType())
     Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
+
+  if (Field && Field->isBitField()) {
+    genAddr(Var);
+    emit("  addi a0, a0, {}", Offset);
+    push();
+    genExpr(ElemInit);
+    if (ElemInit->getType().getTypePtr() != ElemTy.getTypePtr())
+      genScalarCast(ElemInit->getTypePtr(), ElemTy.getTypePtr());
+    storeBitField(Field);
+    store(ElemTy.getTypePtr());
+    return;
+  }
 
   genExpr(ElemInit);
   if (ElemTy->isFloatingType()) {
@@ -1571,6 +1584,8 @@ void CodeGen::genExpr(const Expr *E) {
     const auto *Member = cast<MemberExpr>(E);
     genAddr(Member);            // a0 = addr
     load(Member->getTypePtr()); // a0 = *a0
+    if (Member->getMemberDecl()->isBitField())
+      loadBitField(Member->getMemberDecl());
     break;
   }
   case Stmt::SK_CallExpr:
@@ -1856,6 +1871,9 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     genAddr(LHS);
     push();                   // a1 = addrof(lhs)
     genExpr(BO->getRHS());    // a0 = rhs
+    if (const auto *Member = dynCast<MemberExpr>(LHS);
+        Member && Member->getMemberDecl()->isBitField())
+      storeBitField(Member->getMemberDecl());
     store(LHS->getTypePtr()); // *(a1) = a0
     return;
   case BinaryOperator::BO_Comma:
@@ -2895,6 +2913,33 @@ void CodeGen::load(const Type *Ty) {
   bool IsUnsigned = Ty->isUnsignedIntegerType();
   emit("  # load");
   emit("  l{} a0, 0(a0)", getWidthSuffix(Ty->getSize(), IsUnsigned));
+}
+
+void CodeGen::loadBitField(const FieldDecl *Field) {
+  emit("  # extract bit-field ({} bits @ bit {})", Field->getBitWidth(),
+       Field->getBitOffset());
+  emit("  slli a0, a0, {}", 64 - Field->getBitWidth() - Field->getBitOffset());
+  if (Field->getType()->isUnsignedIntegerType())
+    emit("  srli a0, a0, {}", 64 - Field->getBitWidth());
+  else
+    emit("  srai a0, a0, {}", 64 - Field->getBitWidth());
+}
+
+void CodeGen::storeBitField(const FieldDecl *Field) {
+  emit("  # merge bit-field value");
+  emit("  mv t1, a0");
+  emit("  li t0, {}", (1L << Field->getBitWidth()) - 1);
+  emit("  and t1, t1, t0");
+  emit("  slli t1, t1, {}", Field->getBitOffset());
+
+  emit("  ld a0, 0(sp)");
+  load(Field->getType().getTypePtr());
+
+  long Mask =
+      ((1L << Field->getBitWidth()) - 1) << Field->getBitOffset();
+  emit("  li t0, {}", ~Mask);
+  emit("  and a0, a0, t0");
+  emit("  or a0, a0, t1");
 }
 
 // store a0 (or fa0) to *a1.

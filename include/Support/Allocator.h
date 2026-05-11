@@ -51,6 +51,10 @@ inline std::size_t alignTo(std::size_t Size, std::size_t Align) {
   return (Size + Align - 1) & ~(Align - 1);
 }
 
+inline std::size_t alignDown(std::size_t Size, std::size_t Align) {
+  return alignTo(Size - Align + 1, Align);
+}
+
 inline std::uintptr_t alignAddr(const void *Ptr, std::size_t Align) {
   std::uintptr_t Addr = reinterpret_cast<std::uintptr_t>(Ptr);
   return alignTo(Addr, Align);

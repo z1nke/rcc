@@ -930,6 +930,15 @@ FieldDecl *Parser::parseField(DeclSpec &DS) {
   if (!Field)
     Diag.fatalAt(D.getLocation(), "expect field declarator");
 
+  if (tryConsume(Token::TK_Colon)) {
+    Expr *WidthExpr = parseConstantExpr();
+    auto Width = WidthExpr->evaluateAsInt();
+    if (!Width)
+      Diag.fatalAt(WidthExpr->getBeginLoc(),
+                   "bit-field width must be a constant expression");
+    Field->setBitField(static_cast<int>(*Width));
+  }
+
   return Field;
 }
 
