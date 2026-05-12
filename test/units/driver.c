@@ -54,6 +54,9 @@
 // RUN: echo foo | rcc -Dfoo -E - | grep -q 1
 // RUN: echo foo | rcc -Dfoo=bar -E - | grep -q bar
 // RUN: echo foo | rcc -Dfoo=bar -Ufoo -E - | grep -q foo
+// [216] Ignore -O, -W and -g and other flags
+// RUN: echo > %t.empty.c
+// RUN: rcc -c -O -Wall -g -std=c11 -ffreestanding -fno-builtin -fno-omit-frame-pointer -fno-stack-protector -fno-strict-aliasing -m64 -mno-red-zone -w -o /dev/null %t.empty.c
 // RUN: rcc --help
 
 int main() {

@@ -162,6 +162,15 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    // Ignore common GCC/Clang flags that we do not implement yet.
+    if (Arg.starts_with("-O") || Arg.starts_with("-W") ||
+        Arg.starts_with("-g") || Arg.starts_with("-std=") ||
+        Arg == "-ffreestanding" || Arg == "-fno-builtin" ||
+        Arg == "-fno-omit-frame-pointer" || Arg == "-fno-stack-protector" ||
+        Arg == "-fno-strict-aliasing" || Arg == "-m64" ||
+        Arg == "-mno-red-zone" || Arg == "-w" || Arg == "-march=native")
+      continue;
+
     if (Arg[0] == '-' && Arg[1] != '\0') {
       Invocation->ErrMsg = std::format("unknown option: {}", Arg);
       return Invocation;
