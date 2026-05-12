@@ -2221,7 +2221,15 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
 
       if (!LType.isFloatingType() || LType->getSize() != CompTy->getSize())
         genScalarCast(CompTy.getTypePtr(), LType.getTypePtr());
-      store(LType.getTypePtr());
+      if (const auto *Member = dynCast<MemberExpr>(LHS);
+          Member && Member->getMemberDecl()->isBitField()) {
+        emit("  mv t2, a0");
+        storeBitField(Member->getMemberDecl());
+        store(LType.getTypePtr());
+        emit("  mv a0, t2");
+      } else {
+        store(LType.getTypePtr());
+      }
       return;
     }
 
@@ -2234,7 +2242,15 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
     // a0 = LHS op RHS
     emitBinaryArithmeticResult(BaseOp, LType, RType, Suffix);
     // *&A = a0
-    store(LType.getTypePtr());
+    if (const auto *Member = dynCast<MemberExpr>(LHS);
+        Member && Member->getMemberDecl()->isBitField()) {
+      emit("  mv t2, a0");
+      storeBitField(Member->getMemberDecl());
+      store(LType.getTypePtr());
+      emit("  mv a0, t2");
+    } else {
+      store(LType.getTypePtr());
+    }
     return;
   }
 
@@ -2409,11 +2425,17 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   case UnaryOperator::UO_PreDec: {
     const auto *SubExpr = UO->getSubExpr();
     QualType SubType = SubExpr->getType();
+    const FieldDecl *BitField = nullptr;
+    if (const auto *Member = dynCast<MemberExpr>(SubExpr);
+        Member && Member->getMemberDecl()->isBitField())
+      BitField = Member->getMemberDecl();
 
     emit("  # pre {} operator", UO->getOpcodeStr());
     genAddr(SubExpr);
     push();
     load(SubType.getTypePtr());
+    if (BitField)
+      loadBitField(BitField);
     if (SubType.isFloatingType()) {
       const char *FSuffix = SubType->getSize() == 4 ? "s" : "d";
       // fa1 = 1.0
@@ -2433,18 +2455,31 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
       emit("  li t0, {}", Step);
       emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
     }
-    store(SubType.getTypePtr());
+    if (BitField) {
+      emit("  mv t2, a0");
+      storeBitField(BitField);
+      store(SubType.getTypePtr());
+      emit("  mv a0, t2");
+    } else {
+      store(SubType.getTypePtr());
+    }
     break;
   }
   case UnaryOperator::UO_PostInc:
   case UnaryOperator::UO_PostDec: {
     const auto *SubExpr = UO->getSubExpr();
     QualType SubType = SubExpr->getType();
+    const FieldDecl *BitField = nullptr;
+    if (const auto *Member = dynCast<MemberExpr>(SubExpr);
+        Member && Member->getMemberDecl()->isBitField())
+      BitField = Member->getMemberDecl();
 
     emit("  # post {} operator", UO->getOpcodeStr());
     genAddr(SubExpr);
     push();
     load(SubType.getTypePtr());
+    if (BitField)
+      loadBitField(BitField);
     if (SubType.isFloatingType()) {
       const char *FSuffix = SubType->getSize() == 4 ? "s" : "d";
       emit("  fmv.{} ft0, fa0", FSuffix);
@@ -2457,6 +2492,8 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
       }
       emit("  f{}.{} fa0, fa0, fa1", UO->isIncrement() ? "add" : "sub",
            FSuffix);
+      if (BitField)
+        storeBitField(BitField);
       store(SubType.getTypePtr());
       emit("  fmv.{} fa0, ft0", FSuffix);
     } else {
@@ -2466,6 +2503,8 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
       emit("  mv t2, a0");
       emit("  li t0, {}", Step);
       emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+      if (BitField)
+        storeBitField(BitField);
       store(SubType.getTypePtr());
       emit("  mv a0, t2");
     }
