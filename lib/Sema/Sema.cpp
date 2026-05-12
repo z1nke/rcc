@@ -1867,12 +1867,19 @@ QualType Sema::getUnaryOperatorType(SourceLocation OpLoc, Expr *SubExpr,
   case UnaryOperator::UO_LNot:
     checkScalarType(SubExpr);
     return Ctx.IntTy;
-  case UnaryOperator::UO_Addrof:
+  case UnaryOperator::UO_Addrof: {
+    const Expr *AddrOperand = SubExpr->ignoreParens();
+    if (const auto *ME = dynCast<MemberExpr>(AddrOperand)) {
+      if (ME->getMemberDecl()->isBitField())
+        Diag.fatalAt(OpLoc, "cannot take address of bitfield");
+    }
+
     // FIXME: Temporarily handle array type.
     if (const auto *ArrType = SubExpr->getType()->getAs<ArrayType>())
       return Ctx.getPointerType(ArrType->getElementType());
 
     return Ctx.getPointerType(SubExpr->getType());
+  }
   case UnaryOperator::UO_Deref: {
     QualType Result;
     if (const auto *PtrType = SubExpr->getType()->getAs<PointerType>())
