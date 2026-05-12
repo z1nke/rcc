@@ -211,7 +211,9 @@ FieldDecl *Sema::actOnFieldDecl(Declarator &D, QualType T, RecordDecl *Parent) {
                                        D.getEndLoc(), T, D.getIdent(), Parent);
   if (std::size_t Align = D.getDeclSpec().getAlign())
     Field->setAlign(Align);
-  addDecl(Field);
+  // Unnamed bit-fields (e.g. `int:0`) are not members for name lookup.
+  if (!D.getIdent().empty())
+    addDecl(Field);
   return Field;
 }
 
@@ -243,14 +245,17 @@ void Sema::addDecl(Decl *D) {
     const std::string &Name = ND->getName();
     for (auto *Prev : CurrScope->decls()) {
       if (const auto *PrevND = dynCast<NamedDecl>(Prev)) {
-        if (PrevND->getName() == Name) {
-          if (PrevND->getKind() != ND->getKind()) {
-            Diag.fatalAt(ND->getLocation(),
-                         "redefinition of '{}' as different kind of symbol",
-                         Name);
-          } else {
-            Diag.fatalAt(ND->getLocation(), "redefinition of '{}", Name);
-          }
+        if (PrevND->getName() != Name)
+          continue;
+        // Duplicate field names are accepted.
+        if (isa<FieldDecl>(PrevND) && isa<FieldDecl>(ND))
+          continue;
+        if (PrevND->getKind() != ND->getKind()) {
+          Diag.fatalAt(ND->getLocation(),
+                       "redefinition of '{}' as different kind of symbol",
+                       Name);
+        } else {
+          Diag.fatalAt(ND->getLocation(), "redefinition of '{}", Name);
         }
       }
     }
@@ -422,20 +427,26 @@ void Sema::actOnTagFinishDefinition(TagDecl *Tag, SourceLocation EndLoc) {
     std::size_t Align = 1;
     if (Record->isStruct()) {
       // Track offsets in bits so consecutive bit-fields can pack into the
-      // same container (matching GCC/rvcc layout).
+      // same container.
       std::size_t Bits = 0;
       for (auto *Field : Fields) {
         std::size_t FieldAlign = Field->getAlign();
         if (Field->isBitField()) {
           std::size_t Sz = Field->getType()->getSize();
           int BitWidth = Field->getBitWidth();
-          // If the field would cross a container boundary, start a new one.
-          if (Bits / (Sz * 8) != (Bits + BitWidth - 1) / (Sz * 8))
+          if (BitWidth == 0) {
+            // Zero-width bit-field: pad so the next field starts at a new
+            // storage unit of the field's type.
             Bits = alignTo(Bits, Sz * 8);
+          } else {
+            // If the field would cross a container boundary, start a new one.
+            if (Bits / (Sz * 8) != (Bits + BitWidth - 1) / (Sz * 8))
+              Bits = alignTo(Bits, Sz * 8);
 
-          Field->setOffset(static_cast<int>(alignDown(Bits / 8, Sz)));
-          Field->setBitOffset(static_cast<int>(Bits % (Sz * 8)));
-          Bits += BitWidth;
+            Field->setOffset(static_cast<int>(alignDown(Bits / 8, Sz)));
+            Field->setBitOffset(static_cast<int>(Bits % (Sz * 8)));
+            Bits += BitWidth;
+          }
         } else {
           Bits = alignTo(Bits, FieldAlign * 8);
           Field->setOffset(static_cast<int>(Bits / 8));
