@@ -10,6 +10,7 @@
 #include "Sema/Sema.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 
@@ -27,6 +28,16 @@ static void printTokens(Token *Toks, FILE *Fp) {
     IsFirst = false;
   }
   std::fputc('\n', Fp);
+}
+
+static FILE *openOutputFile(Diagnostic &Diag, const char *Output) {
+  if (std::strcmp(Output, "-") == 0)
+    return stdout;
+
+  FILE *Fp = std::fopen(Output, "w");
+  if (!Fp)
+    Diag.fatal("open {} failed", Output);
+  return Fp;
 }
 
 std::unique_ptr<CompilerInstance>
@@ -47,13 +58,6 @@ void CompilerInstance::run() {
   if (Output == nullptr || Output[0] == '\0')
     Output = Invocation->shouldPreprocessOnly() ? "-" : "a.out";
 
-  FILE *Fp = stdout;
-  if (std::strcmp(Output, "-") != 0) {
-    Fp = std::fopen(Output, "w");
-    if (!Fp)
-      Diag->fatal("open {} failed", Output);
-  }
-
   Lexer TheLexer(*Diag);
   const char *Input = Invocation->getCC1InputPath();
   Token *Toks = TheLexer.tokenizeFile(Input);
@@ -65,7 +69,10 @@ void CompilerInstance::run() {
   if (!Toks)
     Diag->fatal("preprocess failed");
   if (Invocation->shouldPreprocessOnly()) {
+    FILE *Fp = openOutputFile(*Diag, Output);
     printTokens(Toks, Fp);
+    if (Fp != stdout)
+      std::fclose(Fp);
     return;
   }
   Sema S(*ACtx, *Diag);
@@ -75,8 +82,25 @@ void CompilerInstance::run() {
     TU->dump();
     return;
   }
-  CodeGen CG(*Diag, Fp);
+
+  // Buffer assembly in memory first so a mid-compile abort does not leave a
+  // partial output file.
+  char *Buf = nullptr;
+  std::size_t BufLen = 0;
+  FILE *OutputBuf = open_memstream(&Buf, &BufLen);
+  if (!OutputBuf)
+    Diag->fatal("open_memstream failed");
+
+  CodeGen CG(*Diag, OutputBuf);
   CG.codegen(TU, Input);
+  std::fclose(OutputBuf);
+
+  FILE *Out = openOutputFile(*Diag, Output);
+  if (BufLen != 0)
+    std::fwrite(Buf, 1, BufLen, Out);
+  if (Out != stdout)
+    std::fclose(Out);
+  std::free(Buf);
 }
 
 } // namespace rcc
