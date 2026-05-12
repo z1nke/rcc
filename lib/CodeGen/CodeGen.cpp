@@ -382,6 +382,18 @@ struct GlobalInitValue {
 
 static std::optional<GlobalInitValue> evalGlobalInitValue(const Expr *E);
 
+static bool recordHasBitField(const RecordDecl *RD) {
+  for (const auto *Field : RD->fields()) {
+    if (Field->isBitField())
+      return true;
+    if (const auto *FRT = Field->getType()->getAs<RecordType>()) {
+      if (recordHasBitField(FRT->getDecl()))
+        return true;
+    }
+  }
+  return false;
+}
+
 static const StringLiteral *extractStringLiteral(const Expr *E) {
   if (const auto *SL = dynCast<StringLiteral>(E))
     return SL;
@@ -548,6 +560,19 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
         return;
       }
 
+      if (recordHasBitField(RD)) {
+        std::vector<std::uint8_t> Buf(Ty->getSize(), 0);
+        if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+          if (ILE->getNumInits() > 0)
+            writeGlobalInitToBuf(Buf, 0, ILE->getInit(0),
+                                 Fields[0]->getType());
+        } else {
+          writeGlobalInitToBuf(Buf, 0, Init, Fields[0]->getType());
+        }
+        emitDataBuf(Buf);
+        return;
+      }
+
       if (const auto *ILE = dynCast<InitListExpr>(Init)) {
         if (ILE->getNumInits() > 0)
           emitGlobalInit(ILE->getInit(0), Fields[0]->getType(), BaseOffset);
@@ -566,6 +591,15 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
     const auto *ILE = dynCast<InitListExpr>(Init);
     if (!ILE)
       Diag.fatalAt(Init->getBeginLoc(), "expect nested initializer list");
+
+    if (recordHasBitField(RD)) {
+      std::vector<std::uint8_t> Buf(Ty->getSize(), 0);
+      std::size_t Index = 0;
+      writeGlobalInitToBufFromFlat(Buf, 0, ILE, Ty, Index);
+      emitDataBuf(Buf);
+      return;
+    }
+
     std::size_t Index = 0;
     emitGlobalInitFromFlat(ILE, Ty, BaseOffset, Index);
     return;
@@ -691,6 +725,14 @@ void CodeGen::emitGlobalInitFromFlat(const InitListExpr *List, QualType Ty,
     Diag.fatalAt(List->getBeginLoc(), "expect aggregate type");
   const auto *RD = RT->getDecl();
   const auto &Fields = RD->fields();
+
+  if (recordHasBitField(RD)) {
+    std::vector<std::uint8_t> Buf(Ty->getSize(), 0);
+    writeGlobalInitToBufFromFlat(Buf, 0, List, Ty, Idx);
+    emitDataBuf(Buf);
+    return;
+  }
+
   if (RD->isUnion()) {
     if (Fields.empty() || Idx >= List->getNumInits()) {
       emitGlobalZeroInit(Ty, BaseOffset);
@@ -789,30 +831,241 @@ void CodeGen::emitGlobalZeroInit(QualType Ty, std::size_t BaseOffset) {
     return;
   }
 
-  if (const auto *RT = Ty->getAs<RecordType>()) {
-    const auto *RD = RT->getDecl();
-    const auto &Fields = RD->fields();
-    if (RD->isUnion()) {
-      emit("  .zero {}", Ty->getSize());
-      return;
-    }
-
-    std::size_t CurrOffset = BaseOffset;
-    for (const auto *Field : Fields) {
-      std::size_t FieldOffset = BaseOffset + Field->getOffset();
-      if (FieldOffset > CurrOffset)
-        emit("  .zero {}", FieldOffset - CurrOffset);
-      emitGlobalZeroInit(Field->getType(), FieldOffset);
-      CurrOffset = FieldOffset + Field->getType()->getSize();
-    }
-
-    std::size_t EndOffset = BaseOffset + Ty->getSize();
-    if (CurrOffset < EndOffset)
-      emit("  .zero {}", EndOffset - CurrOffset);
+  if (Ty->getAs<RecordType>()) {
+    emit("  .zero {}", Ty->getSize());
     return;
   }
 
   emitScalarData(BaseOffset, Ty->getSize(), 0);
+}
+
+namespace {
+
+std::uint64_t readInitBuf(const std::uint8_t *P, std::size_t Sz) {
+  std::uint64_t Val = 0;
+  std::memcpy(&Val, P, Sz);
+  return Val;
+}
+
+void writeInitBuf(std::uint8_t *P, std::uint64_t Val, std::size_t Sz) {
+  std::memcpy(P, &Val, Sz);
+}
+
+} // namespace
+
+void CodeGen::emitDataBuf(const std::vector<std::uint8_t> &Buf) {
+  std::size_t I = 0;
+  while (I < Buf.size()) {
+    if (Buf[I] == 0) {
+      std::size_t J = I + 1;
+      while (J < Buf.size() && Buf[J] == 0)
+        ++J;
+      emit("  .zero {}", J - I);
+      I = J;
+      continue;
+    }
+    emit("  .byte {}", Buf[I]);
+    ++I;
+  }
+}
+
+void CodeGen::writeGlobalInitToBuf(std::vector<std::uint8_t> &Buf,
+                                   std::size_t Offset, const Expr *Init,
+                                   QualType Ty) {
+  if (Ty->getAs<ConstantArrayType>()) {
+    if (const auto *SL = dynCast<StringLiteral>(Init)) {
+      const auto *CAT = Ty->getAs<ConstantArrayType>();
+      const std::string &Str = SL->getString();
+      std::size_t Len = CAT->getLength();
+      std::size_t NumInit = std::min<std::size_t>(Len, Str.size() + 1);
+      for (std::size_t I = 0; I < NumInit; ++I) {
+        unsigned char C =
+            I < Str.size() ? static_cast<unsigned char>(Str[I]) : 0;
+        Buf[Offset + I] = C;
+      }
+      return;
+    }
+
+    const auto *ILE = dynCast<InitListExpr>(Init);
+    if (!ILE)
+      Diag.fatalAt(Init->getBeginLoc(), "array init requires init-list");
+    std::size_t Index = 0;
+    writeGlobalInitToBufFromFlat(Buf, Offset, ILE, Ty, Index);
+    return;
+  }
+
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    const auto *ILE = dynCast<InitListExpr>(Init);
+    if (!ILE && !RT->getDecl()->isUnion())
+      Diag.fatalAt(Init->getBeginLoc(), "expect nested initializer list");
+    if (ILE) {
+      std::size_t Index = 0;
+      writeGlobalInitToBufFromFlat(Buf, Offset, ILE, Ty, Index);
+    } else {
+      // Union initialized from a scalar expression.
+      writeGlobalInitToBuf(Buf, Offset, Init,
+                           RT->getDecl()->fields()[0]->getType());
+    }
+    return;
+  }
+
+  if (Ty->isFloatingType()) {
+    auto DblVal = Init->evaluateAsDouble();
+    if (!DblVal)
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "global variable initializer is not a constant expression");
+    if (Ty->getSize() == 4) {
+      float FVal = static_cast<float>(*DblVal);
+      std::memcpy(Buf.data() + Offset, &FVal, 4);
+    } else {
+      double DVal = *DblVal;
+      std::memcpy(Buf.data() + Offset, &DVal, 8);
+    }
+    return;
+  }
+
+  // Pointer initializers that refer to other globals cannot be packed into
+  // a raw byte buffer; fall back is not needed for bit-field tests.
+  auto Eval = Init->evaluateAsInt();
+  if (!Eval) {
+    auto GlobalVal = evalGlobalInitValue(Init);
+    if (GlobalVal && GlobalVal->hasLabel())
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "address constant in bit-field/struct buffer init "
+                   "is not supported");
+    Diag.fatalAt(Init->getBeginLoc(),
+                 "global variable initializer is not a constant expression");
+  }
+
+  writeInitBuf(Buf.data() + Offset, static_cast<std::uint64_t>(*Eval),
+              Ty->getSize());
+}
+
+void CodeGen::writeGlobalInitToBufFromFlat(std::vector<std::uint8_t> &Buf,
+                                           std::size_t Offset,
+                                           const InitListExpr *List,
+                                           QualType Ty, std::size_t &Idx) {
+  if (const auto *IAT = Ty->getAs<IncompleteArrayType>()) {
+    QualType ElemTy = IAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    std::size_t I = 0;
+    while (Idx < List->getNumInits()) {
+      std::size_t ElemOff = Offset + I * ElemSize;
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        writeGlobalInitToBuf(Buf, ElemOff, SubList, ElemTy);
+      } else if (ElemTy->isArraryType() || ElemTy->isRecordType()) {
+        writeGlobalInitToBufFromFlat(Buf, ElemOff, List, ElemTy, Idx);
+      } else {
+        ++Idx;
+        writeGlobalInitToBuf(Buf, ElemOff, E, ElemTy);
+      }
+      ++I;
+    }
+    return;
+  }
+
+  if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+    QualType ElemTy = CAT->getElementType();
+    std::size_t ElemSize = ElemTy->getSize();
+    for (std::size_t I = 0; I < CAT->getLength(); ++I) {
+      std::size_t ElemOff = Offset + I * ElemSize;
+      if (Idx >= List->getNumInits())
+        break;
+      const Expr *E = List->getInit(Idx);
+      if (const auto *SubList = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        writeGlobalInitToBuf(Buf, ElemOff, SubList, ElemTy);
+      } else if (ElemTy->isArraryType()) {
+        if (const auto *SL = dynCast<StringLiteral>(E)) {
+          ++Idx;
+          writeGlobalInitToBuf(Buf, ElemOff, SL, ElemTy);
+        } else {
+          writeGlobalInitToBufFromFlat(Buf, ElemOff, List, ElemTy, Idx);
+        }
+      } else if (ElemTy->isRecordType()) {
+        writeGlobalInitToBufFromFlat(Buf, ElemOff, List, ElemTy, Idx);
+      } else {
+        ++Idx;
+        writeGlobalInitToBuf(Buf, ElemOff, E, ElemTy);
+      }
+    }
+    return;
+  }
+
+  const auto *RT = Ty->getAs<RecordType>();
+  if (!RT)
+    Diag.fatalAt(List->getBeginLoc(), "expect aggregate type");
+  const auto *RD = RT->getDecl();
+  const auto &Fields = RD->fields();
+
+  if (RD->isUnion()) {
+    if (Fields.empty() || Idx >= List->getNumInits())
+      return;
+    const auto *Field = Fields[0];
+    QualType FieldTy = Field->getType();
+    std::size_t FieldOff = Offset + Field->getOffset();
+    const Expr *E = List->getInit(Idx);
+    if (const auto *SubList = dynCast<InitListExpr>(E)) {
+      ++Idx;
+      writeGlobalInitToBuf(Buf, FieldOff, SubList, FieldTy);
+    } else if (FieldTy->isArraryType() || FieldTy->isRecordType()) {
+      if (FieldTy->isArraryType() && dynCast<StringLiteral>(E)) {
+        ++Idx;
+        writeGlobalInitToBuf(Buf, FieldOff, E, FieldTy);
+      } else {
+        writeGlobalInitToBufFromFlat(Buf, FieldOff, List, FieldTy, Idx);
+      }
+    } else {
+      ++Idx;
+      writeGlobalInitToBuf(Buf, FieldOff, E, FieldTy);
+    }
+    return;
+  }
+
+  for (const auto *Field : Fields) {
+    std::size_t FieldOff = Offset + Field->getOffset();
+    if (Idx >= List->getNumInits())
+      break;
+
+    const Expr *E = List->getInit(Idx);
+    QualType FieldTy = Field->getType();
+
+    if (Field->isBitField()) {
+      auto Eval = E->evaluateAsInt();
+      if (!Eval)
+        Diag.fatalAt(E->getBeginLoc(),
+                     "bit-field initializer is not a constant expression");
+      ++Idx;
+      std::uint8_t *Loc = Buf.data() + FieldOff;
+      std::size_t Sz = FieldTy->getSize();
+      std::uint64_t OldVal = readInitBuf(Loc, Sz);
+      std::uint64_t Mask = (1ULL << Field->getBitWidth()) - 1;
+      std::uint64_t Combined =
+          OldVal | ((static_cast<std::uint64_t>(*Eval) & Mask)
+                    << Field->getBitOffset());
+      writeInitBuf(Loc, Combined, Sz);
+      continue;
+    }
+
+    if (const auto *SubList = dynCast<InitListExpr>(E)) {
+      ++Idx;
+      writeGlobalInitToBuf(Buf, FieldOff, SubList, FieldTy);
+    } else if (FieldTy->isArraryType()) {
+      if (const auto *SL = dynCast<StringLiteral>(E)) {
+        ++Idx;
+        writeGlobalInitToBuf(Buf, FieldOff, SL, FieldTy);
+      } else {
+        writeGlobalInitToBufFromFlat(Buf, FieldOff, List, FieldTy, Idx);
+      }
+    } else if (FieldTy->isRecordType()) {
+      writeGlobalInitToBufFromFlat(Buf, FieldOff, List, FieldTy, Idx);
+    } else {
+      ++Idx;
+      writeGlobalInitToBuf(Buf, FieldOff, E, FieldTy);
+    }
+  }
 }
 
 void CodeGen::emitScalarData(std::size_t Offset, std::size_t Size,

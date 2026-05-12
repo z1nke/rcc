@@ -3,8 +3,10 @@
 
 #include "AST/Stmt.h"
 
+#include <cstdint>
 #include <print>
 #include <unordered_map>
+#include <vector>
 
 namespace rcc {
 
@@ -77,6 +79,14 @@ private:
                                    std::size_t BaseOffset);
   void emitGlobalZeroInit(QualType Ty, std::size_t BaseOffset);
   void emitScalarData(std::size_t Offset, std::size_t Size, std::int64_t Val);
+
+  void writeGlobalInitToBuf(std::vector<std::uint8_t> &Buf, std::size_t Offset,
+                            const Expr *Init, QualType Ty);
+  void writeGlobalInitToBufFromFlat(std::vector<std::uint8_t> &Buf,
+                                    std::size_t Offset, const InitListExpr *List,
+                                    QualType Ty, std::size_t &Idx);
+  void emitDataBuf(const std::vector<std::uint8_t> &Buf);
+
   void genAddr(const Expr *E);
   void genAddr(const Decl *D);
   void genAddr(const ArraySubscriptExpr *ASE);
