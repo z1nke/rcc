@@ -1225,6 +1225,12 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     }
   }
 
+  // The C spec defines a special rule for the main function. Reaching the end
+  // of main is equivalent to returning 0, even though the behavior is undefined
+  // for other functions.
+  if (FD->getName() == "main")
+    emit("  li a0, 0");
+
   emit(".L.return.{}:", Name);
   emit("  # restore sp, fp and ra");
   emit("  mv sp, fp");    // restore sp, sp = fp
