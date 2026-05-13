@@ -26,6 +26,16 @@ namespace {
 
 static bool shouldEmitInBss(const VarDecl *Var) { return !Var->getInit(); }
 
+// Arrays of at least 16 bytes must be aligned to at least 16 bytes
+// (SysV ABI / GCC convention for large local/global arrays).
+static std::size_t getVarEmitAlign(const VarDecl *Var) {
+  std::size_t Align = Var->getAlign();
+  QualType Ty = Var->getType();
+  if (Ty->getAs<ArrayType>() && Ty->getSize() >= 16)
+    return std::max(Align, std::size_t{16});
+  return Align;
+}
+
 static constexpr int GPMAX = 8;
 static constexpr int FPMAX = 8;
 
@@ -289,7 +299,7 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
     if (Var->getOffset() > 0)
       continue;
     Offset += Var->getType()->getSize();
-    Offset = alignTo(Offset, Var->getAlign());
+    Offset = alignTo(Offset, getVarEmitAlign(Var));
     Var->setOffset(-Offset);
   }
 
@@ -299,7 +309,7 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
     if (Param->getOffset() > 0 && !Param->isHalfByStack())
       continue;
     Offset += Param->getType()->getSize();
-    Offset = alignTo(Offset, Param->getAlign());
+    Offset = alignTo(Offset, getVarEmitAlign(Param));
     Param->setOffset(-Offset);
   }
 
@@ -342,7 +352,7 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
         emit("  .local {}", getVarSymbol(Var));
       // Align global variables.
       assert(Var->getAlign() != 0);
-      emit("  .align {}", simpleLog2(Var->getAlign()));
+      emit("  .align {}", simpleLog2(static_cast<int>(getVarEmitAlign(Var))));
       emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
       emitGlobalVarInit(Var, Var->getInit());
     }
