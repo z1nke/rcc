@@ -21,6 +21,25 @@ static bool isCharArrayType(const ASTContext &Ctx, QualType T) {
   return Ctx.hasSameType(CAT->getElementType(), Ctx.CharTy);
 }
 
+/// Return true if \p Record (or any nested anonymous struct/union) has a
+/// field named \p Ident.
+static bool findNamedFieldInRecord(const RecordDecl *Record,
+                                   std::string_view Ident) {
+  if (!Record || !Record->hasDefinition())
+    return false;
+
+  for (const FieldDecl *Field : Record->fields()) {
+    if (Field->getName().empty() && Field->getType()->isRecordType()) {
+      if (findNamedFieldInRecord(Field->getType()->getAsRecordDecl(), Ident))
+        return true;
+      continue;
+    }
+    if (Field->getName() == Ident)
+      return true;
+  }
+  return false;
+}
+
 static void checkStringLiteralInit(const ASTContext &Ctx, Diagnostic &Diag,
                                    QualType ArrTy, const StringLiteral *SL) {
   const auto *CAT = ArrTy->getAs<ConstantArrayType>();
@@ -1315,15 +1334,50 @@ Expr *Sema::actOnMemberAccessExpr(SourceLocation OpLoc, SourceLocation EndLoc,
   if (!Record->hasDefinition())
     Diag.fatalAt(BegLoc, "incomplete definition of type");
 
-  // TODO: Record type must be complete.
-  for (auto &Field : Record->fields()) {
-    if (Field->getName() != Ident)
-      continue;
-    return MemberExpr::create(Ctx, BegLoc, OpLoc, EndLoc, Field->getType(),
-                              Base, Field, IsArrow);
-  }
+  // Anonymous struct/union members contribute their fields to the outer
+  // record's namespace. Build a MemberExpr chain that drills through anonymous
+  // wrappers until the named field is reached.
+  Expr *Result = Base;
+  QualType CurrType = BaseType;
+  bool First = true;
+  while (true) {
+    Record = CurrType->getAsRecordDecl();
+    if (!Record || !Record->hasDefinition())
+      Diag.fatalAt(BegLoc, "field '{}' not found in record", Ident);
 
-  Diag.fatalAt(BegLoc, "field '{}' not found in record", Ident);
+    FieldDecl *Found = nullptr;
+    for (FieldDecl *Field : Record->fields()) {
+      // Anonymous struct or union: search nested members.
+      if (Field->getName().empty() && Field->getType()->isRecordType()) {
+        if (findNamedFieldInRecord(Field->getType()->getAsRecordDecl(),
+                                   Ident)) {
+          Found = Field;
+          break;
+        }
+        continue;
+      }
+
+      if (Field->getName() == Ident) {
+        Found = Field;
+        break;
+      }
+    }
+
+    if (!Found)
+      Diag.fatalAt(BegLoc, "field '{}' not found in record", Ident);
+
+    bool Arrow = First && IsArrow;
+    First = false;
+    Result = MemberExpr::create(Ctx, BegLoc, OpLoc, EndLoc, Found->getType(),
+                                Result, Found, Arrow);
+
+    // Named field reached.
+    if (!Found->getName().empty())
+      return Result;
+
+    // Continue into the anonymous member's type.
+    CurrType = Found->getType().getCanonicalType();
+  }
 }
 
 void Sema::checkScalarType(Expr *E) const {

@@ -41,6 +41,11 @@ void Parser::parseExternalDecl(TranslationUnitDecl *TU) {
   DeclSpec DS(Diag);
   DS.setAlignasAllowed();
   parseDeclSpecs(DS);
+
+  // Tag-only declaration, e.g. `struct foo { ... };` with no declarator.
+  if (tryConsume(Token::TK_Semicolon))
+    return;
+
   Declarator D(DS);
   unsigned Depth = S.getParamListDepth();
   parseDeclarator(D);
@@ -593,7 +598,10 @@ Stmt *Parser::parseDeclStmt() {
   DS.setAlignasAllowed();
   auto BegLoc = SM.createBeginLocation(CurTok);
   parseDeclSpecs(DS);
-  std::vector<Decl *> Decls = parseInitDeclaratorList(DS);
+  std::vector<Decl *> Decls;
+  // Tag-only declaration, e.g. `struct T { ... };` with no declarator.
+  if (!CurTok->is(Token::TK_Semicolon))
+    Decls = parseInitDeclaratorList(DS);
   auto EndLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Semicolon);
 
