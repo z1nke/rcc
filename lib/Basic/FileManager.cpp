@@ -26,6 +26,7 @@ const FileEntry *FileManager::getFile(const std::string &Path) {
 
   Buf->canonicalizeNewline();
   Buf->removeBackslashNewline();
+  Buf->convertUniversalChars();
   FE = std::make_unique<FileEntry>(Path, std::move(Buf), FID.getOpaqueValue());
   return FE.get();
 }

@@ -23,6 +23,9 @@ public:
   // Replaces \r or \r\n with \n.
   void canonicalizeNewline();
 
+  // Replace \uXXXX / \UXXXXXXXX with the corresponding UTF-8 bytes.
+  void convertUniversalChars();
+
   // Translation phase 2: delete backslash-newline pairs, preserving line
   // numbers by re-inserting the skipped newlines at the next real newline.
   void removeBackslashNewline();
