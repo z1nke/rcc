@@ -69,8 +69,8 @@ static void pasteTokens(BumpPtrAllocator &Alloc, Lexer &Lex, Diagnostic &Diag,
   LHS.setHasLeadingSpace(HasLeadingSpace);
 }
 
-std::vector<const Token *> Preprocessor::expandMacroArgument(
-    const std::vector<const Token *> &Argument) {
+std::vector<const Token *>
+Preprocessor::expandMacroArgument(const std::vector<const Token *> &Argument) {
   Token Head;
   Token *Curr = &Head;
   for (const Token *Tok : Argument) {
@@ -260,9 +260,8 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
                    "'##' cannot appear at start of macro expansion");
 
     std::vector<Token *> Operand;
-    bool IsPasteChain =
-        I + 1 < ReplacementTokens.size() &&
-        ReplacementTokens[I + 1].is(Token::TK_HashHash);
+    bool IsPasteChain = I + 1 < ReplacementTokens.size() &&
+                        ReplacementTokens[I + 1].is(Token::TK_HashHash);
     const auto &SubstitutionArguments =
         IsPasteChain ? Arguments : ExpandedArguments;
     copyOperandTokens(MacroTokenAlloc, MI, SubstitutionArguments, Replacement,
@@ -379,11 +378,14 @@ Token *Preprocessor::handleLineMacro(Preprocessor &PP, Token *Tmpl) {
   return PP.expandLineMacro(Tmpl);
 }
 
+Token *Preprocessor::handleCounterMacro(Preprocessor &PP, Token *Tmpl) {
+  return PP.expandCounterMacro(Tmpl);
+}
+
 Token *Preprocessor::expandFileMacro(Token *Tmpl) {
   Token *Origin = getExpansionPoint(Tmpl);
   SourceManager &SM = Diag.getSourceManager();
-  std::string_view Filename =
-      SM.getFilename(SM.createBeginLocation(Origin));
+  std::string_view Filename = SM.getFilename(SM.createBeginLocation(Origin));
 
   std::string Spelling = "\"";
   for (char C : Filename) {
@@ -417,6 +419,23 @@ Token *Preprocessor::expandLineMacro(Token *Tmpl) {
   void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
   Token *Expanded =
       new (Mem) Token(Token::TK_Num, Buffer, Buffer + Spelling.size(), Line);
+  Expanded->setSourceRange(*Origin);
+  return Expanded;
+}
+
+// [GNU] __COUNTER__ expands to successive integers starting from 0.
+Token *Preprocessor::expandCounterMacro(Token *Tmpl) {
+  Token *Origin = getExpansionPoint(Tmpl);
+  int Val = Counter++;
+  std::string Spelling = std::to_string(Val);
+
+  char *Buffer = static_cast<char *>(
+      MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+  std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+  void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+  Token *Expanded =
+      new (Mem) Token(Token::TK_Num, Buffer, Buffer + Spelling.size(), Val);
   Expanded->setSourceRange(*Origin);
   return Expanded;
 }

@@ -380,5 +380,10 @@ int main() {
   ASSERT(11, strlen(__DATE__));
   ASSERT(8, strlen(__TIME__));
 
+  // [222] [GNU] Add __COUNTER__ macro
+  ASSERT(0, __COUNTER__);
+  ASSERT(1, __COUNTER__);
+  ASSERT(2, __COUNTER__);
+
   return 0;
 }

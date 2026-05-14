@@ -43,8 +43,10 @@ private:
   void initMacros();
   Token *expandFileMacro(Token *Tmpl);
   Token *expandLineMacro(Token *Tmpl);
+  Token *expandCounterMacro(Token *Tmpl);
   static Token *handleFileMacro(Preprocessor &PP, Token *Tmpl);
   static Token *handleLineMacro(Preprocessor &PP, Token *Tmpl);
+  static Token *handleCounterMacro(Preprocessor &PP, Token *Tmpl);
   std::string readIncludeFilename(Token *&Rest, Token *Tok, bool &IsDquote);
   std::string searchIncludePaths(const std::string &Filename) const;
   Token *includeFile(Token *Rest, const std::string &Path, Token *FilenameTok);
@@ -62,6 +64,7 @@ private:
   std::unordered_map<std::string, MacroInfo> Macros;
   std::vector<MacroExpansionFrame> MacroExpansionStack;
   BumpPtrAllocator MacroTokenAlloc;
+  int Counter = 0; // [GNU] __COUNTER__
 };
 
 } // namespace rcc
