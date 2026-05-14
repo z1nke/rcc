@@ -20,6 +20,9 @@ public:
     return std::string_view(Data.data(), Data.size());
   }
 
+  // Replaces \r or \r\n with \n.
+  void canonicalizeNewline();
+
   // Translation phase 2: delete backslash-newline pairs, preserving line
   // numbers by re-inserting the skipped newlines at the next real newline.
   void removeBackslashNewline();

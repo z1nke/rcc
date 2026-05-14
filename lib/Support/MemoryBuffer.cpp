@@ -49,6 +49,34 @@ std::unique_ptr<MemoryBuffer> MemoryBuffer::fromString(const std::string &Str) {
   return std::make_unique<MemoryBuffer>(std::move(Data));
 }
 
+// Replaces \r or \r\n with \n.
+void MemoryBuffer::canonicalizeNewline() {
+  if (Data.empty())
+    return;
+
+  // Ensure the buffer is null-terminated so we can scan with C-string logic.
+  if (Data.back() != '\0')
+    Data.push_back('\0');
+
+  char *P = Data.data();
+  int I = 0, J = 0;
+
+  while (P[I]) {
+    if (P[I] == '\r' && P[I + 1] == '\n') {
+      I += 2;
+      P[J++] = '\n';
+    } else if (P[I] == '\r') {
+      ++I;
+      P[J++] = '\n';
+    } else {
+      P[J++] = P[I++];
+    }
+  }
+
+  P[J] = '\0';
+  Data.resize(static_cast<std::size_t>(J) + 1);
+}
+
 void MemoryBuffer::removeBackslashNewline() {
   if (Data.empty())
     return;
