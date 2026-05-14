@@ -18,3 +18,6 @@ void exit(int n);
 
 // [204] Allow variadic function to take more than 6 parameters
 int vsprintf(char *buf, char *fmt, void *ap);
+
+// [221] Add __DATE__ and __TIME__ macros
+long strlen(char *s);

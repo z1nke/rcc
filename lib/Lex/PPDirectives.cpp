@@ -1,15 +1,37 @@
 #include "Basic/Diagnostic.h"
-#include "Lex/MacroInfo.h"
 #include "Lex/Lexer.h"
+#include "Lex/MacroInfo.h"
 #include "Lex/Preprocessor.h"
 #include "Lex/Token.h"
 
-#include <cstring>
 #include <cctype>
+#include <cstring>
+#include <ctime>
+#include <format>
 #include <string>
 #include <utility>
 
 namespace rcc {
+
+namespace {
+
+// Format as in C11 6.10.8.1: "Mmm dd yyyy" (day is space-padded).
+static std::string formatDate(const std::tm *Tm) {
+  static constexpr const char *Mon[] = {
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  };
+  return std::format("\"{} {:>2} {}\"", Mon[Tm->tm_mon], Tm->tm_mday,
+                     Tm->tm_year + 1900);
+}
+
+// Format as in C11 6.10.8.1: "hh:mm:ss".
+static std::string formatTime(const std::tm *Tm) {
+  return std::format("\"{:02}:{:02}:{:02}\"", Tm->tm_hour, Tm->tm_min,
+                     Tm->tm_sec);
+}
+
+} // namespace
 
 bool Preprocessor::isMacroIdentifier(const Token *Tok) {
   if (Tok->getLen() == 0)
@@ -29,8 +51,8 @@ bool Preprocessor::isMacroIdentifier(const Token *Tok) {
 
 void Preprocessor::defineMacro(const char *Name, const char *Body) {
   std::size_t Len = std::strlen(Body);
-  char *Buf = static_cast<char *>(
-      MacroTokenAlloc.allocate(Len + 1, alignof(char)));
+  char *Buf =
+      static_cast<char *>(MacroTokenAlloc.allocate(Len + 1, alignof(char)));
   std::memcpy(Buf, Body, Len + 1);
 
   MacroInfo MI;
@@ -119,6 +141,12 @@ void Preprocessor::initMacros() {
 
   addBuiltin("__FILE__", &Preprocessor::handleFileMacro);
   addBuiltin("__LINE__", &Preprocessor::handleLineMacro);
+
+  // [221] Add __DATE__ and __TIME__ macros
+  std::time_t Now = std::time(nullptr);
+  std::tm *Tm = std::localtime(&Now);
+  defineMacro("__DATE__", formatDate(Tm).c_str());
+  defineMacro("__TIME__", formatTime(Tm).c_str());
 
   applyCommandLineMacros();
 }
