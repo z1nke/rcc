@@ -1388,13 +1388,16 @@ Expr *Parser::parsePrimaryExpr() {
     unsigned Val = CurTok->getCharLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
-    // L'x' -> int (wchar_t), u'x' -> unsigned short (char16_t), 'x' -> char.
+    // L'x' -> int (wchar_t), u'x' -> unsigned short (char16_t),
+    // U'x' -> unsigned int (char32_t), 'x' -> char.
     QualType Ty;
     char Prefix = CurTok->getLoc()[0];
     if (Prefix == 'L')
       Ty = Ctx.IntTy;
     else if (Prefix == 'u')
       Ty = Ctx.UnsignedShortTy;
+    else if (Prefix == 'U')
+      Ty = Ctx.UnsignedIntTy;
     else
       Ty = Ctx.CharTy;
     skip();

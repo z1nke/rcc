@@ -47,7 +47,7 @@ Token *Lexer::tokenize(const char *P) {
       continue;
     }
 
-    if ((*P == 'L' || *P == 'u') && *(P + 1) == '\'') {
+    if ((*P == 'L' || *P == 'u' || *P == 'U') && *(P + 1) == '\'') {
       lexCharLiteral(Curr, P);
       continue;
     }
@@ -375,8 +375,8 @@ void Lexer::convertPPTokens(Token *Tok) {
 
 void Lexer::lexCharLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
-  if (*P == 'L' || *P == 'u')
-    ++P; // skip wide / UTF-16 character prefix
+  if (*P == 'L' || *P == 'u' || *P == 'U')
+    ++P; // skip wide / UTF-16 / UTF-32 character prefix
   ++P;   // skip opening '\''
 
   for (; *P != '\''; ++P) {
