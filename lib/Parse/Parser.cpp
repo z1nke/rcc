@@ -1408,12 +1408,18 @@ Expr *Parser::parsePrimaryExpr() {
     auto SL = CurTok->getStringLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
-    // u"..." -> unsigned short[] (char16_t); otherwise char[].
+    // u"..." -> unsigned short[] (char16_t), U"..." -> unsigned int[] (char32_t),
+    // otherwise char[].
     QualType ElemTy = Ctx.CharTy;
     std::size_t Len = SL.size() + 1;
-    if (CurTok->getLoc()[0] == 'u' && CurTok->getLoc()[1] == '"') {
+    char Prefix0 = CurTok->getLoc()[0];
+    char Prefix1 = CurTok->getLoc()[1];
+    if (Prefix0 == 'u' && Prefix1 == '"') {
       ElemTy = Ctx.UnsignedShortTy;
       Len = SL.size() / 2 + 1;
+    } else if (Prefix0 == 'U' && Prefix1 == '"') {
+      ElemTy = Ctx.UnsignedIntTy;
+      Len = SL.size() / 4 + 1;
     }
     skip();
     QualType CAT = Ctx.getConstantArrayType(ElemTy, Len);

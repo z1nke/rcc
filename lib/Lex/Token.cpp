@@ -153,12 +153,15 @@ unsigned Token::getCharLiteral(Diagnostic &Diag) const {
 std::string Token::getStringLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_StrLiteral && "expect a string literal");
   const char *P = Loc;
-  bool IsUTF16 = false;
+  enum { Narrow, UTF16, UTF32 } LitKind = Narrow;
   if (*P == 'u' && *(P + 1) == '8') {
     P += 2; // skip UTF-8 string prefix
   } else if (*P == 'u' && *(P + 1) == '"') {
-    IsUTF16 = true;
+    LitKind = UTF16;
     ++P; // skip UTF-16 string prefix
+  } else if (*P == 'U' && *(P + 1) == '"') {
+    LitKind = UTF32;
+    ++P; // skip UTF-32 string prefix
   }
   ++P; // Skip the opening '"'.
 
@@ -167,7 +170,7 @@ std::string Token::getStringLiteral(Diagnostic &Diag) const {
   for (; P < Loc + Len - 1;) {
     std::uint32_t C;
     if (*P != '\\') {
-      if (!IsUTF16) {
+      if (LitKind == Narrow) {
         Result += *P++;
         continue;
       }
@@ -175,24 +178,32 @@ std::string Token::getStringLiteral(Diagnostic &Diag) const {
     } else {
       ++P; // Skip the '\'.
       C = escapeChar(P, Diag);
-      if (!IsUTF16) {
+      if (LitKind == Narrow) {
         Result += static_cast<char>(C);
         continue;
       }
     }
 
-    // Encode as little-endian UTF-16 code units.
-    if (C < 0x10000) {
+    if (LitKind == UTF16) {
+      // Encode as little-endian UTF-16 code units.
+      if (C < 0x10000) {
+        Result += static_cast<char>(C & 0xff);
+        Result += static_cast<char>((C >> 8) & 0xff);
+      } else {
+        C -= 0x10000;
+        std::uint16_t Hi = 0xd800 + ((C >> 10) & 0x3ff);
+        std::uint16_t Lo = 0xdc00 + (C & 0x3ff);
+        Result += static_cast<char>(Hi & 0xff);
+        Result += static_cast<char>((Hi >> 8) & 0xff);
+        Result += static_cast<char>(Lo & 0xff);
+        Result += static_cast<char>((Lo >> 8) & 0xff);
+      }
+    } else {
+      // Encode as little-endian UTF-32 code units.
       Result += static_cast<char>(C & 0xff);
       Result += static_cast<char>((C >> 8) & 0xff);
-    } else {
-      C -= 0x10000;
-      std::uint16_t Hi = 0xd800 + ((C >> 10) & 0x3ff);
-      std::uint16_t Lo = 0xdc00 + (C & 0x3ff);
-      Result += static_cast<char>(Hi & 0xff);
-      Result += static_cast<char>((Hi >> 8) & 0xff);
-      Result += static_cast<char>(Lo & 0xff);
-      Result += static_cast<char>((Lo >> 8) & 0xff);
+      Result += static_cast<char>((C >> 16) & 0xff);
+      Result += static_cast<char>((C >> 24) & 0xff);
     }
   }
   return Result;
