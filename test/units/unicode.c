@@ -5,6 +5,9 @@
 // [228] Add UTF-8 string literal
 #define STR(x) #x
 
+// [232] Add UTF-16 string literal initializer
+typedef unsigned short char16_t;
+
 int main() {
   // [224] Add \u and \U escape sequences
   ASSERT(4, sizeof(L'\0'));
@@ -71,6 +74,12 @@ int main() {
   ASSERT(-1, L"\xffffffff"[0] >> 31);
 
   ASSERT(0, strcmp(STR(L"a"), "L\"a\""));
+
+
+  // [232] Add UTF-16 string literal initializer
+  ASSERT(u'α', ({ char16_t x[] = u"αβ"; x[0]; }));
+  ASSERT(u'β', ({ char16_t x[] = u"αβ"; x[1]; }));
+  ASSERT(6, ({ char16_t x[] = u"αβ"; sizeof(x); }));
 
   printf("OK\n");
   return 0;

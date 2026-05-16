@@ -821,19 +821,22 @@ void CodeGen::emitGlobalStringLiteralInit(const StringLiteral *SL,
   const auto *CAT = ArrTy->getAs<ConstantArrayType>();
   if (!CAT)
     Diag.fatalAt(SL->getBeginLoc(), "expect constant array type");
-  const auto *ElemBT = CAT->getElementType()->getAs<BuiltinType>();
-  if (!ElemBT || ElemBT->getKind() != BuiltinType::BK_Char)
-    Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
 
+  std::size_t ElemSize = CAT->getElementType()->getSize();
   const std::string &Str = SL->getString();
+  assert(ElemSize != 0 && Str.size() % ElemSize == 0);
+  std::size_t NumUnits = Str.size() / ElemSize;
   std::size_t Len = CAT->getLength();
-  std::size_t NumInit = std::min<std::size_t>(Len, Str.size() + 1);
+  std::size_t NumInit = std::min(Len, NumUnits + 1);
   for (std::size_t I = 0; I < NumInit; ++I) {
-    unsigned char C = I < Str.size() ? static_cast<unsigned char>(Str[I]) : 0;
-    emitScalarData(BaseOffset + I, 1, C);
+    std::uint64_t Val = 0;
+    if (I < NumUnits)
+      std::memcpy(&Val, Str.data() + I * ElemSize, ElemSize);
+    emitScalarData(BaseOffset + I * ElemSize, ElemSize,
+                   static_cast<std::int64_t>(Val));
   }
   if (NumInit < Len)
-    emit("  .zero {}", Len - NumInit);
+    emit("  .zero {}", (Len - NumInit) * ElemSize);
 }
 
 void CodeGen::emitGlobalZeroInit(QualType Ty, std::size_t BaseOffset) {
@@ -889,13 +892,18 @@ void CodeGen::writeGlobalInitToBuf(std::vector<std::uint8_t> &Buf,
   if (Ty->getAs<ConstantArrayType>()) {
     if (const auto *SL = dynCast<StringLiteral>(Init)) {
       const auto *CAT = Ty->getAs<ConstantArrayType>();
+      std::size_t ElemSize = CAT->getElementType()->getSize();
       const std::string &Str = SL->getString();
+      assert(ElemSize != 0 && Str.size() % ElemSize == 0);
+      std::size_t NumUnits = Str.size() / ElemSize;
       std::size_t Len = CAT->getLength();
-      std::size_t NumInit = std::min<std::size_t>(Len, Str.size() + 1);
+      std::size_t NumInit = std::min(Len, NumUnits + 1);
       for (std::size_t I = 0; I < NumInit; ++I) {
-        unsigned char C =
-            I < Str.size() ? static_cast<unsigned char>(Str[I]) : 0;
-        Buf[Offset + I] = C;
+        if (I < NumUnits)
+          std::memcpy(Buf.data() + Offset + I * ElemSize,
+                      Str.data() + I * ElemSize, ElemSize);
+        else
+          std::memset(Buf.data() + Offset + I * ElemSize, 0, ElemSize);
       }
       return;
     }
@@ -1563,25 +1571,27 @@ void CodeGen::genStringLiteralInit(const VarDecl *Var, const StringLiteral *SL,
   const auto *CAT = ArrTy->getAs<ConstantArrayType>();
   if (!CAT)
     Diag.fatalAt(SL->getBeginLoc(), "expect constant array type");
-  const auto *ElemBT = CAT->getElementType()->getAs<BuiltinType>();
-  if (!ElemBT || ElemBT->getKind() != BuiltinType::BK_Char) {
-    Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
-  }
 
+  QualType ElemTy = CAT->getElementType();
+  std::size_t ElemSize = ElemTy->getSize();
   const std::string &Str = SL->getString();
+  assert(ElemSize != 0 && Str.size() % ElemSize == 0);
+  std::size_t NumUnits = Str.size() / ElemSize;
   const std::size_t Len = CAT->getLength();
-  std::size_t NumInit = std::min<std::size_t>(Len, Str.size() + 1);
+  std::size_t NumInit = std::min(Len, NumUnits + 1);
   for (std::size_t I = 0; I < NumInit; ++I) {
-    unsigned char C = I < Str.size() ? static_cast<unsigned char>(Str[I]) : 0;
-    emit("  li a0, {}", static_cast<unsigned>(C));
+    std::uint64_t Val = 0;
+    if (I < NumUnits)
+      std::memcpy(&Val, Str.data() + I * ElemSize, ElemSize);
+    emit("  li a0, {}", static_cast<std::int64_t>(Val));
     push();
     genAddr(Var);
-    emit("  addi a1, a0, {}", BaseOffset + I);
+    emit("  addi a1, a0, {}", BaseOffset + I * ElemSize);
     pop("a0");
-    emit("  sb a0, 0(a1)");
+    emit("  s{} a0, 0(a1)", getWidthSuffix(ElemSize));
   }
   for (std::size_t I = NumInit; I < Len; ++I)
-    genZeroInit(Var, CAT->getElementType(), BaseOffset + I);
+    genZeroInit(Var, ElemTy, BaseOffset + I * ElemSize);
 }
 
 void CodeGen::genZeroInit(const VarDecl *Var, QualType Ty,

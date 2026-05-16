@@ -14,15 +14,24 @@
 
 namespace rcc {
 
-static bool isCharArrayType(const ASTContext &Ctx, QualType T) {
-  const auto *CAT = T->getAs<ConstantArrayType>();
-  if (!CAT)
+static bool isStringLiteralArrayInit(const ASTContext &Ctx, QualType ArrTy,
+                                     const StringLiteral *SL) {
+  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
+  const auto *SLCAT = SL->getType()->getAs<ConstantArrayType>();
+  if (!CAT || !SLCAT)
     return false;
-  return Ctx.hasSameType(CAT->getElementType(), Ctx.CharTy);
+  return Ctx.hasSameType(CAT->getElementType(), SLCAT->getElementType());
 }
 
-/// Return true if \p Record (or any nested anonymous struct/union) has a
-/// field named \p Ident.
+static void checkStringLiteralInit(const ASTContext &Ctx, Diagnostic &Diag,
+                                   QualType ArrTy, const StringLiteral *SL) {
+  if (!isStringLiteralArrayInit(Ctx, ArrTy, SL))
+    Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
+  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
+  if (CAT->getLength() == 0)
+    Diag.fatalAt(SL->getBeginLoc(),
+                 "initializer-string for char array is too long");
+}
 static bool findNamedFieldInRecord(const RecordDecl *Record,
                                    std::string_view Ident) {
   if (!Record || !Record->hasDefinition())
@@ -38,16 +47,6 @@ static bool findNamedFieldInRecord(const RecordDecl *Record,
       return true;
   }
   return false;
-}
-
-static void checkStringLiteralInit(const ASTContext &Ctx, Diagnostic &Diag,
-                                   QualType ArrTy, const StringLiteral *SL) {
-  const auto *CAT = ArrTy->getAs<ConstantArrayType>();
-  if (!CAT || !Ctx.hasSameType(CAT->getElementType(), Ctx.CharTy))
-    Diag.fatalAt(SL->getBeginLoc(), "invalid variable init type");
-  if (CAT->getLength() == 0)
-    Diag.fatalAt(SL->getBeginLoc(),
-                 "initializer-string for char array is too long");
 }
 
 static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
@@ -600,9 +599,10 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   if (const auto *IAT = VarType->getAs<IncompleteArrayType>()) {
     QualType ElemTy = IAT->getElementType();
     if (const auto *SL = dynCast<StringLiteral>(Init)) {
-      if (!Ctx.hasSameType(ElemTy, Ctx.CharTy))
+      const auto *CAT = SL->getType()->getAs<ConstantArrayType>();
+      if (!CAT || !Ctx.hasSameType(ElemTy, CAT->getElementType()))
         Diag.fatalAt(Var->getLocation(), "invalid variable init type");
-      VarType = Ctx.getConstantArrayType(ElemTy, SL->getString().size() + 1);
+      VarType = Ctx.getConstantArrayType(ElemTy, CAT->getLength());
       Var->setType(VarType);
     } else if (const auto *ILE = dynCast<InitListExpr>(Init)) {
       if (ILE->getNumInits() == 0)
@@ -613,7 +613,7 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
   }
 
   if (const auto *SL = dynCast<StringLiteral>(Init)) {
-    if (isCharArrayType(Ctx, VarType)) {
+    if (isStringLiteralArrayInit(Ctx, VarType, SL)) {
       checkStringLiteralInit(Ctx, Diag, VarType, SL);
       Var->setInit(Init);
       Var->setEndLoc(Init->getEndLoc());
