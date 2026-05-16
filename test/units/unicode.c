@@ -31,6 +31,19 @@ int main() {
 
   ASSERT(0, strcmp(STR(u8"a"), "u8\"a\""));
 
+  // [229] Add UTF-16 string literal
+  ASSERT(2, sizeof(u""));
+  ASSERT(10, sizeof(u"\xffzzz"));
+  ASSERT(0, memcmp(u"", "\0\0", 2));
+  ASSERT(0, memcmp(u"abc", "a\0b\0c\0\0\0", 8));
+  ASSERT(0, memcmp(u"日本語", "\345e,g\236\212\0\0", 8));
+  ASSERT(0, memcmp(u"🍣", "<\330c\337\0\0", 6));
+  ASSERT(u'β', u"βb"[0]);
+  ASSERT(u'b', u"βb"[1]);
+  ASSERT(0, u"βb"[2]);
+
+  ASSERT(0, strcmp(STR(u"a"), "u\"a\""));
+
   printf("OK\n");
   return 0;
 }

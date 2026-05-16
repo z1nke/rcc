@@ -153,19 +153,47 @@ unsigned Token::getCharLiteral(Diagnostic &Diag) const {
 std::string Token::getStringLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_StrLiteral && "expect a string literal");
   const char *P = Loc;
-  if (*P == 'u' && *(P + 1) == '8')
+  bool IsUTF16 = false;
+  if (*P == 'u' && *(P + 1) == '8') {
     P += 2; // skip UTF-8 string prefix
-  ++P;      // Skip the opening '"'.
+  } else if (*P == 'u' && *(P + 1) == '"') {
+    IsUTF16 = true;
+    ++P; // skip UTF-16 string prefix
+  }
+  ++P; // Skip the opening '"'.
+
   std::string Result;
   Result.reserve(Loc + Len - P - 1);
   for (; P < Loc + Len - 1;) {
+    std::uint32_t C;
     if (*P != '\\') {
-      Result += *P++;
-      continue;
+      if (!IsUTF16) {
+        Result += *P++;
+        continue;
+      }
+      C = decodeUTF8(&P, P, Diag);
+    } else {
+      ++P; // Skip the '\'.
+      C = escapeChar(P, Diag);
+      if (!IsUTF16) {
+        Result += static_cast<char>(C);
+        continue;
+      }
     }
 
-    ++P; // Skip the '\'.
-    Result += escapeChar(P, Diag);
+    // Encode as little-endian UTF-16 code units.
+    if (C < 0x10000) {
+      Result += static_cast<char>(C & 0xff);
+      Result += static_cast<char>((C >> 8) & 0xff);
+    } else {
+      C -= 0x10000;
+      std::uint16_t Hi = 0xd800 + ((C >> 10) & 0x3ff);
+      std::uint16_t Lo = 0xdc00 + (C & 0x3ff);
+      Result += static_cast<char>(Hi & 0xff);
+      Result += static_cast<char>((Hi >> 8) & 0xff);
+      Result += static_cast<char>(Lo & 0xff);
+      Result += static_cast<char>((Lo >> 8) & 0xff);
+    }
   }
   return Result;
 }

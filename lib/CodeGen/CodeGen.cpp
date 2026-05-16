@@ -364,10 +364,14 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
     const auto *SL = StringLiterals[Idx];
     std::string Label = getStringLabel(SL);
     emit("{}:", Label);
-    // emit("  .asciz \"{}\"", SL->getString());
-    for (char C : SL->getString())
+    for (unsigned char C : SL->getString())
       emit("  .byte {}", static_cast<int>(C));
-    emit("  .byte 0");
+    // Emit a null terminator sized to the string element type.
+    std::size_t NullBytes = 1;
+    if (const auto *CAT = SL->getType()->getAs<ConstantArrayType>())
+      NullBytes = CAT->getElementType()->getSize();
+    for (std::size_t I = 0; I < NullBytes; ++I)
+      emit("  .byte 0");
   }
 }
 

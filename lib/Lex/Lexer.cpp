@@ -52,6 +52,11 @@ Token *Lexer::tokenize(const char *P) {
       continue;
     }
 
+    if (*P == 'u' && *(P + 1) == '"') {
+      lexStringLiteral(Curr, P);
+      continue;
+    }
+
     if ((*P == 'L' || *P == 'u' || *P == 'U') && *(P + 1) == '\'') {
       lexCharLiteral(Curr, P);
       continue;
@@ -400,7 +405,9 @@ void Lexer::lexStringLiteral(Token *&Curr, const char *&P) {
   const char *Start = P;
   if (*P == 'u' && *(P + 1) == '8')
     P += 2; // skip UTF-8 string prefix
-  ++P;      // skip opening '"'
+  else if (*P == 'u')
+    ++P; // skip UTF-16 string prefix
+  ++P;   // skip opening '"'
   for (; *P != '"'; ++P) {
     if (*P == '\n' || *P == '\0')
       Diag.fatalAt(Start, "unclosed string literal");
