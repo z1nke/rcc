@@ -1409,7 +1409,7 @@ Expr *Parser::parsePrimaryExpr() {
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
     // u"..." -> unsigned short[] (char16_t), U"..." -> unsigned int[] (char32_t),
-    // otherwise char[].
+    // L"..." -> int[] (wchar_t), otherwise char[].
     QualType ElemTy = Ctx.CharTy;
     std::size_t Len = SL.size() + 1;
     char Prefix0 = CurTok->getLoc()[0];
@@ -1419,6 +1419,9 @@ Expr *Parser::parsePrimaryExpr() {
       Len = SL.size() / 2 + 1;
     } else if (Prefix0 == 'U' && Prefix1 == '"') {
       ElemTy = Ctx.UnsignedIntTy;
+      Len = SL.size() / 4 + 1;
+    } else if (Prefix0 == 'L' && Prefix1 == '"') {
+      ElemTy = Ctx.IntTy;
       Len = SL.size() / 4 + 1;
     }
     skip();

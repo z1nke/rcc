@@ -159,9 +159,9 @@ std::string Token::getStringLiteral(Diagnostic &Diag) const {
   } else if (*P == 'u' && *(P + 1) == '"') {
     LitKind = UTF16;
     ++P; // skip UTF-16 string prefix
-  } else if (*P == 'U' && *(P + 1) == '"') {
+  } else if ((*P == 'U' || *P == 'L') && *(P + 1) == '"') {
     LitKind = UTF32;
-    ++P; // skip UTF-32 string prefix
+    ++P; // skip UTF-32 / wide string prefix
   }
   ++P; // Skip the opening '"'.
 
