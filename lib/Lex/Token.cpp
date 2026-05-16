@@ -152,9 +152,13 @@ unsigned Token::getCharLiteral(Diagnostic &Diag) const {
 
 std::string Token::getStringLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_StrLiteral && "expect a string literal");
+  const char *P = Loc;
+  if (*P == 'u' && *(P + 1) == '8')
+    P += 2; // skip UTF-8 string prefix
+  ++P;      // Skip the opening '"'.
   std::string Result;
-  Result.reserve(Len - 2);
-  for (const char *P = Loc + 1; P < Loc + Len - 1;) {
+  Result.reserve(Loc + Len - P - 1);
+  for (; P < Loc + Len - 1;) {
     if (*P != '\\') {
       Result += *P++;
       continue;

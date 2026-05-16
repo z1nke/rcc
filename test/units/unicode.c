@@ -2,6 +2,9 @@
 
 #include "test.h"
 
+// [228] Add UTF-8 string literal
+#define STR(x) #x
+
 int main() {
   // [224] Add \u and \U escape sequences
   ASSERT(4, sizeof(L'\0'));
@@ -19,6 +22,14 @@ int main() {
   ASSERT(946, L'β');
   ASSERT(12354, L'あ');
   ASSERT(127843, L'🍣');
+
+  // [228] Add UTF-8 string literal
+  ASSERT(4, sizeof(u8"abc"));
+  ASSERT(5, sizeof(u8"😀"));
+  ASSERT(7, sizeof(u8"汉语"));
+  ASSERT(0, strcmp(u8"abc", "abc"));
+
+  ASSERT(0, strcmp(STR(u8"a"), "u8\"a\""));
 
   printf("OK\n");
   return 0;
