@@ -113,10 +113,13 @@ static unsigned escapeChar(const char *&P, Diagnostic &Diag) {
 unsigned Token::getCharLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_CharLiteral && "expect a character literal");
   const char *P = Loc;
-  bool IsWide = false;
+  enum { Narrow, Wide, UTF16 } Kind = Narrow;
   if (*P == 'L') {
-    IsWide = true;
+    Kind = Wide;
     ++P; // skip wide-character prefix
+  } else if (*P == 'u') {
+    Kind = UTF16;
+    ++P; // skip UTF-16 character prefix
   }
   ++P; // Skip the opening '\''.
   assert(P < Loc + Len - 1);
@@ -130,10 +133,17 @@ unsigned Token::getCharLiteral(Diagnostic &Diag) const {
     C = escapeChar(P, Diag);
   }
 
-  // Narrow character literals are truncated to char.
-  if (!IsWide)
+  switch (Kind) {
+  case Narrow:
+    // Narrow character literals are truncated to char.
     return static_cast<unsigned>(static_cast<char>(C));
-  return C;
+  case UTF16:
+    // UTF-16 character literals keep the low 16 bits.
+    return C & 0xffff;
+  case Wide:
+    return C;
+  }
+  RCC_UNREACHABLE("invalid character literal kind");
 }
 
 std::string Token::getStringLiteral(Diagnostic &Diag) const {

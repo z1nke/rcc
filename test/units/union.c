@@ -7,6 +7,9 @@ struct foo_1 {float f;union {int x;};};
 int test_1(struct foo_1 in) { return in.f; }
 int test_2(struct foo_1 in) { return in.x; }
 
+// [226] Add UTF-16 character literal
+#define STR(x) #x
+
 int main() {
   // [54] Add union
   ASSERT(8, ({ union { int a; char b[6]; } x; sizeof(x); }));
@@ -30,6 +33,16 @@ int main() {
 
   ASSERT(1, ({ struct foo_1 in;in.f=1.0; in.x=2; test_1(in);}));
   ASSERT(2, ({ struct foo_1 in;in.f=1.0; in.x=2; test_2(in);}));
+
+  // [226] Add UTF-16 character literal
+  ASSERT(2, sizeof(u'\0'));
+  ASSERT(1, u'\xffff'>>15);
+  ASSERT(97, u'a');
+  ASSERT(946, u'β');
+  ASSERT(12354, u'あ');
+  ASSERT(62307, u'🍣');
+
+  ASSERT(0, strcmp(STR(u'a'), "u'a'"));
 
   printf("OK\n");
   return 0;

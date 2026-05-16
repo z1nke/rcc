@@ -1388,8 +1388,15 @@ Expr *Parser::parsePrimaryExpr() {
     unsigned Val = CurTok->getCharLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
-    // Wide character literals (L'x') have type int (Linux wchar_t size).
-    QualType Ty = CurTok->getLoc()[0] == 'L' ? Ctx.IntTy : Ctx.CharTy;
+    // L'x' -> int (wchar_t), u'x' -> unsigned short (char16_t), 'x' -> char.
+    QualType Ty;
+    char Prefix = CurTok->getLoc()[0];
+    if (Prefix == 'L')
+      Ty = Ctx.IntTy;
+    else if (Prefix == 'u')
+      Ty = Ctx.UnsignedShortTy;
+    else
+      Ty = Ctx.CharTy;
     skip();
     return S.actOnCharacterLiteral(BegLoc, EndLoc, Ty, Val);
   }
