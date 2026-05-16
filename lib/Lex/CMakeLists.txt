@@ -21,4 +21,5 @@ target_include_directories(Lexer
 target_link_libraries(Lexer
   PRIVATE
   Basic
+  Support
 )

@@ -1,6 +1,7 @@
 add_library(Support
   Error.cpp
   MemoryBuffer.cpp
+  Unicode.cpp
   Unreachable.cpp
 )
 

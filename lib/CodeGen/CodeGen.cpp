@@ -1836,8 +1836,9 @@ void CodeGen::genExpr(const Expr *E) {
   }
   case Stmt::SK_CharacterLiteral: {
     auto Val = cast<CharacterLiteral>(E)->getValue();
+    // Emit as signed 32-bit so values like L'\xffffffff' become -1.
     emit("  # a0 = '{}'", static_cast<unsigned char>(Val));
-    emit("  li a0, {}", Val);
+    emit("  li a0, {}", static_cast<std::int32_t>(Val));
     break;
   }
   case Stmt::SK_StringLiteral:

@@ -609,6 +609,9 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
     return cast<FloatingLiteral>(this)->getVal();
   case Stmt::SK_CharacterLiteral: {
     const auto *CL = cast<CharacterLiteral>(this);
+    // Wide character literals have type int; sign-extend from 32 bits.
+    if (T->isSignedIntegerType())
+      return static_cast<std::int32_t>(CL->getValue());
     return static_cast<std::uint64_t>(CL->getValue());
   }
   case Stmt::SK_StringLiteral:

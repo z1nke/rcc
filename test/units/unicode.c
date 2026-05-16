@@ -14,6 +14,12 @@ int main() {
   ASSERT(0, strcmp("中文", "\U00004E2D\U00006587"));
   ASSERT(0, strcmp("🌮", "\U0001F32E"));
 
+  // [225] Accept multibyte character as wide character literal
+  ASSERT(-1, L'\xffffffff' >> 31);
+  ASSERT(946, L'β');
+  ASSERT(12354, L'あ');
+  ASSERT(127843, L'🍣');
+
   printf("OK\n");
   return 0;
 }

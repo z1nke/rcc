@@ -1,8 +1,11 @@
 #include "Lex/Token.h"
 #include "Basic/Diagnostic.h"
+#include "Support/Unicode.h"
 #include "Support/Unreachable.h"
 
 #include <cassert>
+#include <cctype>
+#include <cstdint>
 #include <print>
 
 namespace rcc {
@@ -52,17 +55,14 @@ static int fromHex(char C) {
   RCC_UNREACHABLE("invalid hex character");
 }
 
-static int escapeHex(const char *&P, Diagnostic &Diag) {
+static unsigned escapeHex(const char *&P, Diagnostic &Diag) {
   if (!std::isxdigit(*P))
     Diag.fatalAt(P, "invalid hex escape sequence");
   // \xWXYZ = ((16 * W + X) * 16 + Y) * 16 + Z
-  int C = fromHex(*P++);
-  unsigned Count = 1;
+  unsigned C = fromHex(*P++);
   while (std::isxdigit(*P)) {
     C = (C << 4) + fromHex(*P);
     ++P;
-    if (++Count >= 4)
-      break;
   }
   return C;
 }
@@ -113,15 +113,27 @@ static unsigned escapeChar(const char *&P, Diagnostic &Diag) {
 unsigned Token::getCharLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_CharLiteral && "expect a character literal");
   const char *P = Loc;
-  if (*P == 'L')
+  bool IsWide = false;
+  if (*P == 'L') {
+    IsWide = true;
     ++P; // skip wide-character prefix
-  ++P;   // Skip the opening '\''.
+  }
+  ++P; // Skip the opening '\''.
   assert(P < Loc + Len - 1);
-  if (*P != '\\')
-    return static_cast<unsigned>(*P);
 
-  ++P; // Skip the '\'.
-  return escapeChar(P, Diag);
+  unsigned C;
+  if (*P != '\\') {
+    const char *Next = nullptr;
+    C = decodeUTF8(&Next, P, Diag);
+  } else {
+    ++P; // Skip the '\'.
+    C = escapeChar(P, Diag);
+  }
+
+  // Narrow character literals are truncated to char.
+  if (!IsWide)
+    return static_cast<unsigned>(static_cast<char>(C));
+  return C;
 }
 
 std::string Token::getStringLiteral(Diagnostic &Diag) const {

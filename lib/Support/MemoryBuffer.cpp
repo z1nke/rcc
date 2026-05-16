@@ -1,5 +1,6 @@
 #include "Support/MemoryBuffer.h"
 #include "Support/Error.h"
+#include "Support/Unicode.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -21,33 +22,6 @@ static int fromHex(char C) {
   if ('A' <= C && C <= 'F')
     return C - 'A' + 10;
   return -1;
-}
-
-// Encode Unicode code point C as UTF-8 into Buf; return number of bytes written.
-static int encodeUTF8(char *Buf, std::uint32_t C) {
-  if (C <= 0x7F) {
-    Buf[0] = static_cast<char>(C);
-    return 1;
-  }
-
-  if (C <= 0x7FF) {
-    Buf[0] = static_cast<char>(0xC0 | (C >> 6));
-    Buf[1] = static_cast<char>(0x80 | (C & 0x3F));
-    return 2;
-  }
-
-  if (C <= 0xFFFF) {
-    Buf[0] = static_cast<char>(0xE0 | (C >> 12));
-    Buf[1] = static_cast<char>(0x80 | ((C >> 6) & 0x3F));
-    Buf[2] = static_cast<char>(0x80 | (C & 0x3F));
-    return 3;
-  }
-
-  Buf[0] = static_cast<char>(0xF0 | (C >> 18));
-  Buf[1] = static_cast<char>(0x80 | ((C >> 12) & 0x3F));
-  Buf[2] = static_cast<char>(0x80 | ((C >> 6) & 0x3F));
-  Buf[3] = static_cast<char>(0x80 | (C & 0x3F));
-  return 4;
 }
 
 static std::uint32_t readUniversalChar(const char *P, int Len) {
