@@ -12,6 +12,9 @@ typedef unsigned short char16_t;
 typedef unsigned int char32_t;
 typedef int wchar_t;
 
+// [235] Allow multibyte UTF-8 character in identifier
+int π = 3;
+
 int main() {
   // [224] Add \u and \U escape sequences
   ASSERT(4, sizeof(L'\0'));
@@ -93,6 +96,10 @@ int main() {
   ASSERT(L'🤔', ({ wchar_t x[] = L"🤔x"; x[0]; }));
   ASSERT(L'x', ({ wchar_t x[] = L"🤔x"; x[1]; }));
   ASSERT(12, ({ wchar_t x[] = L"🤔x"; sizeof(x); }));
+
+  // [235] Allow multibyte UTF-8 character in identifier
+  ASSERT(3, π);
+  ASSERT(3, ({ int あβ0¾=3; あβ0¾; }));
 
   printf("OK\n");
   return 0;

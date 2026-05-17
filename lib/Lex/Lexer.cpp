@@ -2,6 +2,7 @@
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceLocation.h"
 #include "Basic/SourceManager.h"
+#include "Support/Unicode.h"
 #include "Support/Unreachable.h"
 
 #include <cctype>
@@ -10,9 +11,22 @@
 
 namespace rcc {
 
-static bool isIdent0(char C) { return std::isalpha(C) || C == '_'; }
+/// Return the byte length of a C11 identifier starting at \p Start, or 0 if
+/// \p Start does not begin an identifier.
+static int readIdent(const char *Start, Diagnostic &Diag) {
+  const char *P = Start;
+  std::uint32_t C = decodeUTF8(&P, Start, Diag);
+  if (!isIdentStart(C))
+    return 0;
 
-static bool isIdent1(char C) { return isIdent0(C) || std::isdigit(C); }
+  while (true) {
+    const char *Next = nullptr;
+    C = decodeUTF8(&Next, P, Diag);
+    if (!isIdentContinue(C))
+      return static_cast<int>(P - Start);
+    P = Next;
+  }
+}
 
 Lexer::Lexer(Diagnostic &Diag) : Diag(Diag), SM(Diag.getSourceManager()) {
   Keywords = {
@@ -62,11 +76,9 @@ Token *Lexer::tokenize(const char *P) {
       continue;
     }
 
-    if (isIdent0(*P)) {
+    if (int IdentLen = readIdent(P, Diag)) {
       const char *Start = P;
-      do {
-        ++P;
-      } while (isIdent1(*P));
+      P += IdentLen;
       auto Kind = getTokenKindOfIdent(Start, P);
       Curr->setNext(newToken(Kind, Start, P));
       Curr = Curr->getNext();
