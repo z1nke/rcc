@@ -15,7 +15,7 @@ int encodeUTF8(char *Buf, std::uint32_t C);
 /// On success, sets \p *NewPos to the next byte and returns the code point.
 std::uint32_t decodeUTF8(const char **NewPos, const char *P, Diagnostic &Diag);
 
-/// True if \p C may start a C11 identifier (Annex D).
+/// True if \p C may start a C11 identifier (Annex D), including GNU '$'.
 bool isIdentStart(std::uint32_t C);
 
 /// True if \p C may appear after the first character of a C11 identifier.

@@ -101,6 +101,9 @@ int main() {
   ASSERT(3, π);
   ASSERT(3, ({ int あβ0¾=3; あβ0¾; }));
 
+  // [236] [GNU] Accept $ as an identifier character
+  ASSERT(5, ({ int $$$=5; $$$; }));
+
   printf("OK\n");
   return 0;
 }
