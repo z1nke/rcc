@@ -144,8 +144,7 @@ Token *Preprocessor::preprocess(Token *Toks) {
         bool IsIfndef = hasSpelling(Toks, "ifndef");
         Token *NameTok = Toks->getNext();
         if (!isMacroIdentifier(NameTok))
-          Diag.fatalAt(NameTok->getLoc(),
-                       "macro name must be an identifier");
+          Diag.fatalAt(NameTok->getLoc(), "macro name must be an identifier");
 
         std::string Name(NameTok->getLoc(), NameTok->getLen());
         bool Condition = Macros.contains(Name) != IsIfndef;
@@ -232,8 +231,7 @@ Token *Preprocessor::preprocess(Token *Toks) {
       if (hasSpelling(Toks, "include")) {
         bool IsDquote = false;
         Token *FilenameTok = Toks->getNext();
-        std::string Filename =
-            readIncludeFilename(Toks, FilenameTok, IsDquote);
+        std::string Filename = readIncludeFilename(Toks, FilenameTok, IsDquote);
 
         // Quoted includes are first resolved relative to the including file.
         if (!Filename.empty() && Filename[0] != '/' && IsDquote) {
@@ -299,54 +297,82 @@ Token *Preprocessor::joinAdjacentStringLiterals(Token *Toks) {
     while (End->is(Token::TK_StrLiteral))
       End = End->getNext();
 
-    std::string Content;
-    for (Token *T = Tok; T != End; T = T->getNext())
-      Content += T->getStringLiteral(Diag);
-
-    std::string Spelling = "\"";
-    for (unsigned char C : Content) {
-      switch (C) {
-      case '\a':
-        Spelling += "\\a";
-        break;
-      case '\b':
-        Spelling += "\\b";
-        break;
-      case '\f':
-        Spelling += "\\f";
-        break;
-      case '\n':
-        Spelling += "\\n";
-        break;
-      case '\r':
-        Spelling += "\\r";
-        break;
-      case '\t':
-        Spelling += "\\t";
-        break;
-      case '\v':
-        Spelling += "\\v";
-        break;
-      case '\\':
-        Spelling += "\\\\";
-        break;
-      case '"':
-        Spelling += "\\\"";
-        break;
-      default:
-        if (C >= 0x20 && C < 0x7f) {
-          Spelling += static_cast<char>(C);
-        } else {
-          // Use a fixed-width octal escape so the next character cannot extend
-          // it (e.g. "\x9" "0" must stay "\t0", not "\x90").
-          char Buf[8];
-          std::snprintf(Buf, sizeof(Buf), "\\%03o", C);
-          Spelling += Buf;
-        }
-        break;
+    // Resolve the common encoding for this adjacent run. A bare / u8 string
+    // may be concatenated with one of L/u/U; mixing distinct L/u/U is an error.
+    using Kind = Token::StringLiteralKind;
+    Kind ResultKind = Kind::Narrow;
+    bool HasWideKind = false;
+    for (Token *T = Tok; T != End; T = T->getNext()) {
+      Kind K = T->getStringLiteralKind();
+      if (K == Kind::Narrow || K == Kind::UTF8)
+        continue;
+      if (!HasWideKind) {
+        ResultKind = K;
+        HasWideKind = true;
+      } else if (ResultKind != K) {
+        Diag.fatalAt(T->getLoc(),
+                     "unsupported non-standard concatenation of string "
+                     "literals");
       }
     }
-    Spelling += '"';
+
+    std::string Content;
+    for (Token *T = Tok; T != End; T = T->getNext())
+      Content += T->getStringLiteralAs(Diag, ResultKind);
+
+    std::string Spelling;
+    if (ResultKind == Kind::Wide)
+      Spelling = "L\"\"";
+    else if (ResultKind == Kind::UTF16)
+      Spelling = "u\"\"";
+    else if (ResultKind == Kind::UTF32)
+      Spelling = "U\"\"";
+    else {
+      Spelling = "\"";
+      for (unsigned char C : Content) {
+        switch (C) {
+        case '\a':
+          Spelling += "\\a";
+          break;
+        case '\b':
+          Spelling += "\\b";
+          break;
+        case '\f':
+          Spelling += "\\f";
+          break;
+        case '\n':
+          Spelling += "\\n";
+          break;
+        case '\r':
+          Spelling += "\\r";
+          break;
+        case '\t':
+          Spelling += "\\t";
+          break;
+        case '\v':
+          Spelling += "\\v";
+          break;
+        case '\\':
+          Spelling += "\\\\";
+          break;
+        case '"':
+          Spelling += "\\\"";
+          break;
+        default:
+          if (C >= 0x20 && C < 0x7f) {
+            Spelling += static_cast<char>(C);
+          } else {
+            // Use a fixed-width octal escape so the next character cannot
+            // extend it (e.g. "\x9" "0" must stay "\t0", not "\x90").
+            char Buf[8];
+            std::snprintf(Buf, sizeof(Buf), "\\%03o", C);
+            Spelling += Buf;
+          }
+          break;
+        }
+      }
+      Spelling += '"';
+    }
 
     char *Buffer = static_cast<char *>(
         MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
@@ -358,6 +384,15 @@ Token *Preprocessor::joinAdjacentStringLiterals(Token *Toks) {
     Joined->setAtStartOfLine(Tok->isAtStartOfLine());
     Joined->setHasLeadingSpace(Tok->hasLeadingSpace());
     Joined->setSourceRange(*Tok);
+
+    if (HasWideKind) {
+      char *Data = static_cast<char *>(
+          MacroTokenAlloc.allocate(Content.size() + 1, alignof(char)));
+      std::memcpy(Data, Content.data(), Content.size());
+      Data[Content.size()] = '\0';
+      Joined->setStringLiteralData(Data, static_cast<int>(Content.size()));
+    }
+
     Joined->setNext(End);
     Prev->setNext(Joined);
     Prev = Joined;

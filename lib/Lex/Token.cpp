@@ -152,25 +152,56 @@ unsigned Token::getCharLiteral(Diagnostic &Diag) const {
 
 std::string Token::getStringLiteral(Diagnostic &Diag) const {
   assert(Kind == TK_StrLiteral && "expect a string literal");
+  if (StrData)
+    return std::string(StrData, StrData + StrLen);
+  return getStringLiteralAs(Diag, getStringLiteralKind());
+}
+
+Token::StringLiteralKind Token::getStringLiteralKind() const {
+  assert(Kind == TK_StrLiteral && "expect a string literal");
   const char *P = Loc;
-  enum { Narrow, UTF16, UTF32 } LitKind = Narrow;
-  if (*P == 'u' && *(P + 1) == '8') {
-    P += 2; // skip UTF-8 string prefix
-  } else if (*P == 'u' && *(P + 1) == '"') {
-    LitKind = UTF16;
-    ++P; // skip UTF-16 string prefix
-  } else if ((*P == 'U' || *P == 'L') && *(P + 1) == '"') {
-    LitKind = UTF32;
-    ++P; // skip UTF-32 / wide string prefix
+  if (*P == 'u' && *(P + 1) == '8')
+    return StringLiteralKind::UTF8;
+  switch (*P) {
+  case '"':
+    return StringLiteralKind::Narrow;
+  case 'u':
+    return StringLiteralKind::UTF16;
+  case 'U':
+    return StringLiteralKind::UTF32;
+  case 'L':
+    return StringLiteralKind::Wide;
+  default:
+    RCC_UNREACHABLE("invalid string literal prefix");
   }
+}
+
+void Token::setStringLiteralData(const char *Data, int Length) {
+  assert(Kind == TK_StrLiteral && "expect a string literal");
+  StrData = Data;
+  StrLen = Length;
+}
+
+std::string Token::getStringLiteralAs(Diagnostic &Diag,
+                                      StringLiteralKind LitKind) const {
+  assert(Kind == TK_StrLiteral && "expect a string literal");
+  const char *P = Loc;
+  if (*P == 'u' && *(P + 1) == '8')
+    P += 2;
+  else if (*P == 'u' || *P == 'U' || *P == 'L')
+    ++P;
   ++P; // Skip the opening '"'.
+
+  const bool IsNarrow = LitKind == StringLiteralKind::Narrow ||
+                        LitKind == StringLiteralKind::UTF8;
+  const bool IsUTF16 = LitKind == StringLiteralKind::UTF16;
 
   std::string Result;
   Result.reserve(Loc + Len - P - 1);
   for (; P < Loc + Len - 1;) {
     std::uint32_t C;
     if (*P != '\\') {
-      if (LitKind == Narrow) {
+      if (IsNarrow) {
         Result += *P++;
         continue;
       }
@@ -178,13 +209,13 @@ std::string Token::getStringLiteral(Diagnostic &Diag) const {
     } else {
       ++P; // Skip the '\'.
       C = escapeChar(P, Diag);
-      if (LitKind == Narrow) {
+      if (IsNarrow) {
         Result += static_cast<char>(C);
         continue;
       }
     }
 
-    if (LitKind == UTF16) {
+    if (IsUTF16) {
       // Encode as little-endian UTF-16 code units.
       if (C < 0x10000) {
         Result += static_cast<char>(C & 0xff);

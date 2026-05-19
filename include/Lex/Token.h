@@ -2,6 +2,7 @@
 #define RCC_LEX_TOKEN_H
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 namespace rcc {
@@ -71,6 +72,25 @@ public:
   unsigned getCharLiteral(Diagnostic &Diag) const;
   std::string getStringLiteral(Diagnostic &Diag) const;
 
+  /// Encoding prefix of a string literal token.
+  enum class StringLiteralKind : unsigned char {
+    Narrow,
+    UTF8,
+    UTF16,
+    UTF32,
+    Wide,
+  };
+
+  StringLiteralKind getStringLiteralKind() const;
+
+  /// Decode this token's contents using \p Kind (used when concatenating a
+  /// narrow literal with an L/u/U literal).
+  std::string getStringLiteralAs(Diagnostic &Diag,
+                                 StringLiteralKind Kind) const;
+
+  /// Attach precomputed encoded string bytes (without the trailing NUL).
+  void setStringLiteralData(const char *Data, int Length);
+
   bool is(TokenKind TK) const { return TK == Kind; }
 
   bool isOneOf(TokenKind K1, TokenKind K2) const { return is(K1) || is(K2); }
@@ -107,6 +127,8 @@ private:
   const char *SourceLoc = nullptr;
   int SourceLen = 0;
   Token *Origin = nullptr;
+  const char *StrData = nullptr;
+  int StrLen = 0;
   bool AtStartOfLine = false;
   bool HasLeadingSpace = false;
   bool DisableExpand = false;
