@@ -219,6 +219,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_InitListExpr:
     visit(cast<InitListExpr>(S));
     break;
+  case Stmt::SK_DesignatedInitExpr:
+    visit(cast<DesignatedInitExpr>(S));
+    break;
   case Stmt::SK_CompoundLiteralExpr:
     visit(cast<CompoundLiteralExpr>(S));
     break;
@@ -487,6 +490,14 @@ void ASTDumper::visit(const InitListExpr *ILE) {
     ScopedIndent SI(*this, IsSingle);
     visit(Init);
   }
+}
+
+void ASTDumper::visit(const DesignatedInitExpr *DIE) {
+  printName("DesignatedInitExpr");
+  ScopedIndent SI(*this, true);
+  for (std::uint64_t D : DIE->getDesignators())
+    std::println(stderr, "designator [{}]", D);
+  visit(DIE->getInit());
 }
 
 void ASTDumper::visit(const CompoundLiteralExpr *CLE) {

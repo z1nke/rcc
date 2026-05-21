@@ -6,11 +6,14 @@
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceLocation.h"
 #include "Sema/DeclSpec.h"
+#include "Support/Casting.h"
 #include "Support/Unreachable.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <format>
 #include <ranges>
+#include <vector>
 
 namespace rcc {
 
@@ -32,6 +35,248 @@ static void checkStringLiteralInit(const ASTContext &Ctx, Diagnostic &Diag,
     Diag.fatalAt(SL->getBeginLoc(),
                  "initializer-string for char array is too long");
 }
+
+namespace {
+
+struct InitTree {
+  QualType Ty;
+  Expr *Leaf = nullptr;
+  std::vector<InitTree> Kids;
+};
+
+static bool listHasDesignator(const Expr *E) {
+  if (isa<DesignatedInitExpr>(E))
+    return true;
+  if (const auto *ILE = dynCast<InitListExpr>(E)) {
+    for (const Expr *Init : ILE->getInits())
+      if (listHasDesignator(Init))
+        return true;
+  }
+  return false;
+}
+
+static void ensureKids(InitTree &Node, Diagnostic &Diag, SourceLocation Loc) {
+  if (!Node.Kids.empty())
+    return;
+  if (const auto *CAT = Node.Ty->getAs<ConstantArrayType>()) {
+    Node.Kids.resize(CAT->getLength());
+    QualType ElemTy = CAT->getElementType();
+    for (InitTree &Kid : Node.Kids)
+      Kid.Ty = ElemTy;
+    return;
+  }
+  if (const auto *RT = Node.Ty->getAs<RecordType>()) {
+    const auto &Fields = RT->getDecl()->fields();
+    Node.Kids.resize(Fields.size());
+    for (std::size_t I = 0; I < Fields.size(); ++I)
+      Node.Kids[I].Ty = Fields[I]->getType();
+    return;
+  }
+  Diag.fatalAt(Loc, "designator in non-aggregate initializer");
+}
+
+static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
+                             unsigned &Idx, Diagnostic &Diag, ASTContext &Ctx,
+                             bool StopOnDesignator);
+
+static void fillTreeFromExpr(InitTree &Node, Expr *E, Diagnostic &Diag,
+                             ASTContext &Ctx) {
+  if (const auto *ILE = dynCast<InitListExpr>(E)) {
+    unsigned SubIdx = 0;
+    fillTreeFromList(Node, ILE, SubIdx, Diag, Ctx, /*StopOnDesignator=*/false);
+    return;
+  }
+
+  if (Node.Ty->getAs<ConstantArrayType>() && !isa<StringLiteral>(E)) {
+    ensureKids(Node, Diag, E->getBeginLoc());
+    if (!Node.Kids.empty())
+      fillTreeFromExpr(Node.Kids[0], E, Diag, Ctx);
+    return;
+  }
+
+  Node.Leaf = E;
+  Node.Kids.clear();
+}
+
+static void continueArrayFrom(InitTree &Node, unsigned StartI,
+                              const InitListExpr *List, unsigned &Idx,
+                              Diagnostic &Diag, ASTContext &Ctx) {
+  ensureKids(Node, Diag, List->getBeginLoc());
+  const auto *CAT = Node.Ty->getAs<ConstantArrayType>();
+  if (!CAT)
+    return;
+
+  for (unsigned I = StartI; I < CAT->getLength() && Idx < List->getNumInits();
+       ++I) {
+    const Expr *E = List->getInit(Idx);
+    if (isa<DesignatedInitExpr>(E))
+      return;
+
+    QualType ElemTy = Node.Kids[I].Ty;
+    if ((ElemTy->isArraryType() || ElemTy->isRecordType()) &&
+        !isa<InitListExpr>(E) && !isa<StringLiteral>(E)) {
+      fillTreeFromList(Node.Kids[I], List, Idx, Diag, Ctx,
+                       /*StopOnDesignator=*/true);
+    } else if (const auto *Sub = dynCast<InitListExpr>(E)) {
+      ++Idx;
+      fillTreeFromExpr(Node.Kids[I], const_cast<InitListExpr *>(Sub), Diag,
+                       Ctx);
+    } else {
+      fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+      ++Idx;
+    }
+  }
+}
+
+static void applyDesignation(InitTree &Node,
+                             const std::vector<std::uint64_t> &Desigs,
+                             unsigned DesigPos, Expr *Init,
+                             const InitListExpr *ParentList, unsigned &ListIdx,
+                             Diagnostic &Diag, ASTContext &Ctx) {
+  // designation = ("[" const-expr "]")* "=" initializer
+  if (DesigPos == Desigs.size()) {
+    // Braced initializer is self-contained (arrayInitializer1); do not
+    // continue into following list elements at this level.
+    if (isa<InitListExpr>(Init)) {
+      fillTreeFromExpr(Node, Init, Diag, Ctx);
+      ++ListIdx;
+      return;
+    }
+
+    fillTreeFromExpr(Node, Init, Diag, Ctx);
+    ++ListIdx;
+    // Bare scalar/list into an array continues like arrayInitializer2 from 1.
+    if (Node.Ty->getAs<ConstantArrayType>())
+      continueArrayFrom(Node, 1, ParentList, ListIdx, Diag, Ctx);
+    return;
+  }
+
+  ensureKids(Node, Diag, Init->getBeginLoc());
+  const auto *CAT = Node.Ty->getAs<ConstantArrayType>();
+  if (!CAT)
+    Diag.fatalAt(Init->getBeginLoc(), "array index in non-array initializer");
+
+  std::uint64_t I = Desigs[DesigPos];
+  if (I >= CAT->getLength())
+    Diag.fatalAt(Init->getBeginLoc(),
+                 "array designator index exceeds array bounds");
+
+  applyDesignation(Node.Kids[static_cast<std::size_t>(I)], Desigs, DesigPos + 1,
+                   Init, ParentList, ListIdx, Diag, Ctx);
+  // After nested designators, continue siblings at this level.
+  continueArrayFrom(Node, static_cast<unsigned>(I + 1), ParentList, ListIdx,
+                    Diag, Ctx);
+}
+
+static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
+                             unsigned &Idx, Diagnostic &Diag, ASTContext &Ctx,
+                             bool StopOnDesignator) {
+  ensureKids(Node, Diag, List->getBeginLoc());
+
+  if (const auto *CAT = Node.Ty->getAs<ConstantArrayType>()) {
+    unsigned I = 0;
+    while (Idx < List->getNumInits()) {
+      const Expr *E = List->getInit(Idx);
+      if (const auto *DIE = dynCast<DesignatedInitExpr>(E)) {
+        // Unbraced nested fills must leave designators for the parent list.
+        if (StopOnDesignator)
+          return;
+        const auto &Desigs = DIE->getDesignators();
+        if (Desigs.empty())
+          Diag.fatalAt(DIE->getBeginLoc(), "empty designator");
+        I = static_cast<unsigned>(Desigs[0]);
+        if (I >= CAT->getLength())
+          Diag.fatalAt(DIE->getBeginLoc(),
+                       "array designator index exceeds array bounds");
+        // Consume the DesignatedInitExpr itself; applyDesignation advances Idx.
+        applyDesignation(Node, Desigs, 0, DIE->getInit(), List, Idx, Diag, Ctx);
+        ++I;
+        continue;
+      }
+
+      if (I >= CAT->getLength())
+        return;
+
+      QualType ElemTy = Node.Kids[I].Ty;
+      if ((ElemTy->isArraryType() || ElemTy->isRecordType()) &&
+          !isa<InitListExpr>(E) && !isa<StringLiteral>(E)) {
+        fillTreeFromList(Node.Kids[I], List, Idx, Diag, Ctx,
+                         /*StopOnDesignator=*/true);
+        ++I;
+        continue;
+      }
+
+      if (const auto *Sub = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        fillTreeFromExpr(Node.Kids[I], const_cast<InitListExpr *>(Sub), Diag,
+                         Ctx);
+        ++I;
+        continue;
+      }
+
+      fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+      ++Idx;
+      ++I;
+    }
+    return;
+  }
+
+  if (Node.Ty->getAs<RecordType>()) {
+    for (std::size_t I = 0; I < Node.Kids.size() && Idx < List->getNumInits();
+         ++I) {
+      const Expr *E = List->getInit(Idx);
+      if (isa<DesignatedInitExpr>(E)) {
+        if (StopOnDesignator)
+          return;
+        Diag.fatalAt(E->getBeginLoc(), "field designator is not supported yet");
+      }
+      if (const auto *Sub = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        fillTreeFromExpr(Node.Kids[I], const_cast<InitListExpr *>(Sub), Diag,
+                         Ctx);
+      } else if ((Node.Kids[I].Ty->isArraryType() ||
+                  Node.Kids[I].Ty->isRecordType()) &&
+                 !isa<StringLiteral>(E)) {
+        fillTreeFromList(Node.Kids[I], List, Idx, Diag, Ctx,
+                         /*StopOnDesignator=*/true);
+      } else {
+        fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+        ++Idx;
+      }
+    }
+  }
+}
+
+static Expr *treeToExpr(InitTree &Node, ASTContext &Ctx, SourceLocation Loc) {
+  if (Node.Kids.empty()) {
+    if (Node.Leaf)
+      return Node.Leaf;
+    // Unspecified scalar: leave a zero so dense lists stay well-formed.
+    return IntegerLiteral::create(Ctx, Loc, Loc, Ctx.IntTy, 0);
+  }
+
+  std::vector<Expr *> Inits;
+  Inits.reserve(Node.Kids.size());
+  for (InitTree &Kid : Node.Kids)
+    Inits.push_back(treeToExpr(Kid, Ctx, Loc));
+  return InitListExpr::create(Ctx, Loc, Loc, Node.Ty, std::move(Inits));
+}
+
+static InitListExpr *expandDesignatedInits(ASTContext &Ctx, Diagnostic &Diag,
+                                           InitListExpr *List, QualType Ty) {
+  if (!listHasDesignator(List))
+    return List;
+
+  InitTree Root;
+  Root.Ty = Ty;
+  unsigned Idx = 0;
+  fillTreeFromList(Root, List, Idx, Diag, Ctx, /*StopOnDesignator=*/false);
+  Expr *Expanded = treeToExpr(Root, Ctx, List->getBeginLoc());
+  return cast<InitListExpr>(Expanded);
+}
+
+} // namespace
+
 static bool findNamedFieldInRecord(const RecordDecl *Record,
                                    std::string_view Ident) {
   if (!Record || !Record->hasDefinition())
@@ -619,7 +864,7 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
       Var->setEndLoc(Init->getEndLoc());
       return;
     }
-  } else if (const auto *ILE = dynCast<InitListExpr>(Init)) {
+  } else if (auto *ILE = dynCast<InitListExpr>(Init)) {
     if (!VarType->isArraryType() && !VarType->isRecordType()) {
       while (const auto *ScalarILE = dynCast<InitListExpr>(Init)) {
         if (ScalarILE->getNumInits() != 1)
@@ -628,6 +873,8 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
         Init = const_cast<Expr *>(ScalarILE->getInit(0));
       }
     } else {
+      ILE = expandDesignatedInits(Ctx, Diag, ILE, VarType);
+      Init = ILE;
       checkInitList(ILE, VarType);
       if (const auto *RT = VarType->getAs<RecordType>()) {
         const auto &Fields = RT->getDecl()->fields();

@@ -649,7 +649,7 @@ std::optional<double> Expr::evaluateAsDouble() const {
   if (QT.isNull())
     return std::nullopt;
 
-  // Integer / bool operands used in floating expressions (rvcc evalDouble).
+  // Integer / bool operands used in floating expressions.
   if (QT->isIntegerType() || QT->isBooleanType()) {
     auto IntVal = evaluateAsInt();
     if (!IntVal)
@@ -917,7 +917,8 @@ CallExpr *CallExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            const FunctionType *FuncType,
                            std::vector<Expr *> Args) {
   void *Mem = Ctx.allocate(sizeof(CallExpr), alignof(CallExpr));
-  return new (Mem) CallExpr(BegLoc, EndLoc, T, Callee, FuncType, std::move(Args));
+  return new (Mem)
+      CallExpr(BegLoc, EndLoc, T, Callee, FuncType, std::move(Args));
 }
 
 FunctionDecl *CallExpr::getCalleeDecl() const {
@@ -1026,6 +1027,23 @@ InitListExpr *InitListExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
 InitListExpr::InitListExpr(SourceLocation BegLoc, SourceLocation EndLoc,
                            QualType T, std::vector<Expr *> Inits)
     : Expr(SK_InitListExpr, BegLoc, EndLoc, T), Inits(std::move(Inits)) {}
+
+DesignatedInitExpr *
+DesignatedInitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
+                           SourceLocation EndLoc,
+                           std::vector<std::uint64_t> Designators, Expr *Init) {
+  void *Mem =
+      Ctx.allocate(sizeof(DesignatedInitExpr), alignof(DesignatedInitExpr));
+  return new (Mem)
+      DesignatedInitExpr(BegLoc, EndLoc, std::move(Designators), Init);
+}
+
+DesignatedInitExpr::DesignatedInitExpr(SourceLocation BegLoc,
+                                       SourceLocation EndLoc,
+                                       std::vector<std::uint64_t> Designators,
+                                       Expr *Init)
+    : Expr(SK_DesignatedInitExpr, BegLoc, EndLoc, Init->getType()),
+      Designators(std::move(Designators)), Init(Init) {}
 
 CompoundLiteralExpr *CompoundLiteralExpr::create(ASTContext &Ctx,
                                                  SourceLocation BegLoc,

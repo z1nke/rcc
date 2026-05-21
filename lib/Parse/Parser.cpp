@@ -789,7 +789,29 @@ Expr *Parser::parseInitExpr() {
   skip(Token::TK_LBrace);
   std::vector<Expr *> Inits;
   while (CurTok->isNot(Token::TK_RBrace)) {
-    Inits.push_back(parseInitExpr());
+    // designation = ("[" constant-expression "]")+ "=" initializer
+    if (CurTok->is(Token::TK_LSquare)) {
+      SourceLocation DesigBeg = SM.createBeginLocation(CurTok);
+      std::vector<std::uint64_t> Designators;
+      while (tryConsume(Token::TK_LSquare)) {
+        Expr *IdxExpr = parseConstantExpr();
+        auto Idx = IdxExpr->evaluateAsInt();
+        if (!Idx)
+          Diag.fatalAt(IdxExpr->getBeginLoc(),
+                       "array designator is not an integer constant");
+        if (*Idx < 0)
+          Diag.fatalAt(IdxExpr->getBeginLoc(),
+                       "array designator index is negative");
+        Designators.push_back(static_cast<std::uint64_t>(*Idx));
+        skip(Token::TK_RSquare);
+      }
+      skip(Token::TK_Equal);
+      Expr *Init = parseInitExpr();
+      Inits.push_back(DesignatedInitExpr::create(
+          Ctx, DesigBeg, Init->getEndLoc(), std::move(Designators), Init));
+    } else {
+      Inits.push_back(parseInitExpr());
+    }
     if (!tryConsume(Token::TK_Comma)) {
       if (CurTok->is(Token::TK_RBrace))
         break;
@@ -1408,8 +1430,8 @@ Expr *Parser::parsePrimaryExpr() {
     auto SL = CurTok->getStringLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
     auto EndLoc = SM.createEndLocation(CurTok);
-    // u"..." -> unsigned short[] (char16_t), U"..." -> unsigned int[] (char32_t),
-    // L"..." -> int[] (wchar_t), otherwise char[].
+    // u"..." -> unsigned short[] (char16_t), U"..." -> unsigned int[]
+    // (char32_t), L"..." -> int[] (wchar_t), otherwise char[].
     QualType ElemTy = Ctx.CharTy;
     std::size_t Len = SL.size() + 1;
     char Prefix0 = CurTok->getLoc()[0];

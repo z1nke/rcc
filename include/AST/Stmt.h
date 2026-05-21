@@ -837,6 +837,32 @@ private:
   std::vector<Expr *> Inits;
 };
 
+/// C99 array designated initializer: [i][j]= init
+class DesignatedInitExpr final : public Expr {
+public:
+  static DesignatedInitExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
+                                    SourceLocation EndLoc,
+                                    std::vector<std::uint64_t> Designators,
+                                    Expr *Init);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_DesignatedInitExpr;
+  }
+
+  const std::vector<std::uint64_t> &getDesignators() const {
+    return Designators;
+  }
+  Expr *getInit() const { return Init; }
+
+private:
+  DesignatedInitExpr(SourceLocation BegLoc, SourceLocation EndLoc,
+                     std::vector<std::uint64_t> Designators, Expr *Init);
+
+private:
+  std::vector<std::uint64_t> Designators;
+  Expr *Init;
+};
+
 class CompoundLiteralExpr final : public Expr {
 public:
   static CompoundLiteralExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
