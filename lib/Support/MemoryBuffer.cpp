@@ -3,6 +3,7 @@
 #include "Support/Unicode.h"
 
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -82,6 +83,12 @@ std::unique_ptr<MemoryBuffer> MemoryBuffer::fromStdin() {
 std::unique_ptr<MemoryBuffer> MemoryBuffer::fromString(const std::string &Str) {
   std::vector<char> Data(Str.begin(), Str.end());
   return std::make_unique<MemoryBuffer>(std::move(Data));
+}
+
+void MemoryBuffer::skipUTF8BOM() {
+  if (Data.size() >= 3 &&
+      std::memcmp(Data.data(), "\xef\xbb\xbf", 3) == 0)
+    Data.erase(Data.begin(), Data.begin() + 3);
 }
 
 // Replaces \r or \r\n with \n.

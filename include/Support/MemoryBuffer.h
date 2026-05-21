@@ -23,6 +23,9 @@ public:
   // Replaces \r or \r\n with \n.
   void canonicalizeNewline();
 
+  // Skip a leading UTF-8 BOM (EF BB BF) if present.
+  void skipUTF8BOM();
+
   // Replace \uXXXX / \UXXXXXXXX with the corresponding UTF-8 bytes.
   void convertUniversalChars();
 

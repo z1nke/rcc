@@ -24,6 +24,7 @@ const FileEntry *FileManager::getFile(const std::string &Path) {
   else
     Buf = MemoryBuffer::fromFile(Path);
 
+  Buf->skipUTF8BOM();
   Buf->canonicalizeNewline();
   Buf->removeBackslashNewline();
   Buf->convertUniversalChars();

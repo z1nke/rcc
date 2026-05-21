@@ -24,7 +24,9 @@ static void printTokens(Token *Toks, FILE *Fp) {
   for (; Toks->isNot(Token::TK_EOF); Toks = Toks->getNext()) {
     if (!IsFirst && Toks->isAtStartOfLine())
       std::fputc('\n', Fp);
-    std::fprintf(Fp, " %.*s", Toks->getLen(), Toks->getLoc());
+    if (Toks->hasLeadingSpace() && !Toks->isAtStartOfLine())
+      std::fputc(' ', Fp);
+    std::fprintf(Fp, "%.*s", Toks->getLen(), Toks->getLoc());
     IsFirst = false;
   }
   std::fputc('\n', Fp);

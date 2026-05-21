@@ -57,6 +57,8 @@
 // [216] Ignore -O, -W and -g and other flags
 // RUN: echo > %t.empty.c
 // RUN: rcc -c -O -Wall -g -std=c11 -ffreestanding -fno-builtin -fno-omit-frame-pointer -fno-stack-protector -fno-strict-aliasing -m64 -mno-red-zone -w -o /dev/null %t.empty.c
+// [238] Skip UTF-8 BOM markers
+// RUN: printf '\xef\xbb\xbfxyz\n' | rcc -E -o- - | grep -q '^xyz'
 // RUN: rcc --help
 
 int main() {
