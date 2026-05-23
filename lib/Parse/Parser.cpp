@@ -789,7 +789,7 @@ Expr *Parser::parseInitExpr() {
   skip(Token::TK_LBrace);
   std::vector<Expr *> Inits;
   while (CurTok->isNot(Token::TK_RBrace)) {
-    // designation = ("[" constant-expression "]")+ "=" initializer
+    // designation = ("[" constant-expression "]")+ "="? initializer
     if (CurTok->is(Token::TK_LSquare)) {
       SourceLocation DesigBeg = SM.createBeginLocation(CurTok);
       std::vector<std::uint64_t> Designators;
@@ -805,7 +805,7 @@ Expr *Parser::parseInitExpr() {
         Designators.push_back(static_cast<std::uint64_t>(*Idx));
         skip(Token::TK_RSquare);
       }
-      skip(Token::TK_Equal);
+      tryConsume(Token::TK_Equal); // GNU: "=" may be omitted
       Expr *Init = parseInitExpr();
       Inits.push_back(DesignatedInitExpr::create(
           Ctx, DesigBeg, Init->getEndLoc(), std::move(Designators), Init));
