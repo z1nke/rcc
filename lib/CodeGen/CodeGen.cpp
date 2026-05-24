@@ -81,8 +81,7 @@ static FloatStructPassInfo getFloatStructPassInfo(const Type *Ty, int GP,
   if (Idx > 2)
     return Info;
 
-  if ((RegsTy[0] && RegsTy[0]->isFloatingType() && !RegsTy[1] &&
-       FP < FPMAX) ||
+  if ((RegsTy[0] && RegsTy[0]->isFloatingType() && !RegsTy[1] && FP < FPMAX) ||
       (RegsTy[0] && RegsTy[0]->isFloatingType() && RegsTy[1] &&
        RegsTy[1]->isIntegerType() && FP < FPMAX && GP < GPMAX) ||
       (RegsTy[0] && RegsTy[0]->isIntegerType() && RegsTy[1] &&
@@ -104,7 +103,7 @@ static bool isLargeStructByPointer(const Type *Ty) {
 }
 
 static void countStructArgRegs(const Type *Ty, int &GP, int &FP,
-                                bool &PassByStack) {
+                               bool &PassByStack) {
   PassByStack = false;
   if (isLargeStructByPointer(Ty)) {
     if (GP < GPMAX)
@@ -280,9 +279,8 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
       ReOffset = alignTo(ReOffset, 8);
       Param->setOffset(ReOffset);
       // Half-by-stack: only the upper half lives in the caller arg area.
-      ReOffset += Param->isHalfByStack()
-                      ? static_cast<int>(Ty->getSize()) - 8
-                      : static_cast<int>(Ty->getSize());
+      ReOffset += Param->isHalfByStack() ? static_cast<int>(Ty->getSize()) - 8
+                                         : static_cast<int>(Ty->getSize());
     }
   }
 
@@ -574,14 +572,22 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
         return;
       }
 
+      unsigned FI = 0;
+      if (const auto *ILE = dynCast<InitListExpr>(Init))
+        FI = ILE->getUnionFieldIndex();
+      if (FI >= Fields.size())
+        FI = 0;
+      const auto *Field = Fields[FI];
+      QualType FieldTy = Field->getType();
+
       if (recordHasBitField(RD)) {
         std::vector<std::uint8_t> Buf(Ty->getSize(), 0);
         if (const auto *ILE = dynCast<InitListExpr>(Init)) {
           if (ILE->getNumInits() > 0)
-            writeGlobalInitToBuf(Buf, 0, ILE->getInit(0),
-                                 Fields[0]->getType());
+            writeGlobalInitToBuf(Buf, Field->getOffset(), ILE->getInit(0),
+                                 FieldTy);
         } else {
-          writeGlobalInitToBuf(Buf, 0, Init, Fields[0]->getType());
+          writeGlobalInitToBuf(Buf, Field->getOffset(), Init, FieldTy);
         }
         emitDataBuf(Buf);
         return;
@@ -589,14 +595,15 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
 
       if (const auto *ILE = dynCast<InitListExpr>(Init)) {
         if (ILE->getNumInits() > 0)
-          emitGlobalInit(ILE->getInit(0), Fields[0]->getType(), BaseOffset);
+          emitGlobalInit(ILE->getInit(0), FieldTy,
+                         BaseOffset + Field->getOffset());
         else
-          emitGlobalZeroInit(Fields[0]->getType(), BaseOffset);
+          emitGlobalZeroInit(FieldTy, BaseOffset + Field->getOffset());
       } else {
-        emitGlobalInit(Init, Fields[0]->getType(), BaseOffset);
+        emitGlobalInit(Init, FieldTy, BaseOffset + Field->getOffset());
       }
 
-      std::size_t InitSize = Fields[0]->getType()->getSize();
+      std::size_t InitSize = FieldTy->getSize();
       if (InitSize < Ty->getSize())
         emit("  .zero {}", Ty->getSize() - InitSize);
       return;
@@ -752,7 +759,10 @@ void CodeGen::emitGlobalInitFromFlat(const InitListExpr *List, QualType Ty,
       emitGlobalZeroInit(Ty, BaseOffset);
       return;
     }
-    const auto *Field = Fields[0];
+    unsigned FI = List->getUnionFieldIndex();
+    if (FI >= Fields.size())
+      FI = 0;
+    const auto *Field = Fields[FI];
     QualType FieldTy = Field->getType();
     std::size_t FieldOffset = BaseOffset + Field->getOffset();
     const Expr *E = List->getInit(Idx);
@@ -960,7 +970,7 @@ void CodeGen::writeGlobalInitToBuf(std::vector<std::uint8_t> &Buf,
   }
 
   writeInitBuf(Buf.data() + Offset, static_cast<std::uint64_t>(*Eval),
-              Ty->getSize());
+               Ty->getSize());
 }
 
 void CodeGen::writeGlobalInitToBufFromFlat(std::vector<std::uint8_t> &Buf,
@@ -1025,7 +1035,10 @@ void CodeGen::writeGlobalInitToBufFromFlat(std::vector<std::uint8_t> &Buf,
   if (RD->isUnion()) {
     if (Fields.empty() || Idx >= List->getNumInits())
       return;
-    const auto *Field = Fields[0];
+    unsigned FI = List->getUnionFieldIndex();
+    if (FI >= Fields.size())
+      FI = 0;
+    const auto *Field = Fields[FI];
     QualType FieldTy = Field->getType();
     std::size_t FieldOff = Offset + Field->getOffset();
     const Expr *E = List->getInit(Idx);
@@ -1065,8 +1078,8 @@ void CodeGen::writeGlobalInitToBufFromFlat(std::vector<std::uint8_t> &Buf,
       std::uint64_t OldVal = readInitBuf(Loc, Sz);
       std::uint64_t Mask = (1ULL << Field->getBitWidth()) - 1;
       std::uint64_t Combined =
-          OldVal | ((static_cast<std::uint64_t>(*Eval) & Mask)
-                    << Field->getBitOffset());
+          OldVal |
+          ((static_cast<std::uint64_t>(*Eval) & Mask) << Field->getBitOffset());
       writeInitBuf(Loc, Combined, Sz);
       continue;
     }
@@ -1467,7 +1480,10 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
       return;
     }
 
-    const auto *Field = Fields[0];
+    unsigned FI = List->getUnionFieldIndex();
+    if (FI >= Fields.size())
+      FI = 0;
+    const auto *Field = Fields[FI];
     QualType FieldTy = Field->getType();
     std::size_t Offset = BaseOffset + Field->getOffset();
     const Expr *E = List->getInit(Idx);
@@ -2179,8 +2195,8 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   switch (Op) {
   case BinaryOperator::BO_Assign:
     genAddr(LHS);
-    push();                   // a1 = addrof(lhs)
-    genExpr(BO->getRHS());    // a0 = rhs
+    push();                // a1 = addrof(lhs)
+    genExpr(BO->getRHS()); // a0 = rhs
     if (const auto *Member = dynCast<MemberExpr>(LHS);
         Member && Member->getMemberDecl()->isBitField())
       storeBitField(Member->getMemberDecl());
@@ -2580,8 +2596,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   const unsigned NumParams = Func ? Func->getNumParams() : FT->getNumParams();
   const bool IsVariadic = FT->isVariadic();
   const VarDecl *RetBuf = CE->getRetBuffer();
-  const bool LargeRet =
-      RetBuf && CE->getTypePtr()->getSize() > 16;
+  const bool LargeRet = RetBuf && CE->getTypePtr()->getSize() > 16;
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
   enum class ArgKind { Scalar, Struct };
@@ -2962,9 +2977,9 @@ void CodeGen::pushStructArg(const Type *Ty, bool OnStack) {
     Depth += 2;
     emit("  ld t0, 0(a0)");
     emit("  sd t0, 0(sp)");
-    int Off = static_cast<int>(std::max(
-        PassInfo.Reg1Ty ? PassInfo.Reg1Ty->getSize() : 0,
-        PassInfo.Reg2Ty ? PassInfo.Reg2Ty->getSize() : 0));
+    int Off = static_cast<int>(
+        std::max(PassInfo.Reg1Ty ? PassInfo.Reg1Ty->getSize() : 0,
+                 PassInfo.Reg2Ty ? PassInfo.Reg2Ty->getSize() : 0));
     emit("  ld t0, {}(a0)", Off);
     emit("  sd t0, 8(sp)");
     return;
@@ -3051,8 +3066,8 @@ void CodeGen::storeStructParam(const Type *Ty, int Offset, int &GP, int &FP,
         storeGenReg(GP++, Offset + PartOff,
                     static_cast<int>(Regs[I]->getSize()));
       if (I == 0 && Regs[1])
-        PartOff = static_cast<int>(
-            std::max(Regs[0]->getSize(), Regs[1]->getSize()));
+        PartOff =
+            static_cast<int>(std::max(Regs[0]->getSize(), Regs[1]->getSize()));
     }
     return;
   }
@@ -3099,8 +3114,8 @@ void CodeGen::copyRetBuffer(const VarDecl *Buf) {
         storeGenReg(GP++, Offset + PartOff,
                     static_cast<int>(Regs[I]->getSize()));
       if (I == 0 && Regs[1])
-        PartOff = static_cast<int>(
-            std::max(Regs[0]->getSize(), Regs[1]->getSize()));
+        PartOff =
+            static_cast<int>(std::max(Regs[0]->getSize(), Regs[1]->getSize()));
     }
     return;
   }
@@ -3138,14 +3153,12 @@ void CodeGen::copyStructReg() {
       if (!Regs[I])
         break;
       if (Regs[I]->isFloatingType())
-        loadFloatRegFromT1(FP++, PartOff,
-                           static_cast<int>(Regs[I]->getSize()));
+        loadFloatRegFromT1(FP++, PartOff, static_cast<int>(Regs[I]->getSize()));
       else
-        loadGenRegFromT1(GP++, PartOff,
-                         static_cast<int>(Regs[I]->getSize()));
+        loadGenRegFromT1(GP++, PartOff, static_cast<int>(Regs[I]->getSize()));
       if (I == 0 && Regs[1])
-        PartOff = static_cast<int>(
-            std::max(Regs[0]->getSize(), Regs[1]->getSize()));
+        PartOff =
+            static_cast<int>(std::max(Regs[0]->getSize(), Regs[1]->getSize()));
     }
     return;
   }
@@ -3284,8 +3297,7 @@ void CodeGen::storeBitField(const FieldDecl *Field) {
   emit("  ld a0, 0(sp)");
   load(Field->getType().getTypePtr());
 
-  long Mask =
-      ((1L << Field->getBitWidth()) - 1) << Field->getBitOffset();
+  long Mask = ((1L << Field->getBitWidth()) - 1) << Field->getBitOffset();
   emit("  li t0, {}", ~Mask);
   emit("  and a0, a0, t0");
   emit("  or a0, a0, t1");

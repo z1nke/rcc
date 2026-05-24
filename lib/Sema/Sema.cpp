@@ -42,6 +42,8 @@ struct InitTree {
   QualType Ty;
   Expr *Leaf = nullptr;
   std::vector<InitTree> Kids;
+  /// For unions: which member was designated (-1 = default first member).
+  int ActiveUnionField = -1;
 };
 
 static bool listHasDesignator(const Expr *E) {
@@ -68,8 +70,6 @@ static void ensureKids(InitTree &Node, Diagnostic &Diag, SourceLocation Loc) {
     return;
   }
   if (const auto *RT = Node.Ty->getAs<RecordType>()) {
-    if (RT->getDecl()->isUnion())
-      Diag.fatalAt(Loc, "field name not in struct or union initializer");
     const auto &Fields = RT->getDecl()->fields();
     Node.Kids.resize(Fields.size());
     for (std::size_t I = 0; I < Fields.size(); ++I)
@@ -121,6 +121,9 @@ static void fillTreeFromExpr(InitTree &Node, Expr *E, Diagnostic &Diag,
 
   if (Node.Ty->getAs<RecordType>()) {
     ensureKids(Node, Diag, E->getBeginLoc());
+    if (Node.Ty->getAs<RecordType>()->getDecl()->isUnion() &&
+        Node.ActiveUnionField < 0)
+      Node.ActiveUnionField = 0;
     if (!Node.Kids.empty())
       fillTreeFromExpr(Node.Kids[0], E, Diag, Ctx);
     return;
@@ -217,7 +220,8 @@ static void applyDesignation(InitTree &Node,
     ++ListIdx;
     if (Node.Ty->getAs<ConstantArrayType>())
       continueArrayFrom(Node, 1, ParentList, ListIdx, Diag, Ctx);
-    else if (Node.Ty->getAs<RecordType>() && !Node.Kids.empty())
+    else if (const auto *RT = Node.Ty->getAs<RecordType>();
+             RT && !RT->getDecl()->isUnion() && !Node.Kids.empty())
       continueStructFrom(Node, 1, ParentList, ListIdx, Diag, Ctx);
     return;
   }
@@ -243,12 +247,20 @@ static void applyDesignation(InitTree &Node,
   }
 
   const auto *RT = Node.Ty->getAs<RecordType>();
-  if (!RT || RT->getDecl()->isUnion())
+  if (!RT)
     Diag.fatalAt(Init->getBeginLoc(),
                  "field name not in struct or union initializer");
 
   unsigned I = findFieldIndex(RT->getDecl(), D.getFieldName(), Diag,
                               Init->getBeginLoc());
+  if (RT->getDecl()->isUnion()) {
+    // Unions initialize only the designated member.
+    Node.ActiveUnionField = static_cast<int>(I);
+    applyDesignation(Node.Kids[I], Desigs, DesigPos + 1, Init, ParentList,
+                     ListIdx, Diag, Ctx);
+    return;
+  }
+
   applyDesignation(Node.Kids[I], Desigs, DesigPos + 1, Init, ParentList,
                    ListIdx, Diag, Ctx);
   continueStructFrom(Node, I + 1, ParentList, ListIdx, Diag, Ctx);
@@ -317,20 +329,31 @@ static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
 
   if (const auto *RT = Node.Ty->getAs<RecordType>()) {
     if (RT->getDecl()->isUnion()) {
-      // Unions: only first field (existing behavior); no field designators.
       if (Idx >= List->getNumInits() || Node.Kids.empty())
         return;
       const Expr *E = List->getInit(Idx);
-      if (isa<DesignatedInitExpr>(E)) {
+      if (const auto *DIE = dynCast<DesignatedInitExpr>(E)) {
         if (StopOnDesignator)
           return;
-        Diag.fatalAt(E->getBeginLoc(),
-                     "field name not in struct or union initializer");
+        const auto &Desigs = DIE->getDesignators();
+        if (Desigs.empty() || !Desigs[0].isField())
+          Diag.fatalAt(DIE->getBeginLoc(),
+                       "field designator expected in union initializer");
+        applyDesignation(Node, Desigs, 0, DIE->getInit(), List, Idx, Diag, Ctx);
+        return;
       }
+      if (Node.ActiveUnionField < 0)
+        Node.ActiveUnionField = 0;
       if (const auto *Sub = dynCast<InitListExpr>(E)) {
         ++Idx;
         fillTreeFromExpr(Node.Kids[0], const_cast<InitListExpr *>(Sub), Diag,
                          Ctx);
+      } else if ((Node.Kids[0].Ty->isArraryType() ||
+                  Node.Kids[0].Ty->isRecordType()) &&
+                 !isa<StringLiteral>(E) &&
+                 !isWholeRecordInit(Ctx, Node.Kids[0].Ty, E)) {
+        fillTreeFromList(Node.Kids[0], List, Idx, Diag, Ctx,
+                         /*StopOnDesignator=*/true);
       } else {
         fillTreeFromExpr(Node.Kids[0], const_cast<Expr *>(E), Diag, Ctx);
         ++Idx;
@@ -392,6 +415,25 @@ static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
 }
 
 static Expr *treeToExpr(InitTree &Node, ASTContext &Ctx, SourceLocation Loc) {
+  if (const auto *RT = Node.Ty->getAs<RecordType>();
+      RT && RT->getDecl()->isUnion()) {
+    if (Node.Leaf)
+      return Node.Leaf;
+    if (Node.Kids.empty())
+      return IntegerLiteral::create(Ctx, Loc, Loc, Ctx.IntTy, 0);
+
+    unsigned FI = Node.ActiveUnionField >= 0
+                      ? static_cast<unsigned>(Node.ActiveUnionField)
+                      : 0;
+    if (FI >= Node.Kids.size())
+      FI = 0;
+    Expr *FieldInit = treeToExpr(Node.Kids[FI], Ctx, Loc);
+    auto *ILE = InitListExpr::create(Ctx, Loc, Loc, Node.Ty,
+                                     std::vector<Expr *>{FieldInit});
+    ILE->setUnionFieldIndex(FI);
+    return ILE;
+  }
+
   if (Node.Kids.empty()) {
     if (Node.Leaf)
       return Node.Leaf;
@@ -575,7 +617,7 @@ static void skipDesignation(QualType Ty, const std::vector<Designator> &Desigs,
   }
 
   const auto *RT = Ty->getAs<RecordType>();
-  if (!RT || RT->getDecl()->isUnion())
+  if (!RT)
     return;
   const auto &Fields = RT->getDecl()->fields();
   unsigned I = 0;
@@ -589,6 +631,9 @@ static void skipDesignation(QualType Ty, const std::vector<Designator> &Desigs,
   if (!Found)
     return;
   skipDesignation(Fields[I]->getType(), Desigs, Pos + 1, Init, List, Idx);
+  // Unions do not continue into other members after a designation.
+  if (RT->getDecl()->isUnion())
+    return;
   for (std::size_t J = I + 1; J < Fields.size() && Idx < List->getNumInits();
        ++J) {
     if (isa<DesignatedInitExpr>(List->getInit(Idx)))
@@ -1277,7 +1322,10 @@ void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
       if (Idx >= List->getNumInits())
         return;
 
-      QualType FieldTy = Fields[0]->getType();
+      unsigned FI = List->getUnionFieldIndex();
+      if (FI >= Fields.size())
+        FI = 0;
+      QualType FieldTy = Fields[FI]->getType();
       const Expr *E = List->getInit(Idx);
       if (const auto *SubList = dynCast<InitListExpr>(E)) {
         ++Idx;

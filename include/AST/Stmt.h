@@ -830,12 +830,17 @@ public:
   unsigned getNumInits() const { return Inits.size(); }
   const Expr *getInit(unsigned Idx) const { return Inits[Idx]; }
 
+  /// For union initializers: which member the (single) init initializes.
+  unsigned getUnionFieldIndex() const { return UnionFieldIndex; }
+  void setUnionFieldIndex(unsigned Idx) { UnionFieldIndex = Idx; }
+
 private:
   InitListExpr(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
                std::vector<Expr *> Inits);
 
 private:
   std::vector<Expr *> Inits;
+  unsigned UnionFieldIndex = 0;
 };
 
 /// C99/GNU designator in a designated initializer: [index] or .field
