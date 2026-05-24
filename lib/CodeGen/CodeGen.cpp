@@ -1400,7 +1400,12 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
           genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
         }
       } else if (ElemTy->isRecordType()) {
-        genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
+        if (E->getType()->isRecordType()) {
+          ++Idx;
+          genInitListElement(Var, E, ElemTy, Offset);
+        } else {
+          genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
+        }
       } else {
         ++Idx;
         genInitListElement(Var, E, ElemTy, Offset);
@@ -1436,7 +1441,12 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
         continue;
       }
       if (ElemTy->isRecordType()) {
-        genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
+        if (E->getType()->isRecordType()) {
+          ++Idx;
+          genInitListElement(Var, E, ElemTy, Offset);
+        } else {
+          genInitListExprFromFlat(Var, List, ElemTy, Offset, Idx);
+        }
         continue;
       }
 
@@ -1472,7 +1482,12 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
         genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
       }
     } else if (FieldTy->isRecordType()) {
-      genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+      if (E->getType()->isRecordType()) {
+        ++Idx;
+        genInitListElement(Var, E, FieldTy, Offset, Field);
+      } else {
+        genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+      }
     } else {
       ++Idx;
       genInitListElement(Var, E, FieldTy, Offset, Field);
@@ -1500,7 +1515,12 @@ void CodeGen::genInitListExprFromFlat(const VarDecl *Var,
         genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
       }
     } else if (FieldTy->isRecordType()) {
-      genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+      if (E->getType()->isRecordType()) {
+        ++Idx;
+        genInitListElement(Var, E, FieldTy, Offset, Field);
+      } else {
+        genInitListExprFromFlat(Var, List, FieldTy, Offset, Idx);
+      }
     } else {
       ++Idx;
       genInitListElement(Var, E, FieldTy, Offset, Field);
@@ -1526,8 +1546,14 @@ void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,
     Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
   }
 
-  if (ElemTy->isRecordType())
-    Diag.fatalAt(ElemInit->getBeginLoc(), "expect nested initializer list");
+  if (ElemTy->isRecordType()) {
+    genAddr(Var);
+    emit("  addi a0, a0, {}", Offset);
+    push();
+    genExpr(ElemInit);
+    store(ElemTy.getTypePtr());
+    return;
+  }
 
   if (Field && Field->isBitField()) {
     genAddr(Var);

@@ -495,8 +495,12 @@ void ASTDumper::visit(const InitListExpr *ILE) {
 void ASTDumper::visit(const DesignatedInitExpr *DIE) {
   printName("DesignatedInitExpr");
   ScopedIndent SI(*this, true);
-  for (std::uint64_t D : DIE->getDesignators())
-    std::println(stderr, "designator [{}]", D);
+  for (const Designator &D : DIE->getDesignators()) {
+    if (D.isArrayIndex())
+      std::println(stderr, "designator [{}]", D.getArrayIndex());
+    else
+      std::println(stderr, "designator .{}", D.getFieldName());
+  }
   visit(DIE->getInit());
 }
 

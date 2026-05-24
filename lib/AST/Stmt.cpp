@@ -1031,7 +1031,7 @@ InitListExpr::InitListExpr(SourceLocation BegLoc, SourceLocation EndLoc,
 DesignatedInitExpr *
 DesignatedInitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
                            SourceLocation EndLoc,
-                           std::vector<std::uint64_t> Designators, Expr *Init) {
+                           std::vector<Designator> Designators, Expr *Init) {
   void *Mem =
       Ctx.allocate(sizeof(DesignatedInitExpr), alignof(DesignatedInitExpr));
   return new (Mem)
@@ -1040,7 +1040,7 @@ DesignatedInitExpr::create(ASTContext &Ctx, SourceLocation BegLoc,
 
 DesignatedInitExpr::DesignatedInitExpr(SourceLocation BegLoc,
                                        SourceLocation EndLoc,
-                                       std::vector<std::uint64_t> Designators,
+                                       std::vector<Designator> Designators,
                                        Expr *Init)
     : Expr(SK_DesignatedInitExpr, BegLoc, EndLoc, Init->getType()),
       Designators(std::move(Designators)), Init(Init) {}

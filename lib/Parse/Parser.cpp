@@ -789,21 +789,33 @@ Expr *Parser::parseInitExpr() {
   skip(Token::TK_LBrace);
   std::vector<Expr *> Inits;
   while (CurTok->isNot(Token::TK_RBrace)) {
-    // designation = ("[" constant-expression "]")+ "="? initializer
-    if (CurTok->is(Token::TK_LSquare)) {
+    // designation = ("[" constant-expression "]" | "." identifier)+ "="?
+    //                initializer
+    if (CurTok->isOneOf(Token::TK_LSquare, Token::TK_Dot)) {
       SourceLocation DesigBeg = SM.createBeginLocation(CurTok);
-      std::vector<std::uint64_t> Designators;
-      while (tryConsume(Token::TK_LSquare)) {
-        Expr *IdxExpr = parseConstantExpr();
-        auto Idx = IdxExpr->evaluateAsInt();
-        if (!Idx)
-          Diag.fatalAt(IdxExpr->getBeginLoc(),
-                       "array designator is not an integer constant");
-        if (*Idx < 0)
-          Diag.fatalAt(IdxExpr->getBeginLoc(),
-                       "array designator index is negative");
-        Designators.push_back(static_cast<std::uint64_t>(*Idx));
-        skip(Token::TK_RSquare);
+      std::vector<Designator> Designators;
+      while (CurTok->isOneOf(Token::TK_LSquare, Token::TK_Dot)) {
+        if (tryConsume(Token::TK_LSquare)) {
+          Expr *IdxExpr = parseConstantExpr();
+          auto Idx = IdxExpr->evaluateAsInt();
+          if (!Idx)
+            Diag.fatalAt(IdxExpr->getBeginLoc(),
+                         "array designator is not an integer constant");
+          if (*Idx < 0)
+            Diag.fatalAt(IdxExpr->getBeginLoc(),
+                         "array designator index is negative");
+          Designators.push_back(
+              Designator::createArrayIndex(static_cast<std::uint64_t>(*Idx)));
+          skip(Token::TK_RSquare);
+        } else {
+          skip(Token::TK_Dot);
+          if (CurTok->isNot(Token::TK_Ident))
+            Diag.fatalAt(SM.createBeginLocation(CurTok),
+                         "expected a field designator");
+          Designators.push_back(
+              Designator::createField(std::string(CurTok->getIdentifer())));
+          skip();
+        }
       }
       tryConsume(Token::TK_Equal); // GNU: "=" may be omitted
       Expr *Init = parseInitExpr();

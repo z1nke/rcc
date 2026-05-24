@@ -5,6 +5,7 @@
 #include "Basic/SourceLocation.h"
 
 #include <cstdint>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -837,29 +838,58 @@ private:
   std::vector<Expr *> Inits;
 };
 
-/// C99 array designated initializer: [i][j]= init
+/// C99/GNU designator in a designated initializer: [index] or .field
+class Designator {
+public:
+  enum DesignatorKind { DK_ArrayIndex, DK_Field };
+
+  static Designator createArrayIndex(std::uint64_t Index) {
+    Designator D;
+    D.Kind = DK_ArrayIndex;
+    D.ArrayIndex = Index;
+    return D;
+  }
+
+  static Designator createField(std::string Name) {
+    Designator D;
+    D.Kind = DK_Field;
+    D.FieldName = std::move(Name);
+    return D;
+  }
+
+  bool isArrayIndex() const { return Kind == DK_ArrayIndex; }
+  bool isField() const { return Kind == DK_Field; }
+
+  std::uint64_t getArrayIndex() const { return ArrayIndex; }
+  const std::string &getFieldName() const { return FieldName; }
+
+private:
+  DesignatorKind Kind = DK_ArrayIndex;
+  std::uint64_t ArrayIndex = 0;
+  std::string FieldName;
+};
+
+/// C99 designated initializer: [i][j]= init / .a.b= init / mixed
 class DesignatedInitExpr final : public Expr {
 public:
   static DesignatedInitExpr *create(ASTContext &Ctx, SourceLocation BegLoc,
                                     SourceLocation EndLoc,
-                                    std::vector<std::uint64_t> Designators,
+                                    std::vector<Designator> Designators,
                                     Expr *Init);
 
   static bool classof(const Stmt *S) {
     return S->getKind() == SK_DesignatedInitExpr;
   }
 
-  const std::vector<std::uint64_t> &getDesignators() const {
-    return Designators;
-  }
+  const std::vector<Designator> &getDesignators() const { return Designators; }
   Expr *getInit() const { return Init; }
 
 private:
   DesignatedInitExpr(SourceLocation BegLoc, SourceLocation EndLoc,
-                     std::vector<std::uint64_t> Designators, Expr *Init);
+                     std::vector<Designator> Designators, Expr *Init);
 
 private:
-  std::vector<std::uint64_t> Designators;
+  std::vector<Designator> Designators;
   Expr *Init;
 };
 

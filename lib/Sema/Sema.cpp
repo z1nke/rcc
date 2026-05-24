@@ -58,6 +58,8 @@ static bool listHasDesignator(const Expr *E) {
 static void ensureKids(InitTree &Node, Diagnostic &Diag, SourceLocation Loc) {
   if (!Node.Kids.empty())
     return;
+  // Field/array designators replace a prior whole-aggregate Leaf.
+  Node.Leaf = nullptr;
   if (const auto *CAT = Node.Ty->getAs<ConstantArrayType>()) {
     Node.Kids.resize(CAT->getLength());
     QualType ElemTy = CAT->getElementType();
@@ -66,6 +68,8 @@ static void ensureKids(InitTree &Node, Diagnostic &Diag, SourceLocation Loc) {
     return;
   }
   if (const auto *RT = Node.Ty->getAs<RecordType>()) {
+    if (RT->getDecl()->isUnion())
+      Diag.fatalAt(Loc, "field name not in struct or union initializer");
     const auto &Fields = RT->getDecl()->fields();
     Node.Kids.resize(Fields.size());
     for (std::size_t I = 0; I < Fields.size(); ++I)
@@ -73,6 +77,21 @@ static void ensureKids(InitTree &Node, Diagnostic &Diag, SourceLocation Loc) {
     return;
   }
   Diag.fatalAt(Loc, "designator in non-aggregate initializer");
+}
+
+static unsigned findFieldIndex(const RecordDecl *RD, std::string_view Name,
+                               Diagnostic &Diag, SourceLocation Loc) {
+  const auto &Fields = RD->fields();
+  for (std::size_t I = 0; I < Fields.size(); ++I) {
+    if (Fields[I]->getName() == Name)
+      return static_cast<unsigned>(I);
+  }
+  Diag.fatalAt(Loc, "struct has no such member");
+}
+
+static bool isWholeRecordInit(ASTContext &Ctx, QualType AggTy, const Expr *E) {
+  return AggTy->isRecordType() && E->getType()->isRecordType() &&
+         Ctx.hasSameType(AggTy, E->getType());
 }
 
 static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
@@ -87,7 +106,20 @@ static void fillTreeFromExpr(InitTree &Node, Expr *E, Diagnostic &Diag,
     return;
   }
 
+  if (isWholeRecordInit(Ctx, Node.Ty, E)) {
+    Node.Leaf = E;
+    Node.Kids.clear();
+    return;
+  }
+
   if (Node.Ty->getAs<ConstantArrayType>() && !isa<StringLiteral>(E)) {
+    ensureKids(Node, Diag, E->getBeginLoc());
+    if (!Node.Kids.empty())
+      fillTreeFromExpr(Node.Kids[0], E, Diag, Ctx);
+    return;
+  }
+
+  if (Node.Ty->getAs<RecordType>()) {
     ensureKids(Node, Diag, E->getBeginLoc());
     if (!Node.Kids.empty())
       fillTreeFromExpr(Node.Kids[0], E, Diag, Ctx);
@@ -96,6 +128,43 @@ static void fillTreeFromExpr(InitTree &Node, Expr *E, Diagnostic &Diag,
 
   Node.Leaf = E;
   Node.Kids.clear();
+}
+
+static void continueArrayFrom(InitTree &Node, unsigned StartI,
+                              const InitListExpr *List, unsigned &Idx,
+                              Diagnostic &Diag, ASTContext &Ctx);
+
+static void continueStructFrom(InitTree &Node, unsigned StartI,
+                               const InitListExpr *List, unsigned &Idx,
+                               Diagnostic &Diag, ASTContext &Ctx) {
+  ensureKids(Node, Diag, List->getBeginLoc());
+  const auto *RT = Node.Ty->getAs<RecordType>();
+  if (!RT || RT->getDecl()->isUnion())
+    return;
+
+  for (unsigned I = StartI; I < Node.Kids.size() && Idx < List->getNumInits();
+       ++I) {
+    const Expr *E = List->getInit(Idx);
+    if (isa<DesignatedInitExpr>(E))
+      return;
+
+    QualType FieldTy = Node.Kids[I].Ty;
+    if (isWholeRecordInit(Ctx, FieldTy, E)) {
+      fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+      ++Idx;
+    } else if ((FieldTy->isArraryType() || FieldTy->isRecordType()) &&
+               !isa<InitListExpr>(E) && !isa<StringLiteral>(E)) {
+      fillTreeFromList(Node.Kids[I], List, Idx, Diag, Ctx,
+                       /*StopOnDesignator=*/true);
+    } else if (const auto *Sub = dynCast<InitListExpr>(E)) {
+      ++Idx;
+      fillTreeFromExpr(Node.Kids[I], const_cast<InitListExpr *>(Sub), Diag,
+                       Ctx);
+    } else {
+      fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+      ++Idx;
+    }
+  }
 }
 
 static void continueArrayFrom(InitTree &Node, unsigned StartI,
@@ -113,8 +182,11 @@ static void continueArrayFrom(InitTree &Node, unsigned StartI,
       return;
 
     QualType ElemTy = Node.Kids[I].Ty;
-    if ((ElemTy->isArraryType() || ElemTy->isRecordType()) &&
-        !isa<InitListExpr>(E) && !isa<StringLiteral>(E)) {
+    if (isWholeRecordInit(Ctx, ElemTy, E)) {
+      fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+      ++Idx;
+    } else if ((ElemTy->isArraryType() || ElemTy->isRecordType()) &&
+               !isa<InitListExpr>(E) && !isa<StringLiteral>(E)) {
       fillTreeFromList(Node.Kids[I], List, Idx, Diag, Ctx,
                        /*StopOnDesignator=*/true);
     } else if (const auto *Sub = dynCast<InitListExpr>(E)) {
@@ -129,14 +201,12 @@ static void continueArrayFrom(InitTree &Node, unsigned StartI,
 }
 
 static void applyDesignation(InitTree &Node,
-                             const std::vector<std::uint64_t> &Desigs,
+                             const std::vector<Designator> &Desigs,
                              unsigned DesigPos, Expr *Init,
                              const InitListExpr *ParentList, unsigned &ListIdx,
                              Diagnostic &Diag, ASTContext &Ctx) {
-  // designation = ("[" const-expr "]")* "=" initializer
+  // designation = ("[" const-expr "]" | "." ident)* "="? initializer
   if (DesigPos == Desigs.size()) {
-    // Braced initializer is self-contained (arrayInitializer1); do not
-    // continue into following list elements at this level.
     if (isa<InitListExpr>(Init)) {
       fillTreeFromExpr(Node, Init, Diag, Ctx);
       ++ListIdx;
@@ -145,27 +215,43 @@ static void applyDesignation(InitTree &Node,
 
     fillTreeFromExpr(Node, Init, Diag, Ctx);
     ++ListIdx;
-    // Bare scalar/list into an array continues like arrayInitializer2 from 1.
     if (Node.Ty->getAs<ConstantArrayType>())
       continueArrayFrom(Node, 1, ParentList, ListIdx, Diag, Ctx);
+    else if (Node.Ty->getAs<RecordType>() && !Node.Kids.empty())
+      continueStructFrom(Node, 1, ParentList, ListIdx, Diag, Ctx);
     return;
   }
 
+  const Designator &D = Desigs[DesigPos];
   ensureKids(Node, Diag, Init->getBeginLoc());
-  const auto *CAT = Node.Ty->getAs<ConstantArrayType>();
-  if (!CAT)
-    Diag.fatalAt(Init->getBeginLoc(), "array index in non-array initializer");
 
-  std::uint64_t I = Desigs[DesigPos];
-  if (I >= CAT->getLength())
+  if (D.isArrayIndex()) {
+    const auto *CAT = Node.Ty->getAs<ConstantArrayType>();
+    if (!CAT)
+      Diag.fatalAt(Init->getBeginLoc(), "array index in non-array initializer");
+
+    std::uint64_t I = D.getArrayIndex();
+    if (I >= CAT->getLength())
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "array designator index exceeds array bounds");
+
+    applyDesignation(Node.Kids[static_cast<std::size_t>(I)], Desigs,
+                     DesigPos + 1, Init, ParentList, ListIdx, Diag, Ctx);
+    continueArrayFrom(Node, static_cast<unsigned>(I + 1), ParentList, ListIdx,
+                      Diag, Ctx);
+    return;
+  }
+
+  const auto *RT = Node.Ty->getAs<RecordType>();
+  if (!RT || RT->getDecl()->isUnion())
     Diag.fatalAt(Init->getBeginLoc(),
-                 "array designator index exceeds array bounds");
+                 "field name not in struct or union initializer");
 
-  applyDesignation(Node.Kids[static_cast<std::size_t>(I)], Desigs, DesigPos + 1,
-                   Init, ParentList, ListIdx, Diag, Ctx);
-  // After nested designators, continue siblings at this level.
-  continueArrayFrom(Node, static_cast<unsigned>(I + 1), ParentList, ListIdx,
-                    Diag, Ctx);
+  unsigned I = findFieldIndex(RT->getDecl(), D.getFieldName(), Diag,
+                              Init->getBeginLoc());
+  applyDesignation(Node.Kids[I], Desigs, DesigPos + 1, Init, ParentList,
+                   ListIdx, Diag, Ctx);
+  continueStructFrom(Node, I + 1, ParentList, ListIdx, Diag, Ctx);
 }
 
 static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
@@ -178,17 +264,18 @@ static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
     while (Idx < List->getNumInits()) {
       const Expr *E = List->getInit(Idx);
       if (const auto *DIE = dynCast<DesignatedInitExpr>(E)) {
-        // Unbraced nested fills must leave designators for the parent list.
         if (StopOnDesignator)
           return;
         const auto &Desigs = DIE->getDesignators();
         if (Desigs.empty())
           Diag.fatalAt(DIE->getBeginLoc(), "empty designator");
-        I = static_cast<unsigned>(Desigs[0]);
+        if (!Desigs[0].isArrayIndex())
+          Diag.fatalAt(DIE->getBeginLoc(),
+                       "array designator expected in array initializer");
+        I = static_cast<unsigned>(Desigs[0].getArrayIndex());
         if (I >= CAT->getLength())
           Diag.fatalAt(DIE->getBeginLoc(),
                        "array designator index exceeds array bounds");
-        // Consume the DesignatedInitExpr itself; applyDesignation advances Idx.
         applyDesignation(Node, Desigs, 0, DIE->getInit(), List, Idx, Diag, Ctx);
         ++I;
         continue;
@@ -198,6 +285,13 @@ static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
         return;
 
       QualType ElemTy = Node.Kids[I].Ty;
+      if (isWholeRecordInit(Ctx, ElemTy, E)) {
+        fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+        ++Idx;
+        ++I;
+        continue;
+      }
+
       if ((ElemTy->isArraryType() || ElemTy->isRecordType()) &&
           !isa<InitListExpr>(E) && !isa<StringLiteral>(E)) {
         fillTreeFromList(Node.Kids[I], List, Idx, Diag, Ctx,
@@ -221,28 +315,78 @@ static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
     return;
   }
 
-  if (Node.Ty->getAs<RecordType>()) {
-    for (std::size_t I = 0; I < Node.Kids.size() && Idx < List->getNumInits();
-         ++I) {
+  if (const auto *RT = Node.Ty->getAs<RecordType>()) {
+    if (RT->getDecl()->isUnion()) {
+      // Unions: only first field (existing behavior); no field designators.
+      if (Idx >= List->getNumInits() || Node.Kids.empty())
+        return;
       const Expr *E = List->getInit(Idx);
       if (isa<DesignatedInitExpr>(E)) {
         if (StopOnDesignator)
           return;
-        Diag.fatalAt(E->getBeginLoc(), "field designator is not supported yet");
+        Diag.fatalAt(E->getBeginLoc(),
+                     "field name not in struct or union initializer");
       }
+      if (const auto *Sub = dynCast<InitListExpr>(E)) {
+        ++Idx;
+        fillTreeFromExpr(Node.Kids[0], const_cast<InitListExpr *>(Sub), Diag,
+                         Ctx);
+      } else {
+        fillTreeFromExpr(Node.Kids[0], const_cast<Expr *>(E), Diag, Ctx);
+        ++Idx;
+      }
+      return;
+    }
+
+    unsigned I = 0;
+    while (Idx < List->getNumInits()) {
+      const Expr *E = List->getInit(Idx);
+      if (const auto *DIE = dynCast<DesignatedInitExpr>(E)) {
+        if (StopOnDesignator)
+          return;
+        const auto &Desigs = DIE->getDesignators();
+        if (Desigs.empty())
+          Diag.fatalAt(DIE->getBeginLoc(), "empty designator");
+        if (!Desigs[0].isField())
+          Diag.fatalAt(DIE->getBeginLoc(),
+                       "field designator expected in struct initializer");
+        I = findFieldIndex(RT->getDecl(), Desigs[0].getFieldName(), Diag,
+                           DIE->getBeginLoc());
+        applyDesignation(Node, Desigs, 0, DIE->getInit(), List, Idx, Diag, Ctx);
+        ++I;
+        continue;
+      }
+
+      if (I >= Node.Kids.size())
+        return;
+
+      QualType FieldTy = Node.Kids[I].Ty;
+      if (isWholeRecordInit(Ctx, FieldTy, E)) {
+        fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+        ++Idx;
+        ++I;
+        continue;
+      }
+
       if (const auto *Sub = dynCast<InitListExpr>(E)) {
         ++Idx;
         fillTreeFromExpr(Node.Kids[I], const_cast<InitListExpr *>(Sub), Diag,
                          Ctx);
-      } else if ((Node.Kids[I].Ty->isArraryType() ||
-                  Node.Kids[I].Ty->isRecordType()) &&
-                 !isa<StringLiteral>(E)) {
+        ++I;
+        continue;
+      }
+
+      if ((FieldTy->isArraryType() || FieldTy->isRecordType()) &&
+          !isa<StringLiteral>(E)) {
         fillTreeFromList(Node.Kids[I], List, Idx, Diag, Ctx,
                          /*StopOnDesignator=*/true);
-      } else {
-        fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
-        ++Idx;
+        ++I;
+        continue;
       }
+
+      fillTreeFromExpr(Node.Kids[I], const_cast<Expr *>(E), Diag, Ctx);
+      ++Idx;
+      ++I;
     }
   }
 }
@@ -303,14 +447,19 @@ static void consumeInitListForSize(const InitListExpr *List, QualType AggTy,
     for (std::size_t I = 0; I < CAT->getLength(); ++I) {
       if (Idx >= List->getNumInits())
         return;
+      if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+        return;
       consumeOneInitElement(List, CAT->getElementType(), Idx);
     }
     return;
   }
 
   if (const auto *IAT = AggTy->getAs<IncompleteArrayType>()) {
-    while (Idx < List->getNumInits())
+    while (Idx < List->getNumInits()) {
+      if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+        return;
       consumeOneInitElement(List, IAT->getElementType(), Idx);
+    }
     return;
   }
 
@@ -323,6 +472,8 @@ static void consumeInitListForSize(const InitListExpr *List, QualType AggTy,
     if (RD->isUnion()) {
       if (Idx >= List->getNumInits())
         return;
+      if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+        return;
       consumeOneInitElement(List, Fields[0]->getType(), Idx);
       return;
     }
@@ -330,9 +481,19 @@ static void consumeInitListForSize(const InitListExpr *List, QualType AggTy,
     for (const auto *Field : Fields) {
       if (Idx >= List->getNumInits())
         return;
+      if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+        return;
       consumeOneInitElement(List, Field->getType(), Idx);
     }
   }
+}
+
+static bool isSameRecordType(QualType A, QualType B) {
+  const auto *RA = A->getAs<RecordType>();
+  const auto *RB = B->getAs<RecordType>();
+  if (!RA || !RB)
+    return false;
+  return RA->getDecl()->getCanonicalDecl() == RB->getDecl()->getCanonicalDecl();
 }
 
 static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
@@ -341,6 +502,9 @@ static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
     return;
 
   const Expr *E = List->getInit(Idx);
+  if (isa<DesignatedInitExpr>(E))
+    return;
+
   if (const auto *SubList = dynCast<InitListExpr>(E)) {
     ++Idx;
     (void)SubList;
@@ -348,7 +512,7 @@ static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
   }
 
   if (ElemTy->isArraryType() || ElemTy->isRecordType()) {
-    if (isa<StringLiteral>(E)) {
+    if (isa<StringLiteral>(E) || isSameRecordType(ElemTy, E->getType())) {
       ++Idx;
       return;
     }
@@ -361,25 +525,48 @@ static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
 
 /// Skip list elements consumed by a designation into \p Ty.
 /// \p Idx points at the DesignatedInitExpr; Desigs[Pos..] remain to apply.
-static void skipDesignation(QualType Ty,
-                            const std::vector<std::uint64_t> &Desigs,
+static void skipDesignation(QualType Ty, const std::vector<Designator> &Desigs,
                             unsigned Pos, const Expr *Init,
                             const InitListExpr *List, unsigned &Idx) {
   if (Pos == Desigs.size()) {
-    // Braced init is self-contained inside the DesignatedInitExpr.
     if (isa<InitListExpr>(Init)) {
       ++Idx;
       return;
     }
 
-    ++Idx; // consume the DesignatedInitExpr (holds the first value)
+    ++Idx;
+    if (const auto *CAT = Ty->getAs<ConstantArrayType>()) {
+      for (unsigned I = 1; I < CAT->getLength() && Idx < List->getNumInits();
+           ++I) {
+        if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+          return;
+        consumeOneInitElement(List, CAT->getElementType(), Idx);
+      }
+      return;
+    }
+    if (const auto *RT = Ty->getAs<RecordType>()) {
+      if (RT->getDecl()->isUnion())
+        return;
+      const auto &Fields = RT->getDecl()->fields();
+      for (std::size_t I = 1; I < Fields.size() && Idx < List->getNumInits();
+           ++I) {
+        if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+          return;
+        consumeOneInitElement(List, Fields[I]->getType(), Idx);
+      }
+    }
+    return;
+  }
+
+  const Designator &D = Desigs[Pos];
+  if (D.isArrayIndex()) {
     const auto *CAT = Ty->getAs<ConstantArrayType>();
     if (!CAT)
       return;
-
-    // Bare scalar into array continues like arrayInitializer2 from 1.
-    for (unsigned I = 1; I < CAT->getLength() && Idx < List->getNumInits();
-         ++I) {
+    std::uint64_t I = D.getArrayIndex();
+    skipDesignation(CAT->getElementType(), Desigs, Pos + 1, Init, List, Idx);
+    for (unsigned J = static_cast<unsigned>(I + 1);
+         J < CAT->getLength() && Idx < List->getNumInits(); ++J) {
       if (isa<DesignatedInitExpr>(List->getInit(Idx)))
         return;
       consumeOneInitElement(List, CAT->getElementType(), Idx);
@@ -387,17 +574,26 @@ static void skipDesignation(QualType Ty,
     return;
   }
 
-  const auto *CAT = Ty->getAs<ConstantArrayType>();
-  if (!CAT)
+  const auto *RT = Ty->getAs<RecordType>();
+  if (!RT || RT->getDecl()->isUnion())
     return;
-
-  std::uint64_t I = Desigs[Pos];
-  skipDesignation(CAT->getElementType(), Desigs, Pos + 1, Init, List, Idx);
-  for (unsigned J = static_cast<unsigned>(I + 1);
-       J < CAT->getLength() && Idx < List->getNumInits(); ++J) {
+  const auto &Fields = RT->getDecl()->fields();
+  unsigned I = 0;
+  bool Found = false;
+  for (; I < Fields.size(); ++I) {
+    if (Fields[I]->getName() == D.getFieldName()) {
+      Found = true;
+      break;
+    }
+  }
+  if (!Found)
+    return;
+  skipDesignation(Fields[I]->getType(), Desigs, Pos + 1, Init, List, Idx);
+  for (std::size_t J = I + 1; J < Fields.size() && Idx < List->getNumInits();
+       ++J) {
     if (isa<DesignatedInitExpr>(List->getInit(Idx)))
       return;
-    consumeOneInitElement(List, CAT->getElementType(), Idx);
+    consumeOneInitElement(List, Fields[J]->getType(), Idx);
   }
 }
 
@@ -412,9 +608,8 @@ static unsigned countArrayInitElements(const InitListExpr *List,
   while (Idx < List->getNumInits()) {
     if (const auto *DIE = dynCast<DesignatedInitExpr>(List->getInit(Idx))) {
       const auto &Desigs = DIE->getDesignators();
-      if (!Desigs.empty())
-        I = static_cast<unsigned>(Desigs[0]);
-      // Remaining designators apply to the element type at index I.
+      if (!Desigs.empty() && Desigs[0].isArrayIndex())
+        I = static_cast<unsigned>(Desigs[0].getArrayIndex());
       skipDesignation(ElemTy, Desigs, 1, DIE->getInit(), List, Idx);
     } else {
       consumeOneInitElement(List, ElemTy, Idx);
@@ -1018,6 +1213,11 @@ void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
       }
 
       if (ElemTy->isRecordType()) {
+        if (Ctx.hasSameType(ElemTy, E->getType())) {
+          checkInitListElement(E, ElemTy);
+          ++Idx;
+          continue;
+        }
         checkInitListFrom(List, ElemTy, Idx);
         continue;
       }
@@ -1052,6 +1252,11 @@ void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
       }
 
       if (ElemTy->isRecordType()) {
+        if (Ctx.hasSameType(ElemTy, E->getType())) {
+          checkInitListElement(E, ElemTy);
+          ++Idx;
+          continue;
+        }
         checkInitListFrom(List, ElemTy, Idx);
         continue;
       }
@@ -1085,7 +1290,12 @@ void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
           checkInitListFrom(List, FieldTy, Idx);
         }
       } else if (FieldTy->isRecordType()) {
-        checkInitListFrom(List, FieldTy, Idx);
+        if (Ctx.hasSameType(FieldTy, E->getType())) {
+          checkInitListElement(E, FieldTy);
+          ++Idx;
+        } else {
+          checkInitListFrom(List, FieldTy, Idx);
+        }
       } else {
         checkInitListElement(E, FieldTy);
         ++Idx;
@@ -1117,6 +1327,11 @@ void Sema::checkInitListFrom(const InitListExpr *List, QualType AggTy,
       }
 
       if (FieldTy->isRecordType()) {
+        if (Ctx.hasSameType(FieldTy, E->getType())) {
+          checkInitListElement(E, FieldTy);
+          ++Idx;
+          continue;
+        }
         checkInitListFrom(List, FieldTy, Idx);
         continue;
       }
@@ -1146,8 +1361,11 @@ void Sema::checkInitListElement(const Expr *E, QualType ElemTy) const {
     Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
   }
 
-  if (ElemTy->isRecordType())
-    Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
+  if (ElemTy->isRecordType()) {
+    if (!Ctx.hasSameType(ElemTy, E->getType()))
+      Diag.fatalAt(E->getBeginLoc(), "expect nested initializer list");
+    return;
+  }
 
   auto CK = getCastKind(ElemTy, E->getType());
   if (!CK)
