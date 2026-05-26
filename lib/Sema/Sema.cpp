@@ -79,12 +79,42 @@ static void ensureKids(InitTree &Node, Diagnostic &Diag, SourceLocation Loc) {
   Diag.fatalAt(Loc, "designator in non-aggregate initializer");
 }
 
-static unsigned findFieldIndex(const RecordDecl *RD, std::string_view Name,
-                               Diagnostic &Diag, SourceLocation Loc) {
+static bool recordContainsNamedField(const RecordDecl *Record,
+                                     std::string_view Ident) {
+  if (!Record)
+    return false;
+  for (const FieldDecl *Field : Record->fields()) {
+    if (Field->getName().empty() && Field->getType()->isRecordType()) {
+      if (recordContainsNamedField(Field->getType()->getAsRecordDecl(), Ident))
+        return true;
+      continue;
+    }
+    if (Field->getName() == Ident)
+      return true;
+  }
+  return false;
+}
+
+/// Resolve a field designator. Anonymous struct/union members are transparent:
+/// if \p Name is found inside an anonymous member, return that member's index
+/// and set \p ThroughAnonymous so the designator is re-applied inside it.
+static unsigned findFieldDesignator(const RecordDecl *RD, std::string_view Name,
+                                    bool &ThroughAnonymous, Diagnostic &Diag,
+                                    SourceLocation Loc) {
   const auto &Fields = RD->fields();
   for (std::size_t I = 0; I < Fields.size(); ++I) {
-    if (Fields[I]->getName() == Name)
+    if (Fields[I]->getName().empty() && Fields[I]->getType()->isRecordType()) {
+      if (recordContainsNamedField(Fields[I]->getType()->getAsRecordDecl(),
+                                   Name)) {
+        ThroughAnonymous = true;
+        return static_cast<unsigned>(I);
+      }
+      continue;
+    }
+    if (Fields[I]->getName() == Name) {
+      ThroughAnonymous = false;
       return static_cast<unsigned>(I);
+    }
   }
   Diag.fatalAt(Loc, "struct has no such member");
 }
@@ -251,18 +281,21 @@ static void applyDesignation(InitTree &Node,
     Diag.fatalAt(Init->getBeginLoc(),
                  "field name not in struct or union initializer");
 
-  unsigned I = findFieldIndex(RT->getDecl(), D.getFieldName(), Diag,
-                              Init->getBeginLoc());
+  bool ThroughAnonymous = false;
+  unsigned I = findFieldDesignator(RT->getDecl(), D.getFieldName(),
+                                   ThroughAnonymous, Diag, Init->getBeginLoc());
+  // Anonymous wrappers keep the same designator.
+  unsigned NextPos = ThroughAnonymous ? DesigPos : DesigPos + 1;
   if (RT->getDecl()->isUnion()) {
     // Unions initialize only the designated member.
     Node.ActiveUnionField = static_cast<int>(I);
-    applyDesignation(Node.Kids[I], Desigs, DesigPos + 1, Init, ParentList,
-                     ListIdx, Diag, Ctx);
+    applyDesignation(Node.Kids[I], Desigs, NextPos, Init, ParentList, ListIdx,
+                     Diag, Ctx);
     return;
   }
 
-  applyDesignation(Node.Kids[I], Desigs, DesigPos + 1, Init, ParentList,
-                   ListIdx, Diag, Ctx);
+  applyDesignation(Node.Kids[I], Desigs, NextPos, Init, ParentList, ListIdx,
+                   Diag, Ctx);
   continueStructFrom(Node, I + 1, ParentList, ListIdx, Diag, Ctx);
 }
 
@@ -373,8 +406,9 @@ static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
         if (!Desigs[0].isField())
           Diag.fatalAt(DIE->getBeginLoc(),
                        "field designator expected in struct initializer");
-        I = findFieldIndex(RT->getDecl(), Desigs[0].getFieldName(), Diag,
-                           DIE->getBeginLoc());
+        bool ThroughAnonymous = false;
+        I = findFieldDesignator(RT->getDecl(), Desigs[0].getFieldName(),
+                                ThroughAnonymous, Diag, DIE->getBeginLoc());
         applyDesignation(Node, Desigs, 0, DIE->getInit(), List, Idx, Diag, Ctx);
         ++I;
         continue;
@@ -620,17 +654,29 @@ static void skipDesignation(QualType Ty, const std::vector<Designator> &Desigs,
   if (!RT)
     return;
   const auto &Fields = RT->getDecl()->fields();
+  bool ThroughAnonymous = false;
   unsigned I = 0;
   bool Found = false;
   for (; I < Fields.size(); ++I) {
+    if (Fields[I]->getName().empty() && Fields[I]->getType()->isRecordType()) {
+      if (recordContainsNamedField(Fields[I]->getType()->getAsRecordDecl(),
+                                   D.getFieldName())) {
+        ThroughAnonymous = true;
+        Found = true;
+        break;
+      }
+      continue;
+    }
     if (Fields[I]->getName() == D.getFieldName()) {
+      ThroughAnonymous = false;
       Found = true;
       break;
     }
   }
   if (!Found)
     return;
-  skipDesignation(Fields[I]->getType(), Desigs, Pos + 1, Init, List, Idx);
+  unsigned NextPos = ThroughAnonymous ? Pos : Pos + 1;
+  skipDesignation(Fields[I]->getType(), Desigs, NextPos, Init, List, Idx);
   // Unions do not continue into other members after a designation.
   if (RT->getDecl()->isUnion())
     return;
