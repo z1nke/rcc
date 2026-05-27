@@ -1,6 +1,7 @@
 #include "Basic/Diagnostic.h"
 #include "Basic/SourceLocation.h"
 #include "Basic/SourceManager.h"
+#include "Support/Unicode.h"
 
 #include <print>
 
@@ -17,7 +18,10 @@ void Diagnostic::printLoc(SourceLocation Loc) const {
 
   auto LineInfoStr = std::format("{}:{}: ", Filename, LineInfo->LineNo);
   std::println(stderr, "{}{}", LineInfoStr, LineInfo->LineContent);
-  std::print(stderr, "{:>{}}^ ", "", LineInfoStr.size() + LineInfo->ColNo - 1);
+  // ColNo is 1-based byte offset; convert to display columns for the caret.
+  int ByteOff = static_cast<int>(LineInfo->ColNo) - 1;
+  int Width = displayWidth(LineInfo->LineContent.data(), ByteOff);
+  std::print(stderr, "{:>{}}^ ", "", LineInfoStr.size() + Width);
 }
 
 } // namespace rcc

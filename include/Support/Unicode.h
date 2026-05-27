@@ -21,6 +21,10 @@ bool isIdentStart(std::uint32_t C);
 /// True if \p C may appear after the first character of a C11 identifier.
 bool isIdentContinue(std::uint32_t C);
 
+/// Columns needed to display the first \p Len bytes of UTF-8 string \p P
+/// in a fixed-width font.
+int displayWidth(const char *P, int Len);
+
 } // namespace rcc
 
 #endif
