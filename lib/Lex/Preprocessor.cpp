@@ -257,6 +257,12 @@ Token *Preprocessor::preprocess(Token *Toks) {
         continue;
       }
 
+      // [GNU] # lineno ["filename"] [flags...]
+      if (Toks->is(Token::TK_PPNum)) {
+        handleLineDirective(Toks, Toks);
+        continue;
+      }
+
       if (hasSpelling(Toks, "error"))
         Diag.fatalAt(Toks->getLoc(), "error");
 

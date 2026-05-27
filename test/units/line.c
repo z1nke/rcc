@@ -16,6 +16,11 @@ int main() {
 #line 1
   ASSERT(2, __LINE__);
 
+  printf("[247] [GNU] Add line marker directive\n");
+# 200 "xyz" 2 3
+  ASSERT(201, __LINE__);
+  ASSERT(0, strcmp(__FILE__, "xyz"));
+
   printf("OK\n");
   return 0;
 }
