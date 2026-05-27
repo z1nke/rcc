@@ -1,4 +1,6 @@
 #include "Basic/Diagnostic.h"
+#include "Basic/FileEntry.h"
+#include "Basic/SourceManager.h"
 #include "Lex/Lexer.h"
 #include "Lex/MacroInfo.h"
 #include "Lex/Preprocessor.h"
@@ -213,6 +215,35 @@ void Preprocessor::handleUndefDirective(Token *&Rest, Token *NameTok) {
     } while (Tok->isNot(Token::TK_EOF) && !Tok->isAtStartOfLine());
   }
   Rest = Tok;
+}
+
+// #line lineno ["filename"]
+void Preprocessor::handleLineDirective(Token *&Rest, Token *Tok) {
+  Token *Start = Tok;
+  Token *Expanded = expandMacroExpression(Rest, Tok);
+  Lex.convertPPTokens(Expanded);
+
+  if (Expanded->isNot(Token::TK_Num) ||
+      Expanded->getNumericLiteralKind() != Token::NumericLiteralKind::Int)
+    Diag.fatalAt(Expanded->getLoc(), "invalid line marker");
+
+  SourceManager &SM = Diag.getSourceManager();
+  SourceLocation Loc = SM.createBeginLocation(Start);
+  FileEntry *FE = SM.getFileEntry(Loc);
+
+  // LineDelta is relative to the physical line of the marker arguments.
+  unsigned Presumed = SM.getLineNumber(Loc);
+  int Physical = static_cast<int>(Presumed) - FE->getLineDelta();
+  FE->setLineDelta(static_cast<int>(Expanded->getVal()) - Physical);
+
+  Token *Next = Expanded->getNext();
+  if (Next->is(Token::TK_EOF) || Next->isAtStartOfLine())
+    return;
+
+  if (Next->isNot(Token::TK_StrLiteral))
+    Diag.fatalAt(Next->getLoc(), "filename expected");
+
+  FE->setDisplayName(Next->getStringLiteral(Diag));
 }
 
 } // namespace rcc

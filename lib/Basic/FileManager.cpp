@@ -12,7 +12,7 @@
 
 namespace rcc {
 
-const FileEntry *FileManager::getFile(const std::string &Path) {
+FileEntry *FileManager::getFile(const std::string &Path) {
   FileID FID = translateFileID(Path);
   auto &FE = FileEntries[FID];
   if (FE)
@@ -32,7 +32,7 @@ const FileEntry *FileManager::getFile(const std::string &Path) {
   return FE.get();
 }
 
-const FileEntry *FileManager::getFile(FileID FID) {
+FileEntry *FileManager::getFile(FileID FID) {
   auto It = FileEntries.find(FID);
   if (It != FileEntries.end())
     return It->second.get();
@@ -49,6 +49,11 @@ const FileEntry *FileManager::getFileContaining(const char *Loc) const {
       return FE.get();
   }
   return nullptr;
+}
+
+FileEntry *FileManager::getFileContaining(const char *Loc) {
+  return const_cast<FileEntry *>(
+      static_cast<const FileManager *>(this)->getFileContaining(Loc));
 }
 
 FileID FileManager::translateFileID(const std::string &Path) {

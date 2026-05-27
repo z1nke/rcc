@@ -35,6 +35,7 @@ private:
   std::int64_t evaluateDirectiveExpression(Token *&Rest, Token *Toks);
   void handleDefineDirective(Token *&Rest, Token *NameTok);
   void handleUndefDirective(Token *&Rest, Token *NameTok);
+  void handleLineDirective(Token *&Rest, Token *Tok);
   void defineMacro(const char *Name, const char *Body);
   void undefMacro(const std::string &Name);
   void defineCommandLineMacro(const std::string &Def);

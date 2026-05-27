@@ -12,9 +12,10 @@ class FileManager {
 public:
   FileManager() = default;
 
-  const FileEntry *getFile(const std::string &Path);
-  const FileEntry *getFile(FileID FID);
+  FileEntry *getFile(const std::string &Path);
+  FileEntry *getFile(FileID FID);
   const FileEntry *getFileContaining(const char *Loc) const;
+  FileEntry *getFileContaining(const char *Loc);
   FileID translateFileID(const std::string &Path);
 
 private:

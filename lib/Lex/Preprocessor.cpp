@@ -237,7 +237,8 @@ Token *Preprocessor::preprocess(Token *Toks) {
         if (!Filename.empty() && Filename[0] != '/' && IsDquote) {
           SourceManager &SM = Diag.getSourceManager();
           SourceLocation Loc = SM.createBeginLocation(Start);
-          std::filesystem::path IncludingFile(SM.getFilename(Loc));
+          // Use the real path, not a #line remapped display name.
+          std::filesystem::path IncludingFile(SM.getFileEntry(Loc)->getPath());
           std::filesystem::path RelativePath =
               IncludingFile.parent_path() / Filename;
           if (fileExists(RelativePath)) {
@@ -248,6 +249,11 @@ Token *Preprocessor::preprocess(Token *Toks) {
 
         std::string Path = searchIncludePaths(Filename);
         Toks = includeFile(Toks, Path.empty() ? Filename : Path, FilenameTok);
+        continue;
+      }
+
+      if (hasSpelling(Toks, "line")) {
+        handleLineDirective(Toks, Toks->getNext());
         continue;
       }
 

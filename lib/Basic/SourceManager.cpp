@@ -44,10 +44,16 @@ std::string_view SourceManager::getFilename(SourceLocation Loc) const {
   const auto *FE = getFileEntry(Loc);
   if (!FE)
     return "";
-  return FE->getPath();
+  // Prefer #line display name when set.
+  return FE->getDisplayName();
 }
 
 const FileEntry *SourceManager::getFileEntry(SourceLocation Loc) const {
+  FileID FID = Loc.getFileID();
+  return FileMgr.getFile(FID);
+}
+
+FileEntry *SourceManager::getFileEntry(SourceLocation Loc) {
   FileID FID = Loc.getFileID();
   return FileMgr.getFile(FID);
 }
@@ -76,6 +82,9 @@ SourceManager::getLineInfo(SourceLocation Loc) const {
   const char *LineEnd = LineBegin;
   while (LineEnd < FE->getContent()->getBufferEnd() && *LineEnd != '\n')
     ++LineEnd;
+
+  // Apply #line remapping to the reported line number.
+  LineNo = static_cast<unsigned>(static_cast<int>(LineNo) + FE->getLineDelta());
 
   unsigned ColNo = TargetLoc - LineBegin + 1;
   std::string_view CodeLine(LineBegin, LineEnd - LineBegin);
