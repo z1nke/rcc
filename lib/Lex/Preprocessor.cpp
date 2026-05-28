@@ -263,6 +263,12 @@ Token *Preprocessor::preprocess(Token *Toks) {
         continue;
       }
 
+      // Ignore #pragma.
+      if (hasSpelling(Toks, "pragma")) {
+        Toks = skipToNextLine(Toks->getNext());
+        continue;
+      }
+
       if (hasSpelling(Toks, "error"))
         Diag.fatalAt(Toks->getLoc(), "error");
 

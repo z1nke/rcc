@@ -4,4 +4,8 @@
   #
 /* comment */ #
 
+// Ignore #pragma
+#pragma once
+#pragma GCC diagnostic ignored "-Wunused"
+
 int main() { return 0; }
