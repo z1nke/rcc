@@ -385,5 +385,8 @@ int main() {
   ASSERT(1, __COUNTER__);
   ASSERT(2, __COUNTER__);
 
+  // [248] [GNU] Add __TIMESTAMP__ macro
+  ASSERT(24, strlen(__TIMESTAMP__));
+
   return 0;
 }

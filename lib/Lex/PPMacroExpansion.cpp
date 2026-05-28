@@ -1,4 +1,5 @@
 #include "Basic/Diagnostic.h"
+#include "Basic/FileEntry.h"
 #include "Basic/SourceManager.h"
 #include "Lex/Lexer.h"
 #include "Lex/MacroInfo.h"
@@ -6,9 +7,11 @@
 #include "Lex/Token.h"
 
 #include <cstring>
+#include <ctime>
 #include <new>
 #include <string>
 #include <string_view>
+#include <sys/stat.h>
 #include <utility>
 #include <vector>
 
@@ -382,6 +385,10 @@ Token *Preprocessor::handleCounterMacro(Preprocessor &PP, Token *Tmpl) {
   return PP.expandCounterMacro(Tmpl);
 }
 
+Token *Preprocessor::handleTimestampMacro(Preprocessor &PP, Token *Tmpl) {
+  return PP.expandTimestampMacro(Tmpl);
+}
+
 Token *Preprocessor::expandFileMacro(Token *Tmpl) {
   Token *Origin = getExpansionPoint(Tmpl);
   SourceManager &SM = Diag.getSourceManager();
@@ -436,6 +443,37 @@ Token *Preprocessor::expandCounterMacro(Token *Tmpl) {
   void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
   Token *Expanded =
       new (Mem) Token(Token::TK_Num, Buffer, Buffer + Spelling.size(), Val);
+  Expanded->setSourceRange(*Origin);
+  return Expanded;
+}
+
+// [GNU] __TIMESTAMP__ is the last modification time of the current file,
+// e.g. "Fri Jul 24 01:32:50 2020" (24 characters).
+Token *Preprocessor::expandTimestampMacro(Token *Tmpl) {
+  Token *Origin = getExpansionPoint(Tmpl);
+  SourceManager &SM = Diag.getSourceManager();
+  const FileEntry *FE = SM.getFileEntry(SM.createBeginLocation(Origin));
+
+  char TimeBuf[30];
+  struct stat St;
+  if (!FE || ::stat(FE->getPath().c_str(), &St) != 0) {
+    std::memcpy(TimeBuf, "??? ??? ?? ??:??:?? ????", 25);
+  } else {
+    ::ctime_r(&St.st_mtime, TimeBuf);
+    TimeBuf[24] = '\0';
+  }
+
+  std::string Spelling = "\"";
+  Spelling += TimeBuf;
+  Spelling += '"';
+
+  char *Buffer = static_cast<char *>(
+      MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+  std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+  void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+  Token *Expanded =
+      new (Mem) Token(Token::TK_StrLiteral, Buffer, Buffer + Spelling.size());
   Expanded->setSourceRange(*Origin);
   return Expanded;
 }
