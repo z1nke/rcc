@@ -391,5 +391,11 @@ int main() {
   // [249] [GNU] Add __BASE_FILE__ macro
   ASSERT(1, strstr(__BASE_FILE__, "macro.c") != 0);
 
+  // [250] Add __VA_OPT__
+#define M30(buf, fmt, ...) sprintf(buf, fmt __VA_OPT__(, ) __VA_ARGS__)
+  ASSERT(0, ({ char buf[100]; M30(buf, "foo"); strcmp(buf, "foo"); }));
+  ASSERT(0, ({ char buf[100]; M30(buf, "foo%d", 3); strcmp(buf, "foo3"); }));
+  ASSERT(0, ({ char buf[100]; M30(buf, "foo%d%d", 3, 5); strcmp(buf, "foo35"); }));
+
   return 0;
 }

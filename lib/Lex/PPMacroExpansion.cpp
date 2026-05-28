@@ -218,6 +218,47 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
 
   for (std::size_t I = 0; I < ReplacementTokens.size(); ++I) {
     const Token &Replacement = ReplacementTokens[I];
+
+    // [250] __VA_OPT__(x): empty if __VA_ARGS__ is empty, else x.
+    if (MI.isVariadic() &&
+        std::string_view(Replacement.getLoc(), Replacement.getLen()) ==
+            "__VA_OPT__" &&
+        I + 1 < ReplacementTokens.size() &&
+        ReplacementTokens[I + 1].is(Token::TK_LParen)) {
+      unsigned Depth = 1;
+      std::size_t J = I + 2;
+      for (; J < ReplacementTokens.size(); ++J) {
+        if (ReplacementTokens[J].is(Token::TK_LParen))
+          ++Depth;
+        else if (ReplacementTokens[J].is(Token::TK_RParen)) {
+          if (--Depth == 0)
+            break;
+        }
+      }
+      if (J >= ReplacementTokens.size())
+        Diag.fatalAt(Replacement.getLoc(), "unterminated __VA_OPT__");
+
+      if (!Arguments.back().empty()) {
+        bool First = true;
+        for (std::size_t K = I + 2; K < J; ++K) {
+          void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+          Token *Expanded = new (Mem) Token(ReplacementTokens[K]);
+          Expanded->setNext(nullptr);
+          Expanded->setSourceRange(*Tok);
+          Expanded->setOrigin(Tok);
+          if (First) {
+            Expanded->setAtStartOfLine(Replacement.isAtStartOfLine());
+            Expanded->setHasLeadingSpace(Replacement.hasLeadingSpace());
+            First = false;
+          }
+          Curr->setNext(Expanded);
+          Curr = Expanded;
+        }
+      }
+      I = J;
+      continue;
+    }
+
     if (MI.isFunctionLike() && Replacement.is(Token::TK_Hash)) {
       if (++I == ReplacementTokens.size())
         Diag.fatalAt(Replacement.getLoc(),
