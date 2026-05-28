@@ -389,6 +389,10 @@ Token *Preprocessor::handleTimestampMacro(Preprocessor &PP, Token *Tmpl) {
   return PP.expandTimestampMacro(Tmpl);
 }
 
+Token *Preprocessor::handleBaseFileMacro(Preprocessor &PP, Token *Tmpl) {
+  return PP.expandBaseFileMacro(Tmpl);
+}
+
 Token *Preprocessor::expandFileMacro(Token *Tmpl) {
   Token *Origin = getExpansionPoint(Tmpl);
   SourceManager &SM = Diag.getSourceManager();
@@ -465,6 +469,29 @@ Token *Preprocessor::expandTimestampMacro(Token *Tmpl) {
 
   std::string Spelling = "\"";
   Spelling += TimeBuf;
+  Spelling += '"';
+
+  char *Buffer = static_cast<char *>(
+      MacroTokenAlloc.allocate(Spelling.size() + 1, alignof(char)));
+  std::memcpy(Buffer, Spelling.c_str(), Spelling.size() + 1);
+
+  void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+  Token *Expanded =
+      new (Mem) Token(Token::TK_StrLiteral, Buffer, Buffer + Spelling.size());
+  Expanded->setSourceRange(*Origin);
+  return Expanded;
+}
+
+// [GNU] __BASE_FILE__ is the main input filename (not the current #include).
+Token *Preprocessor::expandBaseFileMacro(Token *Tmpl) {
+  Token *Origin = getExpansionPoint(Tmpl);
+
+  std::string Spelling = "\"";
+  for (char C : BaseFile) {
+    if (C == '\\' || C == '"')
+      Spelling += '\\';
+    Spelling += C;
+  }
   Spelling += '"';
 
   char *Buffer = static_cast<char *>(

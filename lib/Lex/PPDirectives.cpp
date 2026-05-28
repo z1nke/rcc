@@ -147,6 +147,7 @@ void Preprocessor::initMacros() {
   addBuiltin("__LINE__", &Preprocessor::handleLineMacro);
   addBuiltin("__COUNTER__", &Preprocessor::handleCounterMacro);
   addBuiltin("__TIMESTAMP__", &Preprocessor::handleTimestampMacro);
+  addBuiltin("__BASE_FILE__", &Preprocessor::handleBaseFileMacro);
 
   // [221] Add __DATE__ and __TIME__ macros
   std::time_t Now = std::time(nullptr);

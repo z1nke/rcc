@@ -388,5 +388,8 @@ int main() {
   // [248] [GNU] Add __TIMESTAMP__ macro
   ASSERT(24, strlen(__TIMESTAMP__));
 
+  // [249] [GNU] Add __BASE_FILE__ macro
+  ASSERT(1, strstr(__BASE_FILE__, "macro.c") != 0);
+
   return 0;
 }

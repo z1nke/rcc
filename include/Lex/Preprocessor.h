@@ -19,9 +19,10 @@ class Preprocessor {
 public:
   Preprocessor(Diagnostic &Diag, Lexer &Lex,
                const std::vector<std::string> &IncludePaths,
-               const std::vector<CommandLineMacro> &CommandLineMacros)
+               const std::vector<CommandLineMacro> &CommandLineMacros,
+               std::string BaseFile)
       : Diag(Diag), Lex(Lex), IncludePaths(IncludePaths),
-        CommandLineMacros(CommandLineMacros) {}
+        CommandLineMacros(CommandLineMacros), BaseFile(std::move(BaseFile)) {}
 
   Token *preprocess(Token *Toks);
 
@@ -46,10 +47,12 @@ private:
   Token *expandLineMacro(Token *Tmpl);
   Token *expandCounterMacro(Token *Tmpl);
   Token *expandTimestampMacro(Token *Tmpl);
+  Token *expandBaseFileMacro(Token *Tmpl);
   static Token *handleFileMacro(Preprocessor &PP, Token *Tmpl);
   static Token *handleLineMacro(Preprocessor &PP, Token *Tmpl);
   static Token *handleCounterMacro(Preprocessor &PP, Token *Tmpl);
   static Token *handleTimestampMacro(Preprocessor &PP, Token *Tmpl);
+  static Token *handleBaseFileMacro(Preprocessor &PP, Token *Tmpl);
   std::string readIncludeFilename(Token *&Rest, Token *Tok, bool &IsDquote);
   std::string searchIncludePaths(const std::string &Filename) const;
   Token *includeFile(Token *Rest, const std::string &Path, Token *FilenameTok);
@@ -64,6 +67,7 @@ private:
   Lexer &Lex;
   const std::vector<std::string> &IncludePaths;
   const std::vector<CommandLineMacro> &CommandLineMacros;
+  std::string BaseFile; // [GNU] main input path for __BASE_FILE__
   std::unordered_map<std::string, MacroInfo> Macros;
   std::vector<MacroExpansionFrame> MacroExpansionStack;
   BumpPtrAllocator MacroTokenAlloc;
