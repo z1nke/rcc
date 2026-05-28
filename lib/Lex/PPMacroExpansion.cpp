@@ -303,6 +303,32 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
       Diag.fatalAt(Replacement.getLoc(),
                    "'##' cannot appear at start of macro expansion");
 
+    // [GNU] `, ##__VA_ARGS__`: omit the comma when __VA_ARGS__ is empty;
+    // otherwise keep the comma and expand __VA_ARGS__.
+    if (MI.isVariadic() && Replacement.is(Token::TK_Comma) &&
+        I + 2 < ReplacementTokens.size() &&
+        ReplacementTokens[I + 1].is(Token::TK_HashHash) &&
+        getParameterIndex(MI, ReplacementTokens[I + 2]) ==
+            Parameters.size() - 1 &&
+        Parameters.back() == "__VA_ARGS__") {
+      if (Arguments.back().empty()) {
+        I += 2; // Skip `,` `##` `__VA_ARGS__`.
+        continue;
+      }
+
+      void *Mem = MacroTokenAlloc.allocate(sizeof(Token), alignof(Token));
+      Token *Expanded = new (Mem) Token(Replacement);
+      Expanded->setNext(nullptr);
+      Expanded->setSourceRange(*Tok);
+      Expanded->setOrigin(Tok);
+      Expanded->setAtStartOfLine(Replacement.isAtStartOfLine());
+      Expanded->setHasLeadingSpace(Replacement.hasLeadingSpace());
+      Curr->setNext(Expanded);
+      Curr = Expanded;
+      I += 1; // Skip `##`; next iteration expands `__VA_ARGS__`.
+      continue;
+    }
+
     std::vector<Token *> Operand;
     bool IsPasteChain = I + 1 < ReplacementTokens.size() &&
                         ReplacementTokens[I + 1].is(Token::TK_HashHash);
