@@ -303,16 +303,15 @@ bool Preprocessor::expandMacro(Token *&Rest, Token *Tok) {
       Diag.fatalAt(Replacement.getLoc(),
                    "'##' cannot appear at start of macro expansion");
 
-    // [GNU] `, ##__VA_ARGS__`: omit the comma when __VA_ARGS__ is empty;
-    // otherwise keep the comma and expand __VA_ARGS__.
+    // [GNU] `,##__VA_ARGS__` / `,##args`: omit the comma when the
+    // variadic argument is empty; otherwise keep the comma and expand it.
     if (MI.isVariadic() && Replacement.is(Token::TK_Comma) &&
         I + 2 < ReplacementTokens.size() &&
         ReplacementTokens[I + 1].is(Token::TK_HashHash) &&
         getParameterIndex(MI, ReplacementTokens[I + 2]) ==
-            Parameters.size() - 1 &&
-        Parameters.back() == "__VA_ARGS__") {
+            Parameters.size() - 1) {
       if (Arguments.back().empty()) {
-        I += 2; // Skip `,` `##` `__VA_ARGS__`.
+        I += 2; // Skip `,` `##` and the variadic parameter.
         continue;
       }
 

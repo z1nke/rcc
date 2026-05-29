@@ -181,6 +181,16 @@ void Preprocessor::handleDefineDirective(Token *&Rest, Token *NameTok) {
       if (!isMacroIdentifier(Tok))
         Diag.fatalAt(Tok->getLoc(), "expected an identifier");
 
+      // [GNU] Support GCC-style variadic macro: name...
+      if (Tok->getNext()->is(Token::TK_Ellipsis)) {
+        MI.setIsVariadic();
+        MI.addParameter(std::string(Tok->getLoc(), Tok->getLen()));
+        Tok = Tok->getNext()->getNext();
+        if (Tok->isNot(Token::TK_RParen))
+          Diag.fatalAt(Tok->getLoc(), "expected ')'");
+        break;
+      }
+
       MI.addParameter(std::string(Tok->getLoc(), Tok->getLen()));
       Tok = Tok->getNext();
       if (Tok->is(Token::TK_RParen))
