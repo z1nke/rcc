@@ -189,6 +189,8 @@ private:
   void leaveParamList();
   unsigned getParamListDepth() const { return ParamLists.size(); }
   void finishParamListsTo(unsigned Depth);
+  /// Parameter types of the function declarator currently being parsed.
+  std::vector<QualType> getCurrentParamTypes() const;
   [[noreturn]] void actOnDuplicateDefinition(SourceLocation Loc,
                                              std::string_view Name,
                                              unsigned TagKind) const;

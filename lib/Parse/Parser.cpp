@@ -939,9 +939,11 @@ void Parser::parseTypeSuffix(Declarator &D) {
       if (Idx == 0)
         IsVariadic = true;
 
+      std::vector<QualType> ParamTypes = S.getCurrentParamTypes();
       D.setEndLoc(SM.createEndLocation(CurTok));
       skip(Token::TK_RParen);
-      D.addDeclChunk(DeclaratorChunk::createFunction(IsVariadic));
+      D.addDeclChunk(
+          DeclaratorChunk::createFunction(IsVariadic, std::move(ParamTypes)));
       // Nested function types (e.g. pointer-to-function params / return types)
       // must not leave their parameters in the enclosing parameter list.
       if (getCurrScope()->getParent() &&
@@ -1521,6 +1523,20 @@ Expr *Parser::parsePrimaryExpr() {
 
   if (CurTok->is(Token::TK_Ident)) {
     std::string_view Ident = CurTok->getIdentifer();
+    // [GNU] __builtin_types_compatible_p(type-name, type-name)
+    if (Ident == "__builtin_types_compatible_p") {
+      auto BegLoc = SM.createBeginLocation(CurTok);
+      skip();
+      skip(Token::TK_LParen);
+      QualType T1 = parseTypeName();
+      skip(Token::TK_Comma);
+      QualType T2 = parseTypeName();
+      auto EndLoc = SM.createBeginLocation(CurTok);
+      skip(Token::TK_RParen);
+      return IntegerLiteral::create(Ctx, BegLoc, EndLoc, Ctx.IntTy,
+                                    Ctx.areTypesCompatible(T1, T2) ? 1 : 0);
+    }
+
     auto IdentBegLoc = SM.createBeginLocation(CurTok);
     auto IdentEndLoc = SM.createEndLocation(CurTok);
     skip();

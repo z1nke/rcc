@@ -100,6 +100,56 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) {
   return getPointerType(AT->getElementType());
 }
 
+bool ASTContext::areTypesCompatible(QualType T1, QualType T2) const {
+  T1 = T1.getCanonicalType().getUnqualifiedType();
+  T2 = T2.getCanonicalType().getUnqualifiedType();
+  if (T1 == T2)
+    return true;
+
+  const Type *Ty1 = T1.getTypePtr();
+  const Type *Ty2 = T2.getTypePtr();
+  if (Ty1->getTypeKind() != Ty2->getTypeKind())
+    return false;
+
+  if (const auto *P1 = dynCast<PointerType>(Ty1)) {
+    const auto *P2 = cast<PointerType>(Ty2);
+    return areTypesCompatible(P1->getPointeeType(), P2->getPointeeType());
+  }
+
+  if (const auto *F1 = dynCast<FunctionType>(Ty1)) {
+    const auto *F2 = cast<FunctionType>(Ty2);
+    if (!areTypesCompatible(F1->getReturnType(), F2->getReturnType()))
+      return false;
+    if (F1->isVariadic() != F2->isVariadic())
+      return false;
+    const auto &Params1 = F1->getParamTypes();
+    const auto &Params2 = F2->getParamTypes();
+    if (Params1.size() != Params2.size())
+      return false;
+    for (std::size_t I = 0; I < Params1.size(); ++I)
+      if (!areTypesCompatible(Params1[I], Params2[I]))
+        return false;
+    return true;
+  }
+
+  if (const auto *A1 = dynCast<ConstantArrayType>(Ty1)) {
+    const auto *A2 = dynCast<ConstantArrayType>(Ty2);
+    if (!A2)
+      return false;
+    return A1->getLength() == A2->getLength() &&
+           areTypesCompatible(A1->getElementType(), A2->getElementType());
+  }
+
+  if (const auto *A1 = dynCast<IncompleteArrayType>(Ty1)) {
+    const auto *A2 = dynCast<IncompleteArrayType>(Ty2);
+    if (!A2)
+      return false;
+    return areTypesCompatible(A1->getElementType(), A2->getElementType());
+  }
+
+  return false;
+}
+
 int ASTContext::getIntTypeOrder(QualType LHS, QualType RHS) const {
   const auto *LTy = LHS.getCanonicalType().getTypePtr();
   const auto *RTy = RHS.getCanonicalType().getTypePtr();

@@ -116,20 +116,20 @@ struct DeclaratorChunk {
   DeclaratorChunk(DCKind Kind) : Kind(Kind) {}
 
   struct ArrayTypeInfo {
-    Expr *LenExpr;
+    Expr *LenExpr = nullptr;
   };
 
   struct FunctionTypeInfo {
-    bool IsVariadic;
+    bool IsVariadic = false;
+    std::vector<QualType> ParamTypes;
   };
 
-  union {
-    ArrayTypeInfo Arr;
-    FunctionTypeInfo Fun;
-  };
+  ArrayTypeInfo Arr;
+  FunctionTypeInfo Fun;
 
   static DeclaratorChunk createPointer();
-  static DeclaratorChunk createFunction(bool IsVariadic = false);
+  static DeclaratorChunk createFunction(bool IsVariadic = false,
+                                        std::vector<QualType> ParamTypes = {});
   static DeclaratorChunk createArray(Expr *LenExpr);
 };
 

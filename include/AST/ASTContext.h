@@ -61,6 +61,11 @@ public:
     return T1->getCanonicalType() == T2->getCanonicalType();
   }
 
+  /// GNU __builtin_types_compatible_p: structural compatibility, ignoring
+  /// top-level typedefs/qualifiers. Distinct anonymous structs are
+  /// incompatible.
+  bool areTypesCompatible(QualType T1, QualType T2) const;
+
   int getIntTypeOrder(QualType LHS, QualType RHS) const;
   unsigned getIntRank(const Type *T) const;
   std::size_t getIntWidth(QualType T) const;

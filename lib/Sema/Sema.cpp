@@ -1148,6 +1148,16 @@ void Sema::finishParamListsTo(unsigned Depth) {
     leaveParamList();
 }
 
+std::vector<QualType> Sema::getCurrentParamTypes() const {
+  std::vector<QualType> Types;
+  for (const ParamVarDecl *Param : Params)
+    Types.push_back(Param->getType());
+  // (void) means an empty parameter list.
+  if (Types.size() == 1 && Types[0].isVoidType())
+    Types.clear();
+  return Types;
+}
+
 void Sema::complete(FunctionDecl *FD) {
   std::vector<QualType> ParamTypes;
   for (const auto *Param : Params)
@@ -2740,7 +2750,7 @@ QualType Sema::getTypeForDeclarator(Declarator &D) const {
       T = Ctx.getPointerType(T);
       break;
     case DeclaratorChunk::DCK_Function:
-      T = Ctx.getFunctionType(T, {}, Chunk.Fun.IsVariadic);
+      T = Ctx.getFunctionType(T, Chunk.Fun.ParamTypes, Chunk.Fun.IsVariadic);
       break;
     case DeclaratorChunk::DCK_Array:
       if (!Chunk.Arr.LenExpr)

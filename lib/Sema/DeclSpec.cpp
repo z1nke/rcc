@@ -8,9 +8,12 @@ DeclaratorChunk DeclaratorChunk::createPointer() {
   return DeclaratorChunk(DCK_Pointer);
 }
 
-DeclaratorChunk DeclaratorChunk::createFunction(bool IsVariadic) {
+DeclaratorChunk
+DeclaratorChunk::createFunction(bool IsVariadic,
+                                std::vector<QualType> ParamTypes) {
   DeclaratorChunk Chunk(DCK_Function);
   Chunk.Fun.IsVariadic = IsVariadic;
+  Chunk.Fun.ParamTypes = std::move(ParamTypes);
   return Chunk;
 }
 
