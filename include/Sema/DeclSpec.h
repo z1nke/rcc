@@ -1,6 +1,7 @@
 #ifndef RCC_SEMA_DECLSPEC_H
 #define RCC_SEMA_DECLSPEC_H
 
+#include "AST/Type.h"
 #include "Basic/SourceLocation.h"
 
 #include <cstddef>
@@ -38,6 +39,7 @@ public:
     TST_Union,
     TST_Enum,
     TST_Typename, // Typedef, struct/union name or enum name.
+    TST_Typeof,   // [GNU] typeof(expr) / typeof(type-name)
   };
 
   enum TypeSpecWidth {
@@ -72,6 +74,9 @@ public:
   Decl *getRepDecl() const { return RepDecl; }
   void setRepDecl(Decl *D) { RepDecl = D; }
 
+  QualType getRepType() const { return RepType; }
+  void setRepType(QualType T) { RepType = T; }
+
   bool isAlignasAllowed() const { return AlignasAllowed; }
   void setAlignasAllowed(bool Allowed = true) { AlignasAllowed = Allowed; }
 
@@ -95,6 +100,7 @@ private:
   SourceLocation SCSLoc;
   SourceLocation TSLoc;
   Decl *RepDecl = nullptr;
+  QualType RepType;
   bool AlignasAllowed = false;
   std::size_t Align = 0;
   Diagnostic &Diag;

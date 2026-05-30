@@ -2720,6 +2720,9 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
       break;
     }
   }
+  case DeclSpec::TST_Typeof:
+    T = DS.getRepType();
+    break;
   default:
     RCC_UNREACHABLE("Unknown type specifier type");
   }

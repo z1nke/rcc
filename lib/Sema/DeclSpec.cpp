@@ -112,6 +112,8 @@ const char *DeclSpec::getSpecifierName(TypeSpecType T) {
     return "union";
   case TST_Typename:
     return "typename";
+  case TST_Typeof:
+    return "typeof";
   default:
     RCC_UNREACHABLE("Unknown type specifier type");
   }

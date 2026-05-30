@@ -694,6 +694,20 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       DS.setTypeSpecType(DeclSpec::TST_Enum, TyLoc);
       DS.setRepDecl(parseEnumDecl());
       break;
+    case Token::TK_Typeof: {
+      // typeof-specifier = "typeof" "(" (expr | type-name) ")"
+      skip();
+      skip(Token::TK_LParen);
+      QualType T;
+      if (isTypeName(CurTok))
+        T = parseTypeName();
+      else
+        T = parseExpr()->getType();
+      skip(Token::TK_RParen);
+      DS.setTypeSpecType(DeclSpec::TST_Typeof, TyLoc);
+      DS.setRepType(T);
+      break;
+    }
     // Ignored for now: const | volatile | auto | register | restrict |
     // __restrict | __restrict__ | _Noreturn
     case Token::TK_Const:
@@ -1309,6 +1323,7 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Struct:
   case Token::TK_Union:
   case Token::TK_Enum:
+  case Token::TK_Typeof:
   case Token::TK_Alignas:
   case Token::TK_Typedef:
   case Token::TK_Static:
