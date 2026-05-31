@@ -2035,8 +2035,9 @@ void Sema::checkArithmeticType(Expr *E) const {
 }
 
 void Sema::checkSizeofType(SourceLocation BegLoc, QualType T) const {
+  // [GNU] Allow sizeof(<function type>); GCC evaluates it to 1.
   if (T->isFunctionType())
-    Diag.fatalAt(BegLoc, "invalid application of 'sizeof' to a function type");
+    return;
 
   if (T->isIncompleteType()) {
     Diag.fatalAt(BegLoc,

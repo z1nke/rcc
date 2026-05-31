@@ -159,7 +159,7 @@ public:
   enum Kind {
     BK_Void,
     BK_Bool,
-    BK_Char,         // Plain char (unsigned on RISC-V)
+    BK_Char, // Plain char (unsigned on RISC-V)
     BK_SignedChar,
     BK_UnsignedChar,
     BK_Short,
@@ -232,7 +232,8 @@ private:
 
   FunctionType(QualType RetType, std::vector<QualType> ParamTypes,
                bool IsVariadic)
-      : Type(TK_Function, 0), RetType(RetType),
+      // [GNU] C forbids sizeof(function type); GCC allows it and yields 1.
+      : Type(TK_Function, 1, 1), RetType(RetType),
         ParamTypes(std::move(ParamTypes)), IsVariadic(IsVariadic) {}
 
 private:

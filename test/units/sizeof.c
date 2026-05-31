@@ -110,6 +110,9 @@ int main() {
   // [149] Add "long double" as an alias for "double"
   ASSERT(8, sizeof(long double));
 
+  // [257] [GNU] Allow sizeof(<function type>)
+  ASSERT(1, sizeof(main));
+
   printf("OK\n");
   return 0;
 }
