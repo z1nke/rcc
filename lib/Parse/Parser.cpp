@@ -1435,6 +1435,9 @@ Expr *Parser::parsePrimaryExpr() {
   if (CurTok->is(Token::TK_LParen))
     return parseParenOrStmtExpr();
 
+  if (CurTok->is(Token::TK_Generic))
+    return parseGenericSelection();
+
   if (CurTok->is(Token::TK_CharLiteral)) {
     unsigned Val = CurTok->getCharLiteral(Diag);
     auto BegLoc = SM.createBeginLocation(CurTok);
@@ -1546,6 +1549,47 @@ Expr *Parser::parsePrimaryExpr() {
   SourceLocation Loc = SM.createBeginLocation(CurTok);
   Diag.fatalAt(Loc, "expect a primary expression");
   return nullptr;
+}
+
+// generic-selection = "(" assign-expr "," generic-assoc { "," generic-assoc }* ")"
+// generic-assoc = type-name ":" assign-expr
+//               | "default" ":" assign-expr
+Expr *Parser::parseGenericSelection() {
+  SourceLocation BegLoc = SM.createBeginLocation(CurTok);
+  skip(Token::TK_Generic);
+  skip(Token::TK_LParen);
+
+  Expr *Ctrl = parseAssign();
+  QualType CtrlTy = Ctrl->getType();
+  // Array and function controlling types decay to pointers (C11 6.5.1.1).
+  if (CtrlTy->isFunctionType())
+    CtrlTy = Ctx.getPointerType(CtrlTy);
+  else if (const auto *AT = CtrlTy->getAs<ArrayType>())
+    CtrlTy = Ctx.getPointerType(AT->getElementType());
+
+  Expr *Result = nullptr;
+  while (!tryConsume(Token::TK_RParen)) {
+    skip(Token::TK_Comma);
+
+    if (tryConsume(Token::TK_Default)) {
+      skip(Token::TK_Colon);
+      Expr *Assoc = parseAssign();
+      if (!Result)
+        Result = Assoc;
+      continue;
+    }
+
+    QualType AssocTy = parseTypeName();
+    skip(Token::TK_Colon);
+    Expr *Assoc = parseAssign();
+    if (Ctx.areTypesCompatible(CtrlTy, AssocTy))
+      Result = Assoc;
+  }
+
+  if (!Result)
+    Diag.fatalAt(BegLoc, "controlling expression type not compatible with"
+                         " any generic association type");
+  return Result;
 }
 
 // call-args: assign-expr { ',' assign-expr }* ')'

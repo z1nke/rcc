@@ -92,6 +92,7 @@ private:
   Expr *parseCastExpr();
   Expr *parseUnaryExpr();
   Expr *parsePrimaryExpr();
+  Expr *parseGenericSelection();
   Expr *parseParenOrStmtExpr();
   Expr *parseCallArgs(Expr *Callee);
   Expr *parsePostfixExpr();
