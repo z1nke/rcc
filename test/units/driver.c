@@ -59,6 +59,15 @@
 // RUN: rcc -c -O -Wall -g -std=c11 -ffreestanding -fno-builtin -fno-omit-frame-pointer -fno-stack-protector -fno-strict-aliasing -m64 -mno-red-zone -w -o /dev/null %t.empty.c
 // [238] Skip UTF-8 BOM markers
 // RUN: printf '\xef\xbb\xbfxyz\n' | rcc -E -o- - | grep -q '^xyz'
+// RUN: echo 'inline void foo() {}' > %t.inline1.c
+// RUN: echo 'inline void foo() {}' > %t.inline2.c
+// RUN: echo 'int main() { return 0; }' > %t.inline3.c
+// RUN: rcc -o %t.inline %t.inline1.c %t.inline2.c %t.inline3.c
+// RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.inline
+// RUN: echo 'extern inline void foo() {}' > %t.extinline1.c
+// RUN: echo 'int foo(); int main() { foo(); }' > %t.extinline2.c
+// RUN: rcc -o %t.extinline %t.extinline1.c %t.extinline2.c
+// RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.extinline
 // RUN: rcc --help
 
 int main() {

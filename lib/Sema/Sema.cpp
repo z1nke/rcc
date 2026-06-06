@@ -913,7 +913,10 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
   CurrScope = Enclosing;
   addDecl(Func);
   CurrScope = FnSc;
-  if (DS.getStorageClassSpec() == DeclSpec::SCS_Static)
+  // Treat inline (without extern) like static: internal linkage.
+  if (DS.getStorageClassSpec() == DeclSpec::SCS_Static ||
+      (DS.isInlineSpecified() &&
+       DS.getStorageClassSpec() != DeclSpec::SCS_Extern))
     Func->setLinkage(Linkage::InternalLinkage);
   Funcs.push_back(Func);
   return Func;

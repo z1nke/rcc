@@ -32,8 +32,17 @@ void DeclSpec::setStorageClassSpec(StorageClassSpec S, SourceLocation Loc) {
   if (SCS != SCS_Unspecified)
     reportBadSpec(Loc, S, SCS);
 
+  if (S == SCS_Typedef && IsInline)
+    Diag.fatalAt(Loc, "typedef and inline may not be used together");
+
   SCS = S;
   SCSLoc = Loc;
+}
+
+void DeclSpec::setInlineSpecified(SourceLocation Loc) {
+  if (SCS == SCS_Typedef)
+    Diag.fatalAt(Loc, "typedef and inline may not be used together");
+  IsInline = true;
 }
 
 void DeclSpec::setTypeSpecType(TypeSpecType T, SourceLocation Loc) {

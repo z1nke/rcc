@@ -83,6 +83,9 @@ public:
   std::size_t getAlign() const { return Align; }
   void setAlign(std::size_t Align) { this->Align = Align; }
 
+  bool isInlineSpecified() const { return IsInline; }
+  void setInlineSpecified(SourceLocation Loc);
+
   static const char *getSpecifierName(StorageClassSpec S);
   static const char *getSpecifierName(TypeSpecType T);
   static const char *getSpecifierName(TypeSpecWidth T);
@@ -103,6 +106,7 @@ private:
   QualType RepType;
   bool AlignasAllowed = false;
   std::size_t Align = 0;
+  bool IsInline = false;
   Diagnostic &Diag;
 };
 

@@ -6,6 +6,11 @@
 extern int ext1;
 extern int *ext2;
 
+// [260] Handle inline functions as static functions
+inline int inline_fn(void) {
+  return 3;
+}
+
 int main() {
   // [116] Add extern
   ASSERT(5, ext1);

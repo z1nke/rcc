@@ -731,17 +731,20 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       DS.setRepType(T);
       break;
     }
-    // Ignored for now: const | volatile | inline | auto | register | restrict |
+    // Ignored for now: const | volatile | auto | register | restrict |
     // __restrict | __restrict__ | _Noreturn
     case Token::TK_Const:
     case Token::TK_Volatile:
-    case Token::TK_Inline:
     case Token::TK_Auto:
     case Token::TK_Register:
     case Token::TK_Restrict:
     case Token::TK_GnuURestrict:
     case Token::TK_GnuURestrictU:
     case Token::TK_Noreturn:
+      skip();
+      break;
+    case Token::TK_Inline:
+      DS.setInlineSpecified(TyLoc);
       skip();
       break;
     case Token::TK_Ident: {

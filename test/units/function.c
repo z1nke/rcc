@@ -87,6 +87,11 @@ _Bool bool_fn_sub(_Bool x) { return x - 1; }
 // [114] Accept `void` as a parameter list
 static int static_fn(void) { return 3; }
 
+// [260] Handle inline functions as static functions
+inline int inline_fn(void) {
+  return 3;
+}
+
 // [87] Decay an array to a pointer in the func param context
 int param_decay(int x[]) { return x[0]; }
 
@@ -1175,6 +1180,9 @@ int main() {
 
   // [206] Dereferencing a function shouldn't do anything
   ASSERT(5, (***add2)(2, 3));
+
+  // [260] Handle inline functions as static functions
+  ASSERT(3, inline_fn());
 
   printf("OK\n");
   // [219] Make "main" to implicitly return 0
