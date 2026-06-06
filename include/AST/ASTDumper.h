@@ -31,6 +31,7 @@ class BreakStmt;
 class ContinueStmt;
 class GotoStmt;
 class LabelStmt;
+class AsmStmt;
 class UnaryOperator;
 class BinaryOperator;
 class ConditionalOperator;
@@ -75,6 +76,7 @@ public:
   void visit(const ContinueStmt *Continue);
   void visit(const GotoStmt *Goto);
   void visit(const LabelStmt *Label);
+  void visit(const AsmStmt *AS);
   void visit(const UnaryOperator *UO);
   void visit(const BinaryOperator *BO);
   void visit(const ConditionalOperator *CO);

@@ -25,6 +25,7 @@ STMT(BreakStmt)
 STMT(ContinueStmt)
 STMT(GotoStmt)
 STMT(LabelStmt)
+STMT(AsmStmt)
 
 EXPR(UnaryOperator)
 EXPR(UnaryExprOrTypeTraitExpr)

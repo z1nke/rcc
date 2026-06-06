@@ -44,6 +44,7 @@ private:
   void genContinueStmt(const ContinueStmt *Continue);
   void genGotoStmt(const GotoStmt *Goto);
   void genLabelStmt(const LabelStmt *Label);
+  void genAsmStmt(const AsmStmt *AS);
   void genExpr(const Expr *E);
   void genStringLiteral(const StringLiteral *SL);
   void genDeclRefExpr(const DeclRefExpr *Ref);

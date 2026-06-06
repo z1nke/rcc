@@ -383,6 +383,22 @@ private:
   Stmt *SubStmt;
 };
 
+class AsmStmt final : public Stmt {
+public:
+  static AsmStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
+                         SourceLocation EndLoc, std::string AsmString);
+
+  static bool classof(const Stmt *S) { return S->getKind() == SK_AsmStmt; }
+
+  const std::string &getAsmString() const { return AsmString; }
+
+private:
+  AsmStmt(SourceLocation BegLoc, SourceLocation EndLoc, std::string AsmString);
+
+private:
+  std::string AsmString;
+};
+
 class UnaryOperator final : public Expr {
 public:
   enum Opcode {

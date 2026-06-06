@@ -391,6 +391,8 @@ Stmt *Parser::parseStmt() {
     return parseContinueStmt();
   case Token::TK_Goto:
     return parseGotoStmt();
+  case Token::TK_Asm:
+    return parseAsmStmt();
   default:
     break;
   }
@@ -592,6 +594,27 @@ Stmt *Parser::parseLabelStmt() {
   return S.actOnLabelStmt(BegLoc, SubStmt->getEndLoc(), LabelName, SubStmt);
 }
 
+// asm-stmt: 'asm' ('volatile' | 'inline')* '(' string-literal ')'
+Stmt *Parser::parseAsmStmt() {
+  assert(CurTok->is(Token::TK_Asm));
+  auto BegLoc = SM.createBeginLocation(CurTok);
+  skip();
+
+  while (CurTok->isOneOf(Token::TK_Volatile, Token::TK_Inline))
+    skip();
+
+  skip(Token::TK_LParen);
+  if (CurTok->isNot(Token::TK_StrLiteral) ||
+      CurTok->getStringLiteralKind() != Token::StringLiteralKind::Narrow)
+    Diag.fatalAt(SM.createBeginLocation(CurTok), "expected string literal");
+
+  std::string AsmString = CurTok->getStringLiteral(Diag);
+  auto EndLoc = SM.createEndLocation(CurTok);
+  skip();
+  skip(Token::TK_RParen);
+  return S.actOnAsmStmt(BegLoc, EndLoc, std::move(AsmString));
+}
+
 // decl-stmt: declspecs init-declarator-list? ';'
 Stmt *Parser::parseDeclStmt() {
   DeclSpec DS(Diag);
@@ -708,10 +731,11 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       DS.setRepType(T);
       break;
     }
-    // Ignored for now: const | volatile | auto | register | restrict |
+    // Ignored for now: const | volatile | inline | auto | register | restrict |
     // __restrict | __restrict__ | _Noreturn
     case Token::TK_Const:
     case Token::TK_Volatile:
+    case Token::TK_Inline:
     case Token::TK_Auto:
     case Token::TK_Register:
     case Token::TK_Restrict:
@@ -1335,6 +1359,7 @@ bool Parser::isTypeName(const Token *Tok) {
   case Token::TK_Extern:
   case Token::TK_Const:
   case Token::TK_Volatile:
+  case Token::TK_Inline:
   case Token::TK_Auto:
   case Token::TK_Register:
   case Token::TK_Restrict:

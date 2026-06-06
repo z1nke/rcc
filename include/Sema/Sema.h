@@ -94,6 +94,8 @@ public:
                       std::string_view LabelName);
   Stmt *actOnLabelStmt(SourceLocation BegLoc, SourceLocation EndLoc,
                        std::string_view LabelName, Stmt *SubStmt);
+  Stmt *actOnAsmStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                     std::string AsmString);
   Expr *actOnCharacterLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
                               QualType T, unsigned Val);
   Expr *actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,

@@ -1335,6 +1335,9 @@ void CodeGen::genStmt(const Stmt *S) {
   case Stmt::SK_LabelStmt:
     genLabelStmt(cast<LabelStmt>(S));
     break;
+  case Stmt::SK_AsmStmt:
+    genAsmStmt(cast<AsmStmt>(S));
+    break;
   case Stmt::SK_DeclStmt:
     genDeclStmt(cast<DeclStmt>(S));
     break;
@@ -1848,6 +1851,11 @@ void CodeGen::genLabelStmt(const LabelStmt *Label) {
       std::format(".L.label.{}.{}", CurrFunc->getName(), Decl->getName());
   emit("{}:", AsmLabel);
   genStmt(Label->getSubStmt());
+}
+
+void CodeGen::genAsmStmt(const AsmStmt *AS) {
+  emit("  # asm");
+  emit("  {}", AS->getAsmString());
 }
 
 void CodeGen::genExpr(const Expr *E) {

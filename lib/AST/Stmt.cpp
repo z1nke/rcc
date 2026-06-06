@@ -180,6 +180,16 @@ LabelStmt *LabelStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
   return new (Mem) LabelStmt(BegLoc, EndLoc, Label, Sub);
 }
 
+AsmStmt::AsmStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                 std::string AsmString)
+    : Stmt(SK_AsmStmt, BegLoc, EndLoc), AsmString(std::move(AsmString)) {}
+
+AsmStmt *AsmStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
+                         SourceLocation EndLoc, std::string AsmString) {
+  void *Mem = Ctx.allocate(sizeof(AsmStmt), alignof(AsmStmt));
+  return new (Mem) AsmStmt(BegLoc, EndLoc, std::move(AsmString));
+}
+
 UnaryOperator::UnaryOperator(SourceLocation BegLoc, SourceLocation EndLoc,
                              QualType T, Expr *SubExpr, Opcode Op)
     : Expr(SK_UnaryOperator, BegLoc, EndLoc, T), SubExpr(SubExpr), Kind(Op) {}

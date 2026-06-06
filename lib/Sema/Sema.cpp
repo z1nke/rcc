@@ -1704,6 +1704,11 @@ Stmt *Sema::actOnLabelStmt(SourceLocation BegLoc, SourceLocation EndLoc,
   return LS;
 }
 
+Stmt *Sema::actOnAsmStmt(SourceLocation BegLoc, SourceLocation EndLoc,
+                         std::string AsmString) {
+  return AsmStmt::create(Ctx, BegLoc, EndLoc, std::move(AsmString));
+}
+
 Expr *Sema::actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
                                 unsigned Op) {
   QualType ResType = getBinaryOperatorType(OpLoc, LHS, RHS, Op);

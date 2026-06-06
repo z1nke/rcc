@@ -73,6 +73,7 @@ private:
   Stmt *parseContinueStmt();
   Stmt *parseGotoStmt();
   Stmt *parseLabelStmt();
+  Stmt *parseAsmStmt();
   Stmt *parseDeclStmt();
   Stmt *parseExprStmt();
   Expr *parseExpr();

@@ -174,6 +174,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_LabelStmt:
     visit(cast<LabelStmt>(S));
     break;
+  case Stmt::SK_AsmStmt:
+    visit(cast<AsmStmt>(S));
+    break;
   case Stmt::SK_UnaryOperator:
     visit(cast<UnaryOperator>(S));
     break;
@@ -368,6 +371,10 @@ void ASTDumper::visit(const LabelStmt *Label) {
   std::println(stderr, "LabelStmt {}", Label->getDecl()->getName());
   ScopedIndent SI(*this, true);
   visit(Label->getSubStmt());
+}
+
+void ASTDumper::visit(const AsmStmt *AS) {
+  std::println(stderr, "AsmStmt \"{}\"", AS->getAsmString());
 }
 
 void ASTDumper::visit(const UnaryOperator *UO) {
