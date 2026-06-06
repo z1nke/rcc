@@ -49,6 +49,7 @@ private:
   void genDeclRefExpr(const DeclRefExpr *Ref);
   void genBinaryOperator(const BinaryOperator *BO);
   void genConditionalOperator(const ConditionalOperator *CO);
+  void genBinaryConditionalOperator(const BinaryConditionalOperator *BCO);
 
   /// Emits a0 = (lhs op rhs) given a0 = lhs and a1 = rhs.
   void emitBinaryArithmeticResult(BinaryOperator::Opcode Op, QualType LType,

@@ -1861,6 +1861,9 @@ void CodeGen::genExpr(const Expr *E) {
   case Stmt::SK_ConditionalOperator:
     genConditionalOperator(cast<ConditionalOperator>(E));
     break;
+  case Stmt::SK_BinaryConditionalOperator:
+    genBinaryConditionalOperator(cast<BinaryConditionalOperator>(E));
+    break;
   case Stmt::SK_IntegerLiteral: {
     // li a0, imm
     auto Val = cast<IntegerLiteral>(E)->getVal();
@@ -2456,6 +2459,23 @@ void CodeGen::genConditionalOperator(const ConditionalOperator *CO) {
   emit("  j .L.end.{}", Count);
   emit(".L.else.{}:", Count);
   genExpr(CO->getFalseExpr());
+  emit(".L.end.{}:", Count);
+}
+
+void CodeGen::genBinaryConditionalOperator(
+    const BinaryConditionalOperator *BCO) {
+  int Count = getCount();
+  const Expr *Common = BCO->getCommon();
+  QualType CommonTy = Common->getType();
+  genExpr(Common);
+  // Common's value stays in a0/fa0; emitIsNotZero only writes the boolean to a0.
+  emitIsNotZero(CommonTy.getTypePtr());
+  emit("  beqz a0, .L.else.{}", Count);
+  if (CommonTy != BCO->getType())
+    genScalarCast(CommonTy.getTypePtr(), BCO->getTypePtr());
+  emit("  j .L.end.{}", Count);
+  emit(".L.else.{}:", Count);
+  genExpr(BCO->getFalseExpr());
   emit(".L.end.{}:", Count);
 }
 

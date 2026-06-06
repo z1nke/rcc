@@ -183,6 +183,9 @@ void ASTDumper::visit(const Stmt *S) {
   case Stmt::SK_ConditionalOperator:
     visit(cast<ConditionalOperator>(S));
     break;
+  case Stmt::SK_BinaryConditionalOperator:
+    visit(cast<BinaryConditionalOperator>(S));
+    break;
   case Stmt::SK_IntegerLiteral:
     visit(cast<IntegerLiteral>(S));
     break;
@@ -398,6 +401,18 @@ void ASTDumper::visit(const ConditionalOperator *CO) {
   {
     ScopedIndent SI(*this, true);
     visit(CO->getFalseExpr());
+  }
+}
+
+void ASTDumper::visit(const BinaryConditionalOperator *BCO) {
+  printName("BinaryConditionalOperator '?:'");
+  {
+    ScopedIndent SI(*this, false);
+    visit(BCO->getCommon());
+  }
+  {
+    ScopedIndent SI(*this, true);
+    visit(BCO->getFalseExpr());
   }
 }
 

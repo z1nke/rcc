@@ -100,6 +100,7 @@ public:
                            QualType T, std::string Str);
   Expr *actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
                             unsigned Op);
+  /// TrueExpr may be null for the GNU `x ?: y` extension.
   Expr *actOnConditionalOperator(SourceLocation QLoc, SourceLocation ColonLoc,
                                  Expr *Cond, Expr *TrueExpr, Expr *FalseExpr);
   Expr *actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr, unsigned Op);

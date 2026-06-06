@@ -1716,14 +1716,26 @@ Expr *Sema::actOnBinaryOperator(SourceLocation OpLoc, Expr *LHS, Expr *RHS,
 Expr *Sema::actOnConditionalOperator(SourceLocation QLoc,
                                      SourceLocation ColonLoc, Expr *Cond,
                                      Expr *TrueExpr, Expr *FalseExpr) {
-  (void)ColonLoc;
-  Cond = usualUnaryConv(Cond);
+  // GNU `x ?: y`: analyze types as though the LHS was the condition, and
+  // build a BinaryConditionalOperator so the common expr is evaluated once.
+  Expr *Common = nullptr;
+  if (!TrueExpr) {
+    Common = usualUnaryConv(Cond);
+    TrueExpr = Cond = Common;
+  } else {
+    Cond = usualUnaryConv(Cond);
+  }
   checkScalarType(Cond);
 
   QualType ResType = getConditionalOperatorType(QLoc, TrueExpr, FalseExpr);
-  return ConditionalOperator::create(Ctx, Cond->getBeginLoc(),
-                                     FalseExpr->getEndLoc(), ResType, Cond,
-                                     TrueExpr, FalseExpr);
+  if (!Common)
+    return ConditionalOperator::create(Ctx, Cond->getBeginLoc(),
+                                       FalseExpr->getEndLoc(), ResType, QLoc,
+                                       ColonLoc, Cond, TrueExpr, FalseExpr);
+
+  return BinaryConditionalOperator::create(
+      Ctx, Common->getBeginLoc(), FalseExpr->getEndLoc(), ResType, QLoc,
+      ColonLoc, Common, FalseExpr);
 }
 
 Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,

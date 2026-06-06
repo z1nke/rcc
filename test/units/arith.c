@@ -158,6 +158,12 @@ int main() {
   // [134] When comparing two pointers, treat them as unsigned
   ASSERT(1, (void *)0xffffffffffffffff > (void *)0);
 
+
+  // [258] [GNU] Add ?: operator with omitted operand
+  ASSERT(3, 3?:5);
+  ASSERT(5, 0?:5);
+  ASSERT(4, ({ int i = 3; ++i?:10; }));
+
   printf("OK\n");
   return 0;
 }

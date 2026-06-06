@@ -34,6 +34,7 @@ class LabelStmt;
 class UnaryOperator;
 class BinaryOperator;
 class ConditionalOperator;
+class BinaryConditionalOperator;
 class IntegerLiteral;
 class FloatingLiteral;
 class ParenExpr;
@@ -77,6 +78,7 @@ public:
   void visit(const UnaryOperator *UO);
   void visit(const BinaryOperator *BO);
   void visit(const ConditionalOperator *CO);
+  void visit(const BinaryConditionalOperator *BCO);
   void visit(const IntegerLiteral *IL);
   void visit(const FloatingLiteral *FL);
   void visit(const ParenExpr *Paren);

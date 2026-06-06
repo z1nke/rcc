@@ -1068,6 +1068,7 @@ Expr *Parser::parseAssign() {
 
 // conditional-expr: logical-or-expr
 //                 | logical-or-expr ? expr : conditional-expr
+//                 | logical-or-expr ? : conditional-expr   (GNU extension)
 Expr *Parser::parseConditionalExpr() {
   Expr *Cond = parseLogicalOrExpr();
   if (CurTok->isNot(Token::TK_Question))
@@ -1075,7 +1076,9 @@ Expr *Parser::parseConditionalExpr() {
 
   auto QLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Question);
-  Expr *TrueExpr = parseExpr();
+  Expr *TrueExpr = nullptr;
+  if (CurTok->isNot(Token::TK_Colon))
+    TrueExpr = parseExpr();
   auto ColonLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Colon);
   Expr *FalseExpr = parseConditionalExpr();

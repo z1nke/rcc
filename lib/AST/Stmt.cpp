@@ -590,14 +590,15 @@ std::optional<Expr::EvalResult> Expr::evaluate() const {
         cast<UnaryExprOrTypeTraitExpr>(this));
   case Stmt::SK_BinaryOperator:
     return evaluateBinaryOperator(cast<BinaryOperator>(this));
-  case Stmt::SK_ConditionalOperator: {
-    const auto *CO = cast<ConditionalOperator>(this);
-    auto CondVal = CO->getCond()->evaluateAsBool();
+  case Stmt::SK_ConditionalOperator:
+  case Stmt::SK_BinaryConditionalOperator: {
+    const auto *ACO = cast<AbstractConditionalOperator>(this);
+    auto CondVal = ACO->getCond()->evaluateAsBool();
     if (!CondVal)
       return std::nullopt;
     if (*CondVal)
-      return CO->getTrueExpr()->evaluate();
-    return CO->getFalseExpr()->evaluate();
+      return ACO->getTrueExpr()->evaluate();
+    return ACO->getFalseExpr()->evaluate();
   }
   case Stmt::SK_IntegerLiteral: {
     const auto *IL = cast<IntegerLiteral>(this);
@@ -808,21 +809,49 @@ BinaryOperator::Opcode BinaryOperator::getOpForCompoundAssign() const {
   }
 }
 
+AbstractConditionalOperator::AbstractConditionalOperator(
+    StmtKind Kind, SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+    SourceLocation QuestionLoc, SourceLocation ColonLoc, Expr *Cond,
+    Expr *TrueExpr, Expr *FalseExpr)
+    : Expr(Kind, BegLoc, EndLoc, T), QuestionLoc(QuestionLoc),
+      ColonLoc(ColonLoc), Cond(Cond), TrueExpr(TrueExpr),
+      FalseExpr(FalseExpr) {}
+
 ConditionalOperator::ConditionalOperator(SourceLocation BegLoc,
                                          SourceLocation EndLoc, QualType T,
-                                         Expr *Cond, Expr *TrueExpr,
-                                         Expr *FalseExpr)
-    : Expr(SK_ConditionalOperator, BegLoc, EndLoc, T), Cond(Cond),
-      TrueExpr(TrueExpr), FalseExpr(FalseExpr) {}
+                                         SourceLocation QuestionLoc,
+                                         SourceLocation ColonLoc, Expr *Cond,
+                                         Expr *TrueExpr, Expr *FalseExpr)
+    : AbstractConditionalOperator(SK_ConditionalOperator, BegLoc, EndLoc, T,
+                                  QuestionLoc, ColonLoc, Cond, TrueExpr,
+                                  FalseExpr) {}
 
-ConditionalOperator *
-ConditionalOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
-                            SourceLocation EndLoc, QualType T, Expr *Cond,
-                            Expr *TrueExpr, Expr *FalseExpr) {
+ConditionalOperator *ConditionalOperator::create(
+    ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+    SourceLocation QuestionLoc, SourceLocation ColonLoc, Expr *Cond,
+    Expr *TrueExpr, Expr *FalseExpr) {
   void *Mem =
       Ctx.allocate(sizeof(ConditionalOperator), alignof(ConditionalOperator));
-  return new (Mem)
-      ConditionalOperator(BegLoc, EndLoc, T, Cond, TrueExpr, FalseExpr);
+  return new (Mem) ConditionalOperator(BegLoc, EndLoc, T, QuestionLoc, ColonLoc,
+                                       Cond, TrueExpr, FalseExpr);
+}
+
+BinaryConditionalOperator::BinaryConditionalOperator(
+    SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+    SourceLocation QuestionLoc, SourceLocation ColonLoc, Expr *Common,
+    Expr *FalseExpr)
+    : AbstractConditionalOperator(SK_BinaryConditionalOperator, BegLoc, EndLoc,
+                                  T, QuestionLoc, ColonLoc, Common, Common,
+                                  FalseExpr) {}
+
+BinaryConditionalOperator *BinaryConditionalOperator::create(
+    ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+    SourceLocation QuestionLoc, SourceLocation ColonLoc, Expr *Common,
+    Expr *FalseExpr) {
+  void *Mem = Ctx.allocate(sizeof(BinaryConditionalOperator),
+                           alignof(BinaryConditionalOperator));
+  return new (Mem) BinaryConditionalOperator(BegLoc, EndLoc, T, QuestionLoc,
+                                             ColonLoc, Common, FalseExpr);
 }
 
 IntegerLiteral::IntegerLiteral(SourceLocation BegLoc, SourceLocation EndLoc,

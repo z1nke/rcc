@@ -504,29 +504,74 @@ private:
   SourceLocation OpLoc;
 };
 
-class ConditionalOperator final : public Expr {
+/// Abstract base for ConditionalOperator and BinaryConditionalOperator.
+class AbstractConditionalOperator : public Expr {
+public:
+  Expr *getCond() const { return Cond; }
+  Expr *getTrueExpr() const { return TrueExpr; }
+  Expr *getFalseExpr() const { return FalseExpr; }
+
+  SourceLocation getQuestionLoc() const { return QuestionLoc; }
+  SourceLocation getColonLoc() const { return ColonLoc; }
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_ConditionalOperator ||
+           S->getKind() == SK_BinaryConditionalOperator;
+  }
+
+protected:
+  AbstractConditionalOperator(StmtKind Kind, SourceLocation BegLoc,
+                              SourceLocation EndLoc, QualType T,
+                              SourceLocation QuestionLoc,
+                              SourceLocation ColonLoc, Expr *Cond,
+                              Expr *TrueExpr, Expr *FalseExpr);
+
+private:
+  SourceLocation QuestionLoc;
+  SourceLocation ColonLoc;
+  Expr *Cond;
+  Expr *TrueExpr;
+  Expr *FalseExpr;
+};
+
+class ConditionalOperator final : public AbstractConditionalOperator {
 public:
   static ConditionalOperator *create(ASTContext &Ctx, SourceLocation BegLoc,
                                      SourceLocation EndLoc, QualType T,
-                                     Expr *Cond, Expr *TrueExpr,
-                                     Expr *FalseExpr);
+                                     SourceLocation QuestionLoc,
+                                     SourceLocation ColonLoc, Expr *Cond,
+                                     Expr *TrueExpr, Expr *FalseExpr);
 
   static bool classof(const Stmt *S) {
     return S->getKind() == SK_ConditionalOperator;
   }
 
-  Expr *getCond() const { return Cond; }
-  Expr *getTrueExpr() const { return TrueExpr; }
-  Expr *getFalseExpr() const { return FalseExpr; }
-
 private:
   ConditionalOperator(SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
+                      SourceLocation QuestionLoc, SourceLocation ColonLoc,
                       Expr *Cond, Expr *TrueExpr, Expr *FalseExpr);
+};
+
+/// GNU extension: `x ?: y`. The common operand is evaluated once and used as
+/// both the condition and the true-expression value.
+class BinaryConditionalOperator final : public AbstractConditionalOperator {
+public:
+  static BinaryConditionalOperator *
+  create(ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc,
+         QualType T, SourceLocation QuestionLoc, SourceLocation ColonLoc,
+         Expr *Common, Expr *FalseExpr);
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == SK_BinaryConditionalOperator;
+  }
+
+  Expr *getCommon() const { return getCond(); }
 
 private:
-  Expr *Cond;
-  Expr *TrueExpr;
-  Expr *FalseExpr;
+  BinaryConditionalOperator(SourceLocation BegLoc, SourceLocation EndLoc,
+                            QualType T, SourceLocation QuestionLoc,
+                            SourceLocation ColonLoc, Expr *Common,
+                            Expr *FalseExpr);
 };
 
 class IntegerLiteral final : public Expr {
