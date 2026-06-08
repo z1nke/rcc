@@ -48,6 +48,9 @@ void CompilerInvocation::addDefaultIncludePaths(const char *Argv0) {
 std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
                                                                char **Argv) {
   auto Invocation = std::make_unique<CompilerInvocation>();
+  // -idirafter dirs are searched after -I.
+  std::vector<std::string> Idirafter;
+
   for (int Idx = 1; Idx < Argc; ++Idx) {
     std::string_view Arg = Argv[Idx];
     if (Arg == "--help")
@@ -115,6 +118,15 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-idirafter") {
+      if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
+        Invocation->ErrMsg = "missing path after '-idirafter'";
+        return Invocation;
+      }
+      Idirafter.emplace_back(Argv[++Idx]);
+      continue;
+    }
+
     if (Arg == "-D") {
       if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
         Invocation->ErrMsg = "missing macro after '-D'";
@@ -178,6 +190,10 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
 
     Invocation->Inputs.push_back(Argv[Idx]);
   }
+
+  // Append -idirafter paths after -I so they are searched later.
+  for (std::string &Dir : Idirafter)
+    Invocation->IncludePaths.push_back(std::move(Dir));
 
   if (Invocation->Inputs.empty())
     Invocation->ErrMsg = "no input files";

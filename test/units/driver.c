@@ -81,6 +81,12 @@
 // RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f1(); }' | rcc -o- -S - | grep -q f2:
 // RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f2(); }' | rcc -o- -S - | grep -q f1:
 // RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f2(); }' | rcc -o- -S - | grep -q f2:
+// [263] Add -idirafter option
+// RUN: mkdir -p %t.dir1 %t.dir2
+// RUN: echo foo > %t.dir1/idirafter
+// RUN: echo bar > %t.dir2/idirafter
+// RUN: echo '#include "idirafter"' | rcc -I%t.dir1 -I%t.dir2 -E - | grep -q foo
+// RUN: echo '#include "idirafter"' | rcc -idirafter %t.dir1 -I%t.dir2 -E - | grep -q bar
 // RUN: rcc --help
 
 int main() {
