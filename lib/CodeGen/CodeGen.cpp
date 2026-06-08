@@ -3,6 +3,7 @@
 #include "AST/Stmt.h"
 #include "AST/Type.h"
 #include "Basic/Diagnostic.h"
+#include "Basic/Linkage.h"
 #include "Support/Allocator.h"
 #include "Support/Casting.h"
 #include "Support/Unreachable.h"
@@ -322,6 +323,8 @@ void CodeGen::codegen(const TranslationUnitDecl *TU, const char *Input) {
   emit(".file 1 \"{}\"", Input);
   emitText(TU);
   emitData(TU);
+  // Global initializers may reference deferred functions.
+  emitDeferred();
 }
 
 int CodeGen::simpleLog2(int Num) {
@@ -388,6 +391,7 @@ namespace {
 struct GlobalInitValue {
   std::string Label;
   std::int64_t Addend = 0;
+  const FunctionDecl *Func = nullptr;
 
   bool hasLabel() const { return !Label.empty(); }
 };
@@ -429,7 +433,7 @@ static std::optional<GlobalInitValue> evalGlobalAddress(const Expr *E) {
       return GlobalInitValue{Var->getName(), 0};
     }
     if (const auto *Func = dynCast<FunctionDecl>(VD))
-      return GlobalInitValue{Func->getName(), 0};
+      return GlobalInitValue{Func->getName(), 0, Func};
     return std::nullopt;
   }
   case Stmt::SK_CompoundLiteralExpr: {
@@ -670,6 +674,8 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
       emit("  .8byte {}+{}", GlobalVal->Label, GlobalVal->Addend);
     else
       emit("  .8byte {}{}", GlobalVal->Label, GlobalVal->Addend);
+    if (GlobalVal->Func)
+      noteDeferredUse(GlobalVal->Func);
     return;
   }
 
@@ -1131,11 +1137,46 @@ void CodeGen::emitScalarData(std::size_t Offset, std::size_t Size,
 }
 
 void CodeGen::emitText(const TranslationUnitDecl *TU) {
-  for (const auto *D : TU->decls()) {
-    if (const auto *FD = dynCast<FunctionDecl>(D)) {
-      genFunction(FD);
-    }
+
+  for (const Decl *D : TU->decls()) {
+    const auto *FD = dynCast<FunctionDecl>(D);
+    if (!FD || !FD->getBody())
+      continue;
+    if (mustBeEmitted(FD))
+      addDeferredDeclToEmit(FD);
+    else
+      DeferredDecls[FD->getName()] = FD;
   }
+  emitDeferred();
+}
+
+bool CodeGen::mustBeEmitted(const FunctionDecl *FD) {
+  return FD->getLinkage() != Linkage::InternalLinkage ||
+         !FD->isInlineSpecified();
+}
+
+void CodeGen::addDeferredDeclToEmit(const FunctionDecl *FD) {
+  DeferredDeclsToEmit.push_back(FD);
+}
+
+void CodeGen::noteDeferredUse(const FunctionDecl *FD) {
+  if (!FD)
+    return;
+  auto It = DeferredDecls.find(FD->getName());
+  if (It == DeferredDecls.end())
+    return;
+  addDeferredDeclToEmit(It->second);
+  DeferredDecls.erase(It);
+}
+
+void CodeGen::emitDeferred() {
+  for (std::size_t I = 0; I < DeferredDeclsToEmit.size(); ++I) {
+    const FunctionDecl *FD = DeferredDeclsToEmit[I];
+    if (!EmittedDecls.insert(FD).second)
+      continue;
+    genFunction(FD);
+  }
+  DeferredDeclsToEmit.clear();
 }
 
 void CodeGen::genFunction(const FunctionDecl *FD) {
@@ -2752,6 +2793,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   }
 
   if (Func) {
+    noteDeferredUse(Func);
     const std::string &Name = Func->getName();
     emit("  # call {}", Name);
     emit("  call {}", Name);
@@ -2946,6 +2988,7 @@ void CodeGen::genAddr(const ArraySubscriptExpr *ASE) {
 
 void CodeGen::genAddr(const Decl *D) {
   if (const auto *FD = dynCast<FunctionDecl>(D)) {
+    noteDeferredUse(FD);
     emit("  # genAddr func {}", FD->getName());
     emit("  la a0, {}", FD->getName());
     return;

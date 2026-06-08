@@ -222,6 +222,12 @@ public:
   unsigned getNumParams() const { return Params.size(); }
   const ParamVarDecl *getParam(unsigned Index) const { return Params[Index]; }
 
+  bool isInlineSpecified() const { return IsInline; }
+  void setInlineSpecified(bool V = true) { IsInline = V; }
+
+  bool isUsed() const { return IsUsed; }
+  void markUsed();
+
 protected:
   FunctionDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                SourceLocation EndLoc, QualType T, std::string Name, Stmt *Body);
@@ -230,6 +236,8 @@ private:
   Stmt *Body = nullptr;
   std::vector<ParamVarDecl *> Params;
   std::vector<VarDecl *> LocalVars; // Temporary handling.
+  bool IsInline = false;
+  bool IsUsed = false;
 };
 
 class RecordDecl;

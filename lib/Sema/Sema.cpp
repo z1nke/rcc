@@ -913,6 +913,8 @@ FunctionDecl *Sema::actOnFunctionDecl(ASTContext &Ctx, const DeclSpec &DS,
   CurrScope = Enclosing;
   addDecl(Func);
   CurrScope = FnSc;
+  if (DS.isInlineSpecified())
+    Func->setInlineSpecified();
   // Treat inline (without extern) like static: internal linkage.
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Static ||
       (DS.isInlineSpecified() &&
@@ -1781,6 +1783,9 @@ Expr *Sema::actOnDeclRefExpr(SourceLocation BegLoc, SourceLocation EndLoc,
   auto *ND = findValueDecl(Ident);
   if (!ND)
     Diag.fatalAt(BegLoc, "undeclared variable '{}'", Ident.data());
+
+  if (auto *FD = dynCast<FunctionDecl>(ND))
+    FD->markUsed();
 
   return DeclRefExpr::create(Ctx, BegLoc, EndLoc, ND->getType(), ND);
 }

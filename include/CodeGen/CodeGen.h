@@ -5,7 +5,9 @@
 
 #include <cstdint>
 #include <print>
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace rcc {
@@ -26,6 +28,11 @@ public:
 private:
   void emitData(const TranslationUnitDecl *TU);
   void emitText(const TranslationUnitDecl *TU);
+
+  static bool mustBeEmitted(const FunctionDecl *FD);
+  void addDeferredDeclToEmit(const FunctionDecl *FD);
+  void noteDeferredUse(const FunctionDecl *FD);
+  void emitDeferred();
 
 private:
   void genFunction(const FunctionDecl *FD);
@@ -154,6 +161,9 @@ private:
   std::vector<const StringLiteral *> StringLiterals;
   std::unordered_map<const StringLiteral *, std::string> SLCache;
   std::unordered_map<const VarDecl *, std::string> StaticLocalNames;
+  std::unordered_map<std::string, const FunctionDecl *> DeferredDecls;
+  std::vector<const FunctionDecl *> DeferredDeclsToEmit;
+  std::unordered_set<const FunctionDecl *> EmittedDecls;
   unsigned AnonGVarId = 0;
   FILE *Fp;
 };

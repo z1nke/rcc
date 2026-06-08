@@ -88,6 +88,12 @@ void FunctionDecl::setLocalVars(std::vector<VarDecl *> Vars) {
   LocalVars = std::move(Vars);
 }
 
+void FunctionDecl::markUsed() {
+  if (IsUsed)
+    return;
+  IsUsed = true;
+}
+
 FieldDecl::FieldDecl(ASTContext &Ctx, SourceLocation Loc, SourceLocation BegLoc,
                      SourceLocation EndLoc, QualType T, std::string Name,
                      RecordDecl *Parent)

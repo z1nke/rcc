@@ -68,6 +68,19 @@
 // RUN: echo 'int foo(); int main() { foo(); }' > %t.extinline2.c
 // RUN: rcc -o %t.extinline %t.extinline1.c %t.extinline2.c
 // RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.extinline
+// [261] Do not emit static inline functions if referenced by no one
+// RUN: echo 'static inline void f1() {}' | rcc -o- -S - | grep -v -q f1:
+// RUN: echo 'static inline void f1() {} void foo() { f1(); }' | rcc -o- -S - | grep -q f1:
+// RUN: echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f1(); }' | rcc -o- -S - | grep -q f1:
+// RUN: echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f1(); }' | rcc -o- -S - | grep -v -q f2:
+// RUN: echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f2(); }' | rcc -o- -S - | grep -q f1:
+// RUN: echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f2(); }' | rcc -o- -S - | grep -q f2:
+// RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() {}' | rcc -o- -S - | grep -v -q f1:
+// RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() {}' | rcc -o- -S - | grep -v -q f2:
+// RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f1(); }' | rcc -o- -S - | grep -q f1:
+// RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f1(); }' | rcc -o- -S - | grep -q f2:
+// RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f2(); }' | rcc -o- -S - | grep -q f1:
+// RUN: echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f2(); }' | rcc -o- -S - | grep -q f2:
 // RUN: rcc --help
 
 int main() {
