@@ -2517,7 +2517,8 @@ void CodeGen::genBinaryConditionalOperator(
   const Expr *Common = BCO->getCommon();
   QualType CommonTy = Common->getType();
   genExpr(Common);
-  // Common's value stays in a0/fa0; emitIsNotZero only writes the boolean to a0.
+  // Common's value stays in a0/fa0; emitIsNotZero only writes the boolean to
+  // a0.
   emitIsNotZero(CommonTy.getTypePtr());
   emit("  beqz a0, .L.else.{}", Count);
   if (CommonTy != BCO->getType())
@@ -3016,13 +3017,14 @@ void CodeGen::genAddr(const StringLiteral *SL) {
 void CodeGen::genAddr(const MemberExpr *ME) {
   emit("  # get address of member expr");
   const auto *Base = ME->getBase();
-  genAddr(Base); // a0 = addrof base
-  if (ME->isArrow()) {
-    emit("  # deref base of arrow member expr");
-    load(Base->getTypePtr()); // a0 = *a0
-  }
+  // Base is a pointer rvalue: address = base + offset.
+  if (ME->isArrow())
+    genExpr(Base); // a0 = base
+  else
+    genAddr(Base); // a0 = addrof base
+
   emit("  li t0, {}", ME->getMemberDecl()->getOffset()); // t0 = offset
-  emit("  add a0, a0, t0"); // a0 = addrof base + offset
+  emit("  add a0, a0, t0");                              // a0 = a0 + offset
 }
 
 void CodeGen::pushStructArg(const Type *Ty, bool OnStack) {
