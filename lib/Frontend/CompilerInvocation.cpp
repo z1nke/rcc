@@ -76,6 +76,16 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-fcommon") {
+      Invocation->EmitCommon = true;
+      continue;
+    }
+
+    if (Arg == "-fno-common") {
+      Invocation->EmitCommon = false;
+      continue;
+    }
+
     if (Arg == "-E") {
       Invocation->PreprocessOnly = true;
       continue;

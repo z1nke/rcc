@@ -356,9 +356,9 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
       std::size_t Align = getVarEmitAlign(Var);
       emit("  .align {}", simpleLog2(static_cast<int>(Align)));
 
-      // Tentative definitions become common symbols (zero-initialized,
-      // mergeable with a strong definition in another TU).
-      if (Var->isTentative()) {
+      // Tentative definitions become common symbols when -fcommon is enabled
+      // (the default). With -fno-common they are regular .bss definitions.
+      if (EmitCommon && Var->isTentative()) {
         const auto &VarSym = getVarSymbol(Var);
         std::size_t Size = Var->getType()->getSize();
         emit("  .comm {}, {}, {}", VarSym, Size, Align);

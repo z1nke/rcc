@@ -23,6 +23,8 @@ class CodeGen {
 public:
   CodeGen(Diagnostic &Diag, FILE *Fp);
 
+  void setEmitCommon(bool V) { EmitCommon = V; }
+
   void codegen(const TranslationUnitDecl *TU, const char *Input);
 
 private:
@@ -165,6 +167,7 @@ private:
   std::vector<const FunctionDecl *> DeferredDeclsToEmit;
   std::unordered_set<const FunctionDecl *> EmittedDecls;
   unsigned AnonGVarId = 0;
+  bool EmitCommon = true;
   FILE *Fp;
 };
 

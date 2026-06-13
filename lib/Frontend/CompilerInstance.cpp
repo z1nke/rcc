@@ -94,6 +94,7 @@ void CompilerInstance::run() {
     Diag->fatal("open_memstream failed");
 
   CodeGen CG(*Diag, OutputBuf);
+  CG.setEmitCommon(Invocation->shouldEmitCommon());
   CG.codegen(TU, Input);
   std::fclose(OutputBuf);
 

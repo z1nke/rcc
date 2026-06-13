@@ -36,6 +36,8 @@ public:
   bool shouldEmitAssembly() const { return EmitAssembly; }
   bool shouldPreprocessOnly() const { return PreprocessOnly; }
   bool shouldPrintCommands() const { return PrintCommands; }
+  /// Emit tentative definitions as common symbols (default true).
+  bool shouldEmitCommon() const { return EmitCommon; }
 
 private:
   std::vector<const char *> Inputs;
@@ -50,6 +52,7 @@ private:
   bool EmitAssembly = false;
   bool PreprocessOnly = false;
   bool PrintCommands = false;
+  bool EmitCommon = true;
 };
 
 } // namespace rcc

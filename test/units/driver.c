@@ -87,6 +87,10 @@
 // RUN: echo bar > %t.dir2/idirafter
 // RUN: echo '#include "idirafter"' | rcc -I%t.dir1 -I%t.dir2 -E - | grep -q foo
 // RUN: echo '#include "idirafter"' | rcc -idirafter %t.dir1 -I%t.dir2 -E - | grep -q bar
+// [266] Add -fcommon and -fno-common
+// RUN: echo 'int foo;' | rcc -S -o- - | grep -q '\.comm foo'
+// RUN: echo 'int foo;' | rcc -fcommon -S -o- - | grep -q '\.comm foo'
+// RUN: echo 'int foo;' | rcc -fno-common -S -o- - | grep -q '^foo:'
 // RUN: rcc --help
 
 int main() {
