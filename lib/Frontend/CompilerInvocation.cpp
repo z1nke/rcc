@@ -253,6 +253,10 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
   if (Invocation->Inputs.empty())
     Invocation->ErrMsg = "no input files";
 
+  // -E implies -xc: treat input as C regardless of prior -x.
+  if (Invocation->PreprocessOnly)
+    Invocation->ForcedFileType = FileType::C;
+
   return Invocation;
 }
 

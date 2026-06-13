@@ -100,6 +100,8 @@
 // RUN: echo 'x:' | rcc -c -x assembler -o %t.foo.o -
 // RUN: echo 'int x;' > %t.foo.c
 // RUN: rcc -c -x assembler -x none -o %t.foo.o %t.foo.c
+// [270] Make -E imply -xc
+// RUN: echo foo | rcc -E - | grep -q foo
 // RUN: rcc --help
 
 int main() {
