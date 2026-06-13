@@ -170,6 +170,14 @@ static const VarDecl *findVaAreaVar(const FunctionDecl *FD) {
   return nullptr;
 }
 
+static const VarDecl *findAllocaBottomVar(const FunctionDecl *FD) {
+  for (const VarDecl *Var : FD->getLocalVars()) {
+    if (Var->getName() == "__alloca_size__")
+      return Var;
+  }
+  return nullptr;
+}
+
 static const VarDecl *findSretVar(const FunctionDecl *FD) {
   for (const VarDecl *Var : FD->getLocalVars()) {
     if (Var->getName() == "__sret__")
@@ -1251,6 +1259,14 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     emit("  add sp, sp, t0");
   }
 
+  // Seed AllocaBottom with the current sp (start of the dynamic region).
+  if (const VarDecl *AllocaBottom = findAllocaBottomVar(FD)) {
+    emit("  # store current sp into AllocaBottom");
+    emit("  li t0, {}", AllocaBottom->getOffset());
+    emit("  add t0, t0, fp");
+    emit("  sd sp, 0(t0)");
+  }
+
   // Save register-passed arguments from a*/fa* into the stack frame.
   // Fully stack-passed params (Offset > 0) stay in the caller's argument area.
   // Half-by-stack structs are reconstructed into a local slot.
@@ -2316,7 +2332,11 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
 
   QualType LType = LHS->getType();
   QualType RType = RHS->getType();
-  const char *Suffix = LType->getSize() <= 4 ? "w" : "";
+  // RV64 pointer arithmetic must use 64-bit add/sub. Prefer the expression
+  // result type so that e.g. `1 + (char *)p` does not emit addw.
+  QualType ResType = BO->getType();
+  const char *Suffix =
+      (!ResType->isPointerType() && ResType->getSize() <= 4) ? "w" : "";
 
   if (BO->isCompoundAssign()) {
     // A op= B  =>  A = (typeof A)((common)A op (common)B)
@@ -2677,10 +2697,59 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   }
 }
 
+void CodeGen::emitBuiltinAlloca() {
+  const VarDecl *AllocaBottom = findAllocaBottomVar(CurrFunc);
+  assert(AllocaBottom && "missing __alloca_size__ for alloca");
+  int BottomOff = AllocaBottom->getOffset();
+  int Count = getCount();
+
+  // Align requested size in t1 up to 16 bytes.
+  emit("  addi t1, t1, 15");
+  emit("  andi t1, t1, -16");
+
+  // t2 = AllocaBottom - sp (bytes between old bottom and current sp).
+  emit("  li t0, {}", BottomOff);
+  emit("  add t0, fp, t0");
+  emit("  ld t2, 0(t0)");
+  emit("  sub t2, t2, sp");
+
+  // Allocate: return value is the old sp; then lower sp by t1.
+  emit("  mv a0, sp");
+  emit("  sub sp, sp, t1");
+  emit("  mv t3, sp");
+
+  // Shift the [old sp, AllocaBottom) contents down onto the new sp.
+  emit(".L.alloca.copy.{}:", Count);
+  emit("  beqz t2, .L.alloca.end.{}", Count);
+  emit("  lb t0, 0(a0)");
+  emit("  sb t0, 0(t3)");
+  emit("  addi a0, a0, 1");
+  emit("  addi t3, t3, 1");
+  emit("  addi t2, t2, -1");
+  emit("  j .L.alloca.copy.{}", Count);
+  emit(".L.alloca.end.{}:", Count);
+
+  // Update AllocaBottom and leave the allocated pointer in a0.
+  emit("  li t0, {}", BottomOff);
+  emit("  add t0, fp, t0");
+  emit("  ld a0, 0(t0)");
+  emit("  sub a0, a0, t1");
+  emit("  sd a0, 0(t0)");
+}
+
 void CodeGen::genCallExpr(const CallExpr *CE) {
+  const auto *Func = CE->getCalleeDecl();
+  // Builtin alloca: grow the stack frame dynamically.
+  if (Func && Func->getName() == "alloca") {
+    assert(CE->getNumArgs() >= 1 && "alloca requires a size argument");
+    genExpr(CE->getArg(0));
+    emit("  mv t1, a0");
+    emitBuiltinAlloca();
+    return;
+  }
+
   const auto *FT = CE->getCalleeFunctionType();
   assert(FT);
-  const auto *Func = CE->getCalleeDecl();
   const unsigned NumParams = Func ? Func->getNumParams() : FT->getNumParams();
   const bool IsVariadic = FT->isVariadic();
   const VarDecl *RetBuf = CE->getRetBuffer();

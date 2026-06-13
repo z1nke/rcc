@@ -238,7 +238,7 @@ static void applyDesignation(InitTree &Node,
                              unsigned DesigPos, Expr *Init,
                              const InitListExpr *ParentList, unsigned &ListIdx,
                              Diagnostic &Diag, ASTContext &Ctx) {
-  // designation = ("[" const-expr "]" | "." ident)* "="? initializer
+  // designation: ("[" const-expr "]" | "." ident)* "="? initializer
   if (DesigPos == Desigs.size()) {
     if (isa<InitListExpr>(Init)) {
       fillTreeFromExpr(Node, Init, Diag, Ctx);
@@ -980,6 +980,14 @@ void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
     addDecl(Sret);
   }
 
+  // Track the bottom of the dynamic alloca region (updated by builtin alloca).
+  QualType AllocaPtrTy = Ctx.getPointerType(Ctx.CharTy);
+  auto *AllocaBottom =
+      VarDecl::create(Ctx, FD->getLocation(), FD->getBeginLoc(),
+                      FD->getEndLoc(), AllocaPtrTy, "__alloca_size__");
+  LocalVars.push_back(AllocaBottom);
+  addDecl(AllocaBottom);
+
   if (!FT->isVariadic())
     return;
 
@@ -990,6 +998,21 @@ void Sema::actOnStartOfFunctionBody(FunctionDecl *FD) {
                                     FD->getEndLoc(), ArrTy, "__va_area__");
   LocalVars.push_back(VaArea);
   addDecl(VaArea);
+}
+
+void Sema::declareBuiltinFunctions() {
+  // void *alloca(int);
+  QualType RetTy = Ctx.getPointerType(Ctx.VoidTy);
+  QualType FT = Ctx.getFunctionType(RetTy, {Ctx.IntTy}, /*IsVariadic=*/false);
+  auto *BuiltinAlloca = FunctionDecl::create(
+      Ctx, SourceLocation(), SourceLocation(), SourceLocation(), FT, "alloca",
+      /*Body=*/nullptr);
+  auto *Param = ParamVarDecl::create(Ctx, SourceLocation(), SourceLocation(),
+                                     SourceLocation(), Ctx.IntTy, "",
+                                     /*Index=*/0);
+  BuiltinAlloca->setParams({Param});
+  addDecl(BuiltinAlloca);
+  TU->addDecl(BuiltinAlloca);
 }
 
 TagDecl *Sema::actOnTagDecl(SourceLocation Loc, SourceLocation BegLoc,

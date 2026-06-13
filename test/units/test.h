@@ -21,3 +21,6 @@ int vsprintf(char *buf, char *fmt, void *ap);
 
 // [221] Add __DATE__ and __TIME__ macros
 long strlen(char *s);
+
+// [271] Add alloca()
+void *memcpy(void *dest, void *src, long n);

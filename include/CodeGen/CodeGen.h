@@ -66,6 +66,7 @@ private:
                                   QualType RType, const char *Suffix);
   void genUnaryOperator(const UnaryOperator *UO);
   void genCallExpr(const CallExpr *CE);
+  void emitBuiltinAlloca();
   void genArraySubscriptExpr(const ArraySubscriptExpr *ASE);
   void genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE);
   void genCastExpr(const CastExpr *Cast);

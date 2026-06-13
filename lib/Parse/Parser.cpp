@@ -26,6 +26,7 @@ Parser::~Parser() { exitScope(); }
 TranslationUnitDecl *Parser::parse() {
   auto *TU = TranslationUnitDecl::create(Ctx);
   S.TU = TU;
+  S.declareBuiltinFunctions();
   while (CurTok->isNot(Token::TK_EOF))
     parseExternalDecl(TU);
 
@@ -736,7 +737,7 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       DS.setRepDecl(parseEnumDecl());
       break;
     case Token::TK_Typeof: {
-      // typeof-specifier = "typeof" "(" (expr | type-name) ")"
+      // typeof-specifier = 'typeof' '(' (expr | type-name) ')'
       skip();
       skip(Token::TK_LParen);
       QualType T;
@@ -853,8 +854,7 @@ Expr *Parser::parseInitExpr() {
   skip(Token::TK_LBrace);
   std::vector<Expr *> Inits;
   while (CurTok->isNot(Token::TK_RBrace)) {
-    // designation = ("[" constant-expression "]" | "." identifier)+ "="?
-    //                initializer
+    // designation = ('[' constant-expr ']' | '.' identifier)+ '='? initializer
     if (CurTok->isOneOf(Token::TK_LSquare, Token::TK_Dot)) {
       SourceLocation DesigBeg = SM.createBeginLocation(CurTok);
       std::vector<Designator> Designators;
@@ -881,7 +881,7 @@ Expr *Parser::parseInitExpr() {
           skip();
         }
       }
-      tryConsume(Token::TK_Equal); // GNU: "=" may be omitted
+      tryConsume(Token::TK_Equal); // GNU: '=' may be omitted
       Expr *Init = parseInitExpr();
       Inits.push_back(DesignatedInitExpr::create(
           Ctx, DesigBeg, Init->getEndLoc(), std::move(Designators), Init));
@@ -1290,8 +1290,8 @@ Expr *Parser::parseUnaryExpr() {
     return S.actOnUnaryExprOrTypeTraitExpr(BegLoc, Ex);
   }
 
-  // "_Alignof" "(" type-name ")"
-  // "_Alignof" unary-expr
+  // '_Alignof' '(' type-name ')'
+  // '_Alignof' unary-expr
   if (CurTok->is(Token::TK_Alignof)) {
     auto BegLoc = SM.createBeginLocation(CurTok);
     skip();
@@ -1607,9 +1607,11 @@ Expr *Parser::parsePrimaryExpr() {
   return nullptr;
 }
 
-// generic-selection = "(" assign-expr "," generic-assoc { "," generic-assoc }* ")"
-// generic-assoc = type-name ":" assign-expr
-//               | "default" ":" assign-expr
+// generic-selection = '(' assign-expr ',' generic-assoc-list ')'
+// generic-assoc-list: generic-assoc
+//                   | generic-assoc-list ',' generic-assoc
+// generic-assoc : type-name ':' assign-expr
+//               | 'default' ':' assign-expr
 Expr *Parser::parseGenericSelection() {
   SourceLocation BegLoc = SM.createBeginLocation(CurTok);
   skip(Token::TK_Generic);
