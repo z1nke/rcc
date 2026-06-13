@@ -9,6 +9,14 @@
 
 namespace rcc {
 
+/// Language / file kind forced by -x (driver).
+enum class FileType {
+  None,
+  C,
+  Assembler,
+  Object,
+};
+
 class CompilerInvocation {
 public:
   static std::unique_ptr<CompilerInvocation> create(int Argc, char **Argv);
@@ -41,6 +49,7 @@ public:
   bool shouldPrintCommands() const { return PrintCommands; }
   /// Emit tentative definitions as common symbols (default true).
   bool shouldEmitCommon() const { return EmitCommon; }
+  FileType getForcedFileType() const { return ForcedFileType; }
 
 private:
   std::vector<const char *> Inputs;
@@ -57,6 +66,7 @@ private:
   bool PreprocessOnly = false;
   bool PrintCommands = false;
   bool EmitCommon = true;
+  FileType ForcedFileType = FileType::None;
 };
 
 } // namespace rcc

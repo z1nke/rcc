@@ -95,6 +95,11 @@
 // RUN: echo foo > %t.out.h
 // RUN: echo bar | rcc -include %t.out.h -E -o- - | grep -q -z 'foo.*bar'
 // RUN: echo NULL | rcc -include stddef.h -E -o- - | grep -q 0
+// [269] Add -x
+// RUN: echo 'int x;' | rcc -c -xc -o %t.foo.o -
+// RUN: echo 'x:' | rcc -c -x assembler -o %t.foo.o -
+// RUN: echo 'int x;' > %t.foo.c
+// RUN: rcc -c -x assembler -x none -o %t.foo.o %t.foo.c
 // RUN: rcc --help
 
 int main() {

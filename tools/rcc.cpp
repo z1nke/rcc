@@ -179,6 +179,23 @@ static std::string replaceExtension(const char *Input,
   return Filename.string();
 }
 
+static FileType getFileType(const char *Filename, FileType Forced) {
+  std::string Extension = std::filesystem::path(Filename).extension().string();
+  if (Extension == ".o")
+    return FileType::Object;
+
+  // -x overrides the extension (except for .o above).
+  if (Forced != FileType::None)
+    return Forced;
+
+  if (Extension == ".c" || std::strcmp(Filename, "-") == 0)
+    return FileType::C;
+  if (Extension == ".s")
+    return FileType::Assembler;
+
+  return FileType::None;
+}
+
 class TempFile {
 public:
   TempFile() {
@@ -257,15 +274,14 @@ int main(int Argc, char **Argv) {
   std::vector<std::string> LinkerInputs;
 
   for (const char *Input : Inputs) {
-    std::filesystem::path InputPath(Input);
-    std::string Extension = InputPath.extension().string();
+    FileType Ty = getFileType(Input, Invocation->getForcedFileType());
 
-    if (Extension == ".o") {
+    if (Ty == FileType::Object) {
       LinkerInputs.emplace_back(Input);
       continue;
     }
 
-    if (Extension == ".s") {
+    if (Ty == FileType::Assembler) {
       if (EmitAssembly)
         continue;
 
@@ -287,7 +303,7 @@ int main(int Argc, char **Argv) {
       continue;
     }
 
-    if (Extension != ".c" && std::strcmp(Input, "-") != 0) {
+    if (Ty != FileType::C) {
       std::println(stderr, "unknown file extension: {}", Input);
       return 1;
     }

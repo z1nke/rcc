@@ -14,6 +14,24 @@ static void usage(int Status) {
   std::exit(Status);
 }
 
+static bool parseFileType(std::string_view S, FileType &Out,
+                          std::string &ErrMsg) {
+  if (S == "c") {
+    Out = FileType::C;
+    return true;
+  }
+  if (S == "assembler") {
+    Out = FileType::Assembler;
+    return true;
+  }
+  if (S == "none") {
+    Out = FileType::None;
+    return true;
+  }
+  ErrMsg = std::format("unknown argument for -x: {}", S);
+  return false;
+}
+
 void CompilerInvocation::addDefaultIncludePaths(const char *Argv0) {
   // dirname(argv[0])/include — used by tests and local overrides.
   std::filesystem::path ArgvPath = Argv0;
@@ -143,6 +161,24 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
         return Invocation;
       }
       Invocation->ForcedIncludes.emplace_back(Argv[++Idx]);
+      continue;
+    }
+
+    if (Arg == "-x") {
+      if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
+        Invocation->ErrMsg = "missing argument after '-x'";
+        return Invocation;
+      }
+      if (!parseFileType(Argv[++Idx], Invocation->ForcedFileType,
+                         Invocation->ErrMsg))
+        return Invocation;
+      continue;
+    }
+
+    if (Arg.starts_with("-x")) {
+      if (!parseFileType(Arg.substr(2), Invocation->ForcedFileType,
+                         Invocation->ErrMsg))
+        return Invocation;
       continue;
     }
 
