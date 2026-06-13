@@ -137,6 +137,15 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    if (Arg == "-include") {
+      if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
+        Invocation->ErrMsg = "missing filename after '-include'";
+        return Invocation;
+      }
+      Invocation->ForcedIncludes.emplace_back(Argv[++Idx]);
+      continue;
+    }
+
     if (Arg == "-D") {
       if (Idx + 1 >= Argc || !Argv[Idx + 1]) {
         Invocation->ErrMsg = "missing macro after '-D'";

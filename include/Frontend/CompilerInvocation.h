@@ -27,6 +27,9 @@ public:
   const std::vector<std::string> &getIncludePaths() const {
     return IncludePaths;
   }
+  const std::vector<std::string> &getForcedIncludes() const {
+    return ForcedIncludes;
+  }
   const std::vector<CommandLineMacro> &getCommandLineMacros() const {
     return CommandLineMacros;
   }
@@ -42,6 +45,7 @@ public:
 private:
   std::vector<const char *> Inputs;
   std::vector<std::string> IncludePaths;
+  std::vector<std::string> ForcedIncludes;
   std::vector<CommandLineMacro> CommandLineMacros;
   std::string CC1InputPath;
   std::string OutputPath;

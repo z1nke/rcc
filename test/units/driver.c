@@ -91,6 +91,10 @@
 // RUN: echo 'int foo;' | rcc -S -o- - | grep -q '\.comm foo'
 // RUN: echo 'int foo;' | rcc -fcommon -S -o- - | grep -q '\.comm foo'
 // RUN: echo 'int foo;' | rcc -fno-common -S -o- - | grep -q '^foo:'
+// [268] Add -include
+// RUN: echo foo > %t.out.h
+// RUN: echo bar | rcc -include %t.out.h -E -o- - | grep -q -z 'foo.*bar'
+// RUN: echo NULL | rcc -include stddef.h -E -o- - | grep -q 0
 // RUN: rcc --help
 
 int main() {

@@ -6,18 +6,33 @@
 #include "Frontend/CompilerInvocation.h"
 #include "Lex/Lexer.h"
 #include "Lex/Preprocessor.h"
+#include "Lex/Token.h"
 #include "Parse/Parser.h"
 #include "Sema/Sema.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <memory>
+#include <string>
+#include <system_error>
 
 namespace rcc {
 
 CompilerInstance::CompilerInstance() = default;
 CompilerInstance::~CompilerInstance() = default;
+
+static Token *appendTokens(Token *Tok1, Token *Tok2) {
+  if (!Tok1 || Tok1->is(Token::TK_EOF))
+    return Tok2;
+
+  Token *Last = Tok1;
+  while (Last->getNext()->isNot(Token::TK_EOF))
+    Last = Last->getNext();
+  Last->setNext(Tok2);
+  return Tok1;
+}
 
 static void printTokens(Token *Toks, FILE *Fp) {
   bool IsFirst = true;
@@ -62,11 +77,33 @@ void CompilerInstance::run() {
 
   Lexer TheLexer(*Diag);
   const char *Input = Invocation->getCC1InputPath();
-  Token *Toks = TheLexer.tokenizeFile(Input);
-  if (!Toks)
-    Diag->fatal("tokenize failed");
   Preprocessor PP(*Diag, TheLexer, Invocation->getIncludePaths(),
                   Invocation->getCommandLineMacros(), Input);
+
+  // -include: tokenize forced headers before the main input (like #include).
+  Token *Toks = nullptr;
+  for (const std::string &Incl : Invocation->getForcedIncludes()) {
+    std::string Path;
+    std::error_code EC;
+    if (std::filesystem::exists(Incl, EC) && !EC) {
+      Path = Incl;
+    } else {
+      Path = PP.searchIncludePaths(Incl);
+      if (Path.empty())
+        Diag->fatal("-include: {}: No such file or directory", Incl);
+    }
+
+    Token *Included = TheLexer.tokenizeFile(Path.c_str());
+    if (!Included)
+      Diag->fatal("tokenize failed: {}", Path);
+    Toks = appendTokens(Toks, Included);
+  }
+
+  Token *MainToks = TheLexer.tokenizeFile(Input);
+  if (!MainToks)
+    Diag->fatal("tokenize failed");
+  Toks = appendTokens(Toks, MainToks);
+
   Toks = PP.preprocess(Toks);
   if (!Toks)
     Diag->fatal("preprocess failed");

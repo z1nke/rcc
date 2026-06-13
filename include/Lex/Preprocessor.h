@@ -26,6 +26,9 @@ public:
 
   Token *preprocess(Token *Toks);
 
+  /// Search -I / system include dirs for \p Filename. Empty if not found.
+  std::string searchIncludePaths(const std::string &Filename) const;
+
 private:
   Token *joinAdjacentStringLiterals(Token *Toks);
   struct MacroExpansionFrame {
@@ -54,7 +57,6 @@ private:
   static Token *handleTimestampMacro(Preprocessor &PP, Token *Tmpl);
   static Token *handleBaseFileMacro(Preprocessor &PP, Token *Tmpl);
   std::string readIncludeFilename(Token *&Rest, Token *Tok, bool &IsDquote);
-  std::string searchIncludePaths(const std::string &Filename) const;
   Token *includeFile(Token *Rest, const std::string &Path, Token *FilenameTok);
   bool expandMacro(Token *&Rest, Token *Tok);
   Token *expandMacroExpression(Token *&Rest, Token *Toks);
