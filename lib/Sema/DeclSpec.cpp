@@ -34,6 +34,9 @@ void DeclSpec::setStorageClassSpec(StorageClassSpec S, SourceLocation Loc) {
 
   if (S == SCS_Typedef && IsInline)
     Diag.fatalAt(Loc, "typedef and inline may not be used together");
+  if (S == SCS_Typedef && IsThread)
+    Diag.fatalAt(Loc,
+                 "typedef and __thread/_Thread_local may not be used together");
 
   SCS = S;
   SCSLoc = Loc;
@@ -43,6 +46,13 @@ void DeclSpec::setInlineSpecified(SourceLocation Loc) {
   if (SCS == SCS_Typedef)
     Diag.fatalAt(Loc, "typedef and inline may not be used together");
   IsInline = true;
+}
+
+void DeclSpec::setThreadSpecified(SourceLocation Loc) {
+  if (SCS == SCS_Typedef)
+    Diag.fatalAt(Loc,
+                 "typedef and __thread/_Thread_local may not be used together");
+  IsThread = true;
 }
 
 void DeclSpec::setTypeSpecType(TypeSpecType T, SourceLocation Loc) {

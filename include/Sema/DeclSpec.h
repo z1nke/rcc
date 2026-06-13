@@ -86,6 +86,9 @@ public:
   bool isInlineSpecified() const { return IsInline; }
   void setInlineSpecified(SourceLocation Loc);
 
+  bool isThreadSpecified() const { return IsThread; }
+  void setThreadSpecified(SourceLocation Loc);
+
   static const char *getSpecifierName(StorageClassSpec S);
   static const char *getSpecifierName(TypeSpecType T);
   static const char *getSpecifierName(TypeSpecWidth T);
@@ -107,6 +110,7 @@ private:
   bool AlignasAllowed = false;
   std::size_t Align = 0;
   bool IsInline = false;
+  bool IsThread = false;
   Diagnostic &Diag;
 };
 

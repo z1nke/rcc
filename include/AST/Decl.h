@@ -170,6 +170,9 @@ public:
   bool isTentative() const { return IsTentative; }
   void setTentative(bool V = true) { IsTentative = V; }
 
+  bool isTLS() const { return IsTLS; }
+  void setTLS(bool V = true) { IsTLS = V; }
+
   std::size_t getAlign() const { return Align; }
   void setAlign(std::size_t Align) { this->Align = Align; }
 
@@ -186,6 +189,7 @@ private:
   bool IsStaticLocal = false;
   bool IsDefinition = true;
   bool IsTentative = false;
+  bool IsTLS = false;
   std::size_t Align = 0;
 };
 

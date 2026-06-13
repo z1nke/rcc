@@ -31,6 +31,7 @@ target_link_libraries(rcc
 set(RCC_RESOURCE_INCLUDE_DIR ${CMAKE_BINARY_DIR}/lib/rcc/include)
 set(RCC_C_HEADERS
   float.h
+  pthread.h
   stdalign.h
   stdarg.h
   stdbool.h

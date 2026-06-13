@@ -20,7 +20,7 @@ def main():
 
   run(f'riscv64-unknown-linux-gnu-gcc -c -xc {suite}/common -o {tmp2_o}')
   run(f'rcc -I{suite} -S -o {tmp_s} {src}')
-  run(f'riscv64-unknown-linux-gnu-gcc -static -o {tmp} {tmp_s} {tmp2_o}')
+  run(f'riscv64-unknown-linux-gnu-gcc -static -pthread -o {tmp} {tmp_s} {tmp2_o}')
   #run(f'qemu-riscv64 {tmp} | FileCheck {src}')
   run(f'qemu-riscv64 {tmp}')
 

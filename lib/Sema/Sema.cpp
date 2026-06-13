@@ -791,6 +791,8 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
         continue;
       if (std::size_t Align = DS.getAlign())
         Prev->setAlign(Align);
+      if (DS.isThreadSpecified())
+        Prev->setTLS();
       return Prev;
     }
   }
@@ -799,6 +801,8 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
                                  D.getEndLoc(), T, D.getIdent());
   if (std::size_t Align = DS.getAlign())
     Var->setAlign(Align);
+  if (DS.isThreadSpecified())
+    Var->setTLS();
 
   // Extern declarations are not definitions.
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Extern) {

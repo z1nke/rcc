@@ -113,8 +113,8 @@ std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
   // Non-static file-scope variables have external linkage.
   if (FirstVar->getLinkage() == Linkage::NoLinkage)
     FirstVar->setLinkage(Linkage::ExternalLinkage);
-  // No initializer and not extern => tentative definition.
-  if (FirstVar->isDefinition() && !FirstVar->getInit())
+  // No initializer and not extern/TLS => tentative definition.
+  if (FirstVar->isDefinition() && !FirstVar->getInit() && !FirstVar->isTLS())
     FirstVar->setTentative(true);
   else if (FirstVar->getInit())
     FirstVar->setTentative(false);
@@ -127,7 +127,7 @@ std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
     Var->setGlobalStorage(true);
     if (Var->getLinkage() == Linkage::NoLinkage)
       Var->setLinkage(Linkage::ExternalLinkage);
-    if (Var->isDefinition() && !Var->getInit())
+    if (Var->isDefinition() && !Var->getInit() && !Var->isTLS())
       Var->setTentative(true);
     else if (Var->getInit())
       Var->setTentative(false);
@@ -765,6 +765,11 @@ void Parser::parseDeclSpecs(DeclSpec &DS) {
       DS.setInlineSpecified(TyLoc);
       skip();
       break;
+    case Token::TK_ThreadLocal:
+    case Token::TK_GnuUThread:
+      DS.setThreadSpecified(TyLoc);
+      skip();
+      break;
     case Token::TK_Ident: {
       if (DS.hasTypeSpecifier())
         return;
@@ -1352,6 +1357,8 @@ bool Parser::isStorageClassSpec(const Token *Tok) {
   case Token::TK_Typedef:
   case Token::TK_Static:
   case Token::TK_Extern:
+  case Token::TK_ThreadLocal:
+  case Token::TK_GnuUThread:
     return true;
   default:
     return false;

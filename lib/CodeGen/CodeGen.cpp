@@ -365,7 +365,14 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
         continue;
       }
 
-      emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
+      if (Var->isTLS()) {
+        if (Var->getInit())
+          emit("  .section .tdata,\"awT\",@progbits");
+        else
+          emit("  .section .tbss,\"awT\",@nobits");
+      } else {
+        emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
+      }
       emitGlobalVarInit(Var, Var->getInit());
     }
   }
@@ -3011,6 +3018,15 @@ void CodeGen::genAddr(const Decl *D) {
     Diag.fatalAt(D->getBeginLoc(), "expect a variable");
 
   if (Var->hasGlobalStorage()) {
+    if (Var->isTLS()) {
+      // Local-exec TLS addressing (RISC-V).
+      const auto &Name = getVarSymbol(Var);
+      emit("  # genAddr tls {}", Name);
+      emit("  lui a0, %tprel_hi({})", Name);
+      emit("  add a0, a0, tp, %tprel_add({})", Name);
+      emit("  addi a0, a0, %tprel_lo({})", Name);
+      return;
+    }
     emit("  # genAddr gvar {}", getVarSymbol(Var));
     emit("  la a0, {}", getVarSymbol(Var));
   } else {
