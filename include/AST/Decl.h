@@ -166,6 +166,10 @@ public:
     this->IsDefinition = IsDefinition;
   }
 
+  /// File-scope declaration without initializer (C tentative definition).
+  bool isTentative() const { return IsTentative; }
+  void setTentative(bool V = true) { IsTentative = V; }
+
   std::size_t getAlign() const { return Align; }
   void setAlign(std::size_t Align) { this->Align = Align; }
 
@@ -181,6 +185,7 @@ private:
   bool IsGlobalStorage = false;
   bool IsStaticLocal = false;
   bool IsDefinition = true;
+  bool IsTentative = false;
   std::size_t Align = 0;
 };
 

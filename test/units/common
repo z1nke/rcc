@@ -22,6 +22,9 @@ int *ext2 = &ext1;
 int ext3 = 7;
 int ext_fn1(int x) { return x; }
 int ext_fn2(int x) { return x; }
+// [265] Add tentative definition
+int common_ext2 = 3;
+static int common_local;
 
 // [126] Handle a function returning bool, char or short
 int false_fn() { return 512; }

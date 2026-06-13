@@ -779,12 +779,27 @@ Decl *Sema::actOnDeclarator(Declarator &D) {
 }
 
 VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
+  const DeclSpec &DS = D.getDeclSpec();
+  const bool IsFileScope =
+      !CurrScopeDecl || !isa<FunctionDecl>(CurrScopeDecl);
+
+  // File-scope redeclarations refer to the same object (tentative defs, etc.).
+  if (IsFileScope) {
+    for (Decl *PrevD : CurrScope->decls()) {
+      auto *Prev = dynCast<VarDecl>(PrevD);
+      if (!Prev || Prev->getName() != D.getIdent())
+        continue;
+      if (std::size_t Align = DS.getAlign())
+        Prev->setAlign(Align);
+      return Prev;
+    }
+  }
+
   VarDecl *Var = VarDecl::create(Ctx, D.getLocation(), D.getTypeSpecLoc(),
                                  D.getEndLoc(), T, D.getIdent());
-  if (std::size_t Align = D.getDeclSpec().getAlign())
+  if (std::size_t Align = DS.getAlign())
     Var->setAlign(Align);
 
-  const DeclSpec &DS = D.getDeclSpec();
   // Extern declarations are not definitions.
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Extern) {
     Var->setIsDefinition(false);

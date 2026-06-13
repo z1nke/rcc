@@ -63,8 +63,17 @@ void Parser::parseExternalDecl(TranslationUnitDecl *TU) {
 
   if (auto *Var = dynCast<VarDecl>(FirstDecl)) {
     std::vector<VarDecl *> Vars = parseRestVarDecl(BegLoc, DS, Var);
-    for (VarDecl *Var : Vars)
-      TU->addDecl(Var);
+    for (VarDecl *Var : Vars) {
+      bool AlreadyInTU = false;
+      for (Decl *D : TU->decls()) {
+        if (D == Var) {
+          AlreadyInTU = true;
+          break;
+        }
+      }
+      if (!AlreadyInTU)
+        TU->addDecl(Var);
+    }
     return;
   }
 
@@ -104,6 +113,11 @@ std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
   // Non-static file-scope variables have external linkage.
   if (FirstVar->getLinkage() == Linkage::NoLinkage)
     FirstVar->setLinkage(Linkage::ExternalLinkage);
+  // No initializer and not extern => tentative definition.
+  if (FirstVar->isDefinition() && !FirstVar->getInit())
+    FirstVar->setTentative(true);
+  else if (FirstVar->getInit())
+    FirstVar->setTentative(false);
   Vars.push_back(FirstVar);
   while (tryConsume(Token::TK_Comma)) {
     auto *Var = dynCast<VarDecl>(parseInitDeclarator(DS));
@@ -113,6 +127,10 @@ std::vector<VarDecl *> Parser::parseRestVarDecl(SourceLocation BegLoc,
     Var->setGlobalStorage(true);
     if (Var->getLinkage() == Linkage::NoLinkage)
       Var->setLinkage(Linkage::ExternalLinkage);
+    if (Var->isDefinition() && !Var->getInit())
+      Var->setTentative(true);
+    else if (Var->getInit())
+      Var->setTentative(false);
     Vars.push_back(Var);
   }
 

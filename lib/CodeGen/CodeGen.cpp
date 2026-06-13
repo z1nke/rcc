@@ -353,7 +353,18 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
         emit("  .local {}", getVarSymbol(Var));
       // Align global variables.
       assert(Var->getAlign() != 0);
-      emit("  .align {}", simpleLog2(static_cast<int>(getVarEmitAlign(Var))));
+      std::size_t Align = getVarEmitAlign(Var);
+      emit("  .align {}", simpleLog2(static_cast<int>(Align)));
+
+      // Tentative definitions become common symbols (zero-initialized,
+      // mergeable with a strong definition in another TU).
+      if (Var->isTentative()) {
+        const auto &VarSym = getVarSymbol(Var);
+        std::size_t Size = Var->getType()->getSize();
+        emit("  .comm {}, {}, {}", VarSym, Size, Align);
+        continue;
+      }
+
       emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
       emitGlobalVarInit(Var, Var->getInit());
     }
