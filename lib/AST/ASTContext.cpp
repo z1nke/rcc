@@ -56,6 +56,13 @@ QualType ASTContext::getConstantArrayType(QualType ElementType,
   return QualType(Ty);
 }
 
+QualType ASTContext::getVariableArrayType(QualType ElementType,
+                                          Expr *SizeExpr) {
+  auto *Ty = new (*this, alignof(VariableArrayType))
+      VariableArrayType(ElementType, SizeExpr);
+  return QualType(Ty);
+}
+
 QualType ASTContext::getIncompleteArrayType(QualType ElementType) {
   auto *Ty = new (*this, alignof(IncompleteArrayType))
       IncompleteArrayType(ElementType);
@@ -138,6 +145,13 @@ bool ASTContext::areTypesCompatible(QualType T1, QualType T2) const {
       return false;
     return A1->getLength() == A2->getLength() &&
            areTypesCompatible(A1->getElementType(), A2->getElementType());
+  }
+
+  if (const auto *A1 = dynCast<VariableArrayType>(Ty1)) {
+    const auto *A2 = dynCast<VariableArrayType>(Ty2);
+    if (!A2)
+      return false;
+    return areTypesCompatible(A1->getElementType(), A2->getElementType());
   }
 
   if (const auto *A1 = dynCast<IncompleteArrayType>(Ty1)) {

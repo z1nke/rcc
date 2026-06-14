@@ -96,6 +96,12 @@ static TypeDumper dumpToString(QualType T) {
     }
     return Dumper;
   }
+  case Type::TK_VariableArray: {
+    const auto *VAT = cast<VariableArrayType>(Ty);
+    TypeDumper Dumper = dumpToString(VAT->getBaseElementType());
+    Dumper.Postfix = "[*]" + Dumper.Postfix;
+    return Dumper;
+  }
   case Type::TK_IncompleteArray: {
     const auto *IAT = cast<IncompleteArrayType>(Ty);
     TypeDumper Dumper = dumpToString(IAT->getBaseElementType());
@@ -412,6 +418,13 @@ QualType TypedefType::getUnderlying() const { return D->getUnderlying(); }
 
 QualType TypedefType::getCanonicalType() const {
   return D->getUnderlying().getCanonicalType();
+}
+
+VariableArrayType::VariableArrayType(QualType ElementType, Expr *SizeExpr)
+    : ArrayType(TK_VariableArray, ElementType, /*Size=*/8),
+      SizeExpr(SizeExpr) {
+  // VLA objects are represented as pointers to alloca'd storage.
+  setAlign(8);
 }
 
 } // namespace rcc

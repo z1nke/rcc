@@ -205,6 +205,7 @@ private:
   Scope *CurrScope = nullptr;
   Decl *CurrScopeDecl = nullptr;
   TranslationUnitDecl *TU = nullptr;
+  FunctionDecl *BuiltinAlloca = nullptr;
 
   std::vector<VarDecl *> LocalVars;
   std::vector<ParamVarDecl *> Params;

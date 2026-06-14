@@ -16,6 +16,7 @@ class TagDecl;
 class RecordDecl;
 class EnumDecl;
 class TypedefDecl;
+class Expr;
 
 class Qualifiers {
 public:
@@ -91,6 +92,7 @@ public:
     TK_Typedef,
     TK_Function,
     TK_ConstantArray,
+    TK_VariableArray,
     TK_IncompleteArray,
     TK_Record,
     TK_Enum,
@@ -278,6 +280,25 @@ private:
 
 private:
   std::size_t Len;
+};
+
+/// Variable-length array. Represented with pointer size/align; the actual
+/// storage is allocated at runtime by CodeGen.
+class VariableArrayType final : public ArrayType {
+public:
+  static bool classof(const Type *T) {
+    return T->getTypeKind() == Type::TK_VariableArray;
+  }
+
+  Expr *getSizeExpr() const { return SizeExpr; }
+
+private:
+  friend class ASTContext;
+
+  VariableArrayType(QualType ElementType, Expr *SizeExpr);
+
+private:
+  Expr *SizeExpr;
 };
 
 class IncompleteArrayType final : public ArrayType {

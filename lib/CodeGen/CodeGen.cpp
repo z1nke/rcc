@@ -178,6 +178,16 @@ static const VarDecl *findAllocaBottomVar(const FunctionDecl *FD) {
   return nullptr;
 }
 
+static bool isVariablyModifiedType(QualType Ty) {
+  if (Ty->getAs<VariableArrayType>())
+    return true;
+  if (const auto *PT = Ty->getAs<PointerType>())
+    return isVariablyModifiedType(PT->getPointeeType());
+  if (const auto *AT = Ty->getAs<ArrayType>())
+    return isVariablyModifiedType(AT->getElementType());
+  return false;
+}
+
 static const VarDecl *findSretVar(const FunctionDecl *FD) {
   for (const VarDecl *Var : FD->getLocalVars()) {
     if (Var->getName() == "__sret__")
@@ -1211,6 +1221,9 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
 
   CurrFunc = FD;
   std::size_t StackSize = assignLVarOffsets(FD);
+  CurrStackSize = StackSize;
+  VLASizeExtra = 0;
+  VLASizeMap.clear();
   const char *Name = FD->getName().c_str();
   if (FD->getLinkage() == Linkage::ExternalLinkage)
     emit("  .globl {}", Name);
@@ -1428,7 +1441,22 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
       // Static locals are initialized in .data/.bss, not at runtime.
       if (Var->hasGlobalStorage())
         continue;
-      emitLocalVarInit(Var);
+
+      QualType Ty = Var->getType();
+      if (isVariablyModifiedType(Ty))
+        emitVariablyModifiedType(Ty);
+
+      if (const auto *VAT = Ty->getAs<VariableArrayType>()) {
+        genAddr(Var);
+        push();
+        emitVLAByteSize(VAT);
+        emit("  mv t1, a0");
+        emitBuiltinAlloca();
+        emit("  # initialize VLA '{}'", Var->getName());
+        store(Ty.getTypePtr());
+      } else {
+        emitLocalVarInit(Var);
+      }
     } else if (isa<TypedefDecl>(D)) {
       continue;
     } else {
@@ -1461,6 +1489,91 @@ void CodeGen::emitLocalVarInit(const VarDecl *Var) {
     emit("  # initialize variable '{}'", Var->getName());
     store(Var->getType().getTypePtr());
   }
+}
+
+int CodeGen::getVLASizeSlot(const Expr *SizeExpr) {
+  auto It = VLASizeMap.find(SizeExpr);
+  if (It != VLASizeMap.end())
+    return It->second;
+
+  // Size slots live in the fixed region immediately below CurrStackSize so
+  // their fp-relative offsets stay valid across builtin alloca (which only
+  // relocates the [sp, AllocaBottom) gap). Insert below the previous fixed
+  // bottom and shift any pending eval-stack values down.
+  VLASizeExtra += 8;
+  int Off = -(static_cast<int>(CurrStackSize) + VLASizeExtra);
+  emit("  # VLA size slot at fp{:+d}", Off);
+  emit("  addi sp, sp, -8");
+  for (int I = 0; I < Depth; ++I) {
+    emit("  ld t0, {}(sp)", 8 + I * 8);
+    emit("  sd t0, {}(sp)", I * 8);
+  }
+  VLASizeMap[SizeExpr] = Off;
+  return Off;
+}
+
+void CodeGen::emitVariablyModifiedType(QualType Ty) {
+  bool NewSlots = false;
+  while (true) {
+    if (const auto *PT = Ty->getAs<PointerType>()) {
+      Ty = PT->getPointeeType();
+      continue;
+    }
+    if (const auto *VAT = Ty->getAs<VariableArrayType>()) {
+      const Expr *SizeExpr = VAT->getSizeExpr();
+      if (SizeExpr && !VLASizeMap.count(SizeExpr)) {
+        // Evaluate first (may push/pop), then reserve the slot.
+        genExpr(SizeExpr);
+        int Off = getVLASizeSlot(SizeExpr);
+        emit("  # store VLA element count");
+        emit("  li t0, {}", Off);
+        emit("  add t0, fp, t0");
+        emit("  sd a0, 0(t0)");
+        NewSlots = true;
+      }
+      Ty = VAT->getElementType();
+      continue;
+    }
+    if (const auto *AT = Ty->getAs<ArrayType>()) {
+      Ty = AT->getElementType();
+      continue;
+    }
+    break;
+  }
+
+  // Keep size slots above the dynamic alloca region (stable fp offsets).
+  if (NewSlots) {
+    if (const VarDecl *Bottom = findAllocaBottomVar(CurrFunc)) {
+      int BottomOff = -(static_cast<int>(CurrStackSize) + VLASizeExtra);
+      emit("  # advance AllocaBottom past VLA size slots");
+      emit("  li t0, {}", Bottom->getOffset());
+      emit("  add t0, fp, t0");
+      emit("  li t1, {}", BottomOff);
+      emit("  add t1, fp, t1");
+      emit("  sd t1, 0(t0)");
+    }
+  }
+}
+
+void CodeGen::emitVLAByteSize(const VariableArrayType *VAT) {
+  // a0 = product of element counts × innermost fixed element size.
+  emit("  # compute VLA byte size");
+  emit("  li a0, 1");
+  QualType ElemTy;
+  const VariableArrayType *Cur = VAT;
+  while (Cur) {
+    const Expr *SizeExpr = Cur->getSizeExpr();
+    assert(VLASizeMap.count(SizeExpr) && "VLA size not emitted");
+    int Off = VLASizeMap[SizeExpr];
+    emit("  li t0, {}", Off);
+    emit("  add t0, fp, t0");
+    emit("  ld t1, 0(t0)");
+    emit("  mul a0, a0, t1");
+    ElemTy = Cur->getElementType();
+    Cur = ElemTy->getAs<VariableArrayType>();
+  }
+  emit("  li t0, {}", ElemTy->getSize());
+  emit("  mul a0, a0, t0");
 }
 
 void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
@@ -2949,6 +3062,17 @@ void CodeGen::genArraySubscriptExpr(const ArraySubscriptExpr *ASE) {
 }
 
 void CodeGen::genUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
+  QualType TypeToSize = UE->isArgumentType() ? QualType(UE->getArgumentType())
+                                             : UE->getArgumentExpr()->getType();
+  if (const auto *VAT = TypeToSize->getAs<VariableArrayType>()) {
+    // Evaluate VLA dimension expressions (idempotent via VLASizeMap). Do not
+    // genExpr the sizeof operand: e.g. sizeof(*p) must not dereference p.
+    emitVariablyModifiedType(TypeToSize);
+    emit("  # sizeof VLA");
+    emitVLAByteSize(VAT);
+    return;
+  }
+
   std::size_t Size = UE->getSize();
   emit("  # sizeof-expr");
   emit("  li a0, {}", Size);
@@ -2973,8 +3097,13 @@ void CodeGen::genCastExpr(const CastExpr *Cast) {
     genScalarCast(SubExpr->getTypePtr(), Cast->getTypePtr());
     break;
   case CastExpr::CK_FuncToPointerDecay:
+    genAddr(SubExpr);
+    break;
   case CastExpr::CK_ArrayToPointerDecay:
     genAddr(SubExpr);
+    // VLA objects store a pointer in their slot; load it on decay.
+    if (SubExpr->getType()->getAs<VariableArrayType>())
+      emit("  ld a0, 0(a0)");
     break;
   default:
     RCC_UNREACHABLE("Unknown cast kind");

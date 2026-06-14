@@ -72,6 +72,12 @@ private:
   void genCastExpr(const CastExpr *Cast);
   void genCompoundLiteralExpr(const CompoundLiteralExpr *CLE);
   void emitLocalVarInit(const VarDecl *Var);
+
+  // VLA
+  void emitVariablyModifiedType(QualType Ty);
+  void emitVLAByteSize(const VariableArrayType *VAT);
+  int getVLASizeSlot(const Expr *SizeExpr);
+
   void genInitListExpr(const VarDecl *Var, const InitListExpr *List,
                        QualType AggTy, std::size_t BaseOffset);
   void genInitListExprFromFlat(const VarDecl *Var, const InitListExpr *List,
@@ -167,6 +173,10 @@ private:
   std::unordered_map<std::string, const FunctionDecl *> DeferredDecls;
   std::vector<const FunctionDecl *> DeferredDeclsToEmit;
   std::unordered_set<const FunctionDecl *> EmittedDecls;
+  /// Maps VLA SizeExpr → fp-relative offset of the cached element count.
+  std::unordered_map<const Expr *, int> VLASizeMap;
+  std::size_t CurrStackSize = 0;
+  int VLASizeExtra = 0;
   unsigned AnonGVarId = 0;
   bool EmitCommon = true;
   FILE *Fp;

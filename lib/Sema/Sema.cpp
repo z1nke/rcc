@@ -780,8 +780,7 @@ Decl *Sema::actOnDeclarator(Declarator &D) {
 
 VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
   const DeclSpec &DS = D.getDeclSpec();
-  const bool IsFileScope =
-      !CurrScopeDecl || !isa<FunctionDecl>(CurrScopeDecl);
+  const bool IsFileScope = !CurrScopeDecl || !isa<FunctionDecl>(CurrScopeDecl);
 
   // File-scope redeclarations refer to the same object (tentative defs, etc.).
   if (IsFileScope) {
@@ -803,6 +802,12 @@ VarDecl *Sema::actOnVarDecl(Declarator &D, QualType T) {
     Var->setAlign(Align);
   if (DS.isThreadSpecified())
     Var->setTLS();
+
+  if (T->getAs<VariableArrayType>()) {
+    if (IsFileScope)
+      Diag.fatalAt(D.getLocation(),
+                   "variable length array at file scope is not allowed");
+  }
 
   // Extern declarations are not definitions.
   if (DS.getStorageClassSpec() == DeclSpec::SCS_Extern) {
@@ -1004,9 +1009,9 @@ void Sema::declareBuiltinFunctions() {
   // void *alloca(int);
   QualType RetTy = Ctx.getPointerType(Ctx.VoidTy);
   QualType FT = Ctx.getFunctionType(RetTy, {Ctx.IntTy}, /*IsVariadic=*/false);
-  auto *BuiltinAlloca = FunctionDecl::create(
-      Ctx, SourceLocation(), SourceLocation(), SourceLocation(), FT, "alloca",
-      /*Body=*/nullptr);
+  BuiltinAlloca = FunctionDecl::create(Ctx, SourceLocation(), SourceLocation(),
+                                       SourceLocation(), FT, "alloca",
+                                       /*Body=*/nullptr);
   auto *Param = ParamVarDecl::create(Ctx, SourceLocation(), SourceLocation(),
                                      SourceLocation(), Ctx.IntTy, "",
                                      /*Index=*/0);
@@ -1535,6 +1540,14 @@ Expr *Sema::actOnStringLiteral(SourceLocation BegLoc, SourceLocation EndLoc,
 
 Stmt *Sema::actOnDeclStmt(ASTContext &Ctx, SourceLocation BegLoc,
                           SourceLocation EndLoc, std::vector<Decl *> Decls) {
+  for (Decl *D : Decls) {
+    auto *Var = dynCast<VarDecl>(D);
+    if (!Var)
+      continue;
+    if (Var->getType()->getAs<VariableArrayType>() && Var->getInit())
+      Diag.fatalAt(Var->getBeginLoc(),
+                   "variable-sized object may not be initialized");
+  }
   return DeclStmt::create(Ctx, BegLoc, EndLoc, std::move(Decls));
 }
 
@@ -1785,9 +1798,9 @@ Expr *Sema::actOnConditionalOperator(SourceLocation QLoc,
                                        FalseExpr->getEndLoc(), ResType, QLoc,
                                        ColonLoc, Cond, TrueExpr, FalseExpr);
 
-  return BinaryConditionalOperator::create(
-      Ctx, Common->getBeginLoc(), FalseExpr->getEndLoc(), ResType, QLoc,
-      ColonLoc, Common, FalseExpr);
+  return BinaryConditionalOperator::create(Ctx, Common->getBeginLoc(),
+                                           FalseExpr->getEndLoc(), ResType,
+                                           QLoc, ColonLoc, Common, FalseExpr);
 }
 
 Expr *Sema::actOnUnaryOperator(SourceLocation OpLoc, Expr *SubExpr,
@@ -2823,6 +2836,9 @@ QualType Sema::getTypeForDeclarator(Declarator &D) const {
     case DeclaratorChunk::DCK_Array:
       if (!Chunk.Arr.LenExpr)
         T = Ctx.getIncompleteArrayType(T);
+      else if (T->getAs<VariableArrayType>() ||
+               !Chunk.Arr.LenExpr->evaluateAsInt())
+        T = Ctx.getVariableArrayType(T, Chunk.Arr.LenExpr);
       else
         T = Ctx.getConstantArrayType(T, getArrayLength(Chunk.Arr.LenExpr));
       break;

@@ -342,6 +342,11 @@ evaluateUnaryOperator(const UnaryOperator *UO) {
 
 static std::optional<Expr::EvalResult>
 evaluateUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *UE) {
+  QualType Ty = UE->isArgumentType() ? QualType(UE->getArgumentType())
+                                     : UE->getArgumentExpr()->getType();
+  // sizeof(VLA) is not a constant expression.
+  if (Ty->getAs<VariableArrayType>())
+    return std::nullopt;
   return Expr::EvalResult(static_cast<std::uint64_t>(UE->getSize()));
 }
 
