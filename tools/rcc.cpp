@@ -274,6 +274,11 @@ int main(int Argc, char **Argv) {
   std::vector<std::string> LinkerInputs;
 
   for (const char *Input : Inputs) {
+    if (std::strncmp(Input, "-l", 2) == 0) {
+      LinkerInputs.emplace_back(Input);
+      continue;
+    }
+
     FileType Ty = getFileType(Input, Invocation->getForcedFileType());
 
     if (Ty == FileType::Object) {

@@ -102,6 +102,12 @@
 // RUN: rcc -c -x assembler -x none -o %t.foo.o %t.foo.c
 // [270] Make -E imply -xc
 // RUN: echo foo | rcc -E - | grep -q foo
+// [276] Add -l option
+// RUN: echo 'int main() { return 0; }' > %t.l.c
+// RUN: rcc -### -o %t.lbin %t.l.c -lm > /dev/null 2> %t.llog
+// RUN: grep -q -- '-lm' %t.llog
+// RUN: rcc -o %t.lbin %t.l.c -lc
+// RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.lbin
 // RUN: rcc --help
 
 int main() {

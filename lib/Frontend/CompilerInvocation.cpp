@@ -229,6 +229,12 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    // Pass -lfoo through to the linker (search for libfoo).
+    if (Arg.starts_with("-l")) {
+      Invocation->Inputs.push_back(Argv[Idx]);
+      continue;
+    }
+
     // Ignore common GCC/Clang flags that we do not implement yet.
     if (Arg.starts_with("-O") || Arg.starts_with("-W") ||
         Arg.starts_with("-g") || Arg.starts_with("-std=") ||
