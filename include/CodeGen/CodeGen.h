@@ -77,6 +77,7 @@ private:
   void emitVariablyModifiedType(QualType Ty);
   void emitVLAByteSize(const VariableArrayType *VAT);
   int getVLASizeSlot(const Expr *SizeExpr);
+  void scaleIndexByTypeSize(QualType ElemTy, const char *IndexReg);
 
   void genInitListExpr(const VarDecl *Var, const InitListExpr *List,
                        QualType AggTy, std::size_t BaseOffset);

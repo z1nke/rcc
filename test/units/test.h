@@ -24,3 +24,6 @@ long strlen(char *s);
 
 // [271] Add alloca()
 void *memcpy(void *dest, void *src, long n);
+
+// [273] Add pointer arithmetic for VLA
+void *memset(void *s, int c, long n);

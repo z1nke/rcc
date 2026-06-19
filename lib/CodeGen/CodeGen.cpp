@@ -1447,7 +1447,10 @@ void CodeGen::genDeclStmt(const DeclStmt *DS) {
         emitVariablyModifiedType(Ty);
 
       if (const auto *VAT = Ty->getAs<VariableArrayType>()) {
-        genAddr(Var);
+        // Address of the pointer slot (not the alloca'd storage).
+        emit("  # address of VLA pointer slot '{}'", Var->getName());
+        emit("  li t0, {}", Var->getOffset());
+        emit("  add a0, fp, t0");
         push();
         emitVLAByteSize(VAT);
         emit("  mv t1, a0");
@@ -1574,6 +1577,31 @@ void CodeGen::emitVLAByteSize(const VariableArrayType *VAT) {
   }
   emit("  li t0, {}", ElemTy->getSize());
   emit("  mul a0, a0, t0");
+}
+
+void CodeGen::scaleIndexByTypeSize(QualType ElemTy, const char *IndexReg) {
+  if (const auto *VAT = ElemTy->getAs<VariableArrayType>()) {
+    // emitVLAByteSize writes a0; save the other operand / index as needed.
+    const bool IndexIsA0 = (std::strcmp(IndexReg, "a0") == 0);
+    if (IndexIsA0) {
+      // Int + Ptr: a0=index, a1=ptr. Save index, compute size, scale.
+      push();
+      emitVLAByteSize(VAT);
+      emit("  mv t0, a0");
+      pop("a0");
+      emit("  mul a0, a0, t0");
+    } else {
+      // Ptr + Int / Ptr - Int: a0=ptr, IndexReg (usually a1)=index.
+      push();
+      emitVLAByteSize(VAT);
+      emit("  mv t0, a0");
+      pop("a0");
+      emit("  mul {}, {}, t0", IndexReg, IndexReg);
+    }
+    return;
+  }
+  emit("  li t0, {}", ElemTy->getSize());
+  emit("  mul {}, {}, t0", IndexReg, IndexReg);
 }
 
 void CodeGen::genInitListExpr(const VarDecl *Var, const InitListExpr *List,
@@ -2333,13 +2361,11 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
   case BinaryOperator::BO_Add:
     if (const auto *PointeeTy = LType->getPointeeOrArrayElementTypePtr()) {
       // Ptr + Int(a1)
-      emit("  li t0, {}", PointeeTy->getSize());
-      emit("  mul a1, a1, t0");
+      scaleIndexByTypeSize(QualType(PointeeTy), "a1");
     } else if (const auto *PointeeTy =
                    RType->getPointeeOrArrayElementTypePtr()) {
       // Int(a0) + Ptr
-      emit("  li t0, {}", PointeeTy->getSize());
-      emit("  mul a0, a0, t0");
+      scaleIndexByTypeSize(QualType(PointeeTy), "a0");
     }
     emit("  add{} a0, a0, a1", Suffix);
     return;
@@ -2348,13 +2374,19 @@ void CodeGen::emitBinaryArithmeticResult(BinaryOperator::Opcode Op,
       if (RType->isPointerType()) {
         // Ptr - Ptr
         emit("  sub a0, a0, a1");
-        emit("  li t0, {}", PointeeTy->getSize());
+        if (const auto *VAT = PointeeTy->getAs<VariableArrayType>()) {
+          push();
+          emitVLAByteSize(VAT);
+          emit("  mv t0, a0");
+          pop("a0");
+        } else {
+          emit("  li t0, {}", PointeeTy->getSize());
+        }
         emit("  div a0, a0, t0");
         return;
       }
       // Ptr - Int(a1)
-      emit("  li t0, {}", PointeeTy->getSize());
-      emit("  mul a1, a1, t0");
+      scaleIndexByTypeSize(QualType(PointeeTy), "a1");
     }
     emit("  sub{} a0, a0, a1", Suffix);
     return;
@@ -2743,11 +2775,21 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
       emit("  f{}.{} fa0, fa0, fa1", UO->isIncrement() ? "add" : "sub",
            FSuffix);
     } else {
-      std::size_t Step = 1;
-      if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
-        Step = PointeeTy->getSize();
-      emit("  li t0, {}", Step);
-      emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+      if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr()) {
+        if (const auto *VAT = PointeeTy->getAs<VariableArrayType>()) {
+          emit("  mv t2, a0");
+          emitVLAByteSize(VAT);
+          emit("  mv t0, a0");
+          emit("  mv a0, t2");
+          emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+        } else {
+          emit("  li t0, {}", PointeeTy->getSize());
+          emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+        }
+      } else {
+        emit("  li t0, 1");
+        emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+      }
     }
     if (BitField) {
       emit("  mv t2, a0");
@@ -2791,12 +2833,21 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
       store(SubType.getTypePtr());
       emit("  fmv.{} fa0, ft0", FSuffix);
     } else {
-      std::size_t Step = 1;
-      if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr())
-        Step = PointeeTy->getSize();
       emit("  mv t2, a0");
-      emit("  li t0, {}", Step);
-      emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+      if (const auto *PointeeTy = SubType->getPointeeOrArrayElementTypePtr()) {
+        if (const auto *VAT = PointeeTy->getAs<VariableArrayType>()) {
+          emitVLAByteSize(VAT);
+          emit("  mv t0, a0");
+          emit("  mv a0, t2");
+          emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+        } else {
+          emit("  li t0, {}", PointeeTy->getSize());
+          emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+        }
+      } else {
+        emit("  li t0, 1");
+        emit("  {} a0, a0, t0", UO->isIncrement() ? "add" : "sub");
+      }
       if (BitField)
         storeBitField(BitField);
       store(SubType.getTypePtr());
@@ -3101,9 +3152,6 @@ void CodeGen::genCastExpr(const CastExpr *Cast) {
     break;
   case CastExpr::CK_ArrayToPointerDecay:
     genAddr(SubExpr);
-    // VLA objects store a pointer in their slot; load it on decay.
-    if (SubExpr->getType()->getAs<VariableArrayType>())
-      emit("  ld a0, 0(a0)");
     break;
   default:
     RCC_UNREACHABLE("Unknown cast kind");
@@ -3198,8 +3246,7 @@ void CodeGen::genAddr(const ArraySubscriptExpr *ASE) {
   else
     Diag.fatalAt(Base->getBeginLoc(), "expect pointer or array type");
   pop("a1");
-  emit("  li t0, {}", ElemType->getSize());
-  emit("  mul a1, a1, t0");
+  scaleIndexByTypeSize(ElemType, "a1");
   emit("  add a0, a0, a1");
 }
 
@@ -3231,6 +3278,11 @@ void CodeGen::genAddr(const Decl *D) {
     emit("  # genAddr lvar {}, offset={}", Var->getName(), Var->getOffset());
     emit("  li t0, {}", Var->getOffset());
     emit("  add a0, fp, t0");
+    // VLA locals store a pointer to alloca'd storage; yield that base address.
+    if (Var->getType()->getAs<VariableArrayType>()) {
+      emit("  # load VLA base pointer");
+      emit("  ld a0, 0(a0)");
+    }
   }
 }
 
