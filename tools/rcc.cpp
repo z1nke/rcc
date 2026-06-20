@@ -118,7 +118,8 @@ findGCCLibPath(const std::filesystem::path &ToolchainRoot) {
 }
 
 static int runLinker(const std::vector<std::string> &Inputs,
-                     const std::string &Output, bool PrintCommand) {
+                     const std::string &Output, bool PrintCommand,
+                     const std::vector<std::string> &ExtraArgs) {
   std::filesystem::path Linker = findProgram("riscv64-unknown-linux-gnu-ld");
   if (Linker.empty()) {
     std::println(stderr, "riscv64-unknown-linux-gnu-ld not found");
@@ -153,6 +154,8 @@ static int runLinker(const std::vector<std::string> &Inputs,
       "-L" + (Sysroot / "lib").string(),
       "-L" + (ToolchainRoot / "riscv64-unknown-linux-gnu/lib").string(),
   };
+  // Extra linker flags (e.g. -s) before inputs.
+  Args.insert(Args.end(), ExtraArgs.begin(), ExtraArgs.end());
   Args.insert(Args.end(), Inputs.begin(), Inputs.end());
   Args.insert(Args.end(), {
                               "-lc",
@@ -361,5 +364,6 @@ int main(int Argc, char **Argv) {
     return 0;
 
   std::string LinkOutput = RequestedOutput.empty() ? "a.out" : RequestedOutput;
-  return runLinker(LinkerInputs, LinkOutput, PrintCommand);
+  return runLinker(LinkerInputs, LinkOutput, PrintCommand,
+                   Invocation->getLinkerExtraArgs());
 }

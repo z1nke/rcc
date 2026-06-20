@@ -235,6 +235,12 @@ std::unique_ptr<CompilerInvocation> CompilerInvocation::create(int Argc,
       continue;
     }
 
+    // Strip symbol table / relocation info (-s -> ld -s).
+    if (Arg == "-s") {
+      Invocation->LinkerExtraArgs.emplace_back("-s");
+      continue;
+    }
+
     // Ignore common GCC/Clang flags that we do not implement yet.
     if (Arg.starts_with("-O") || Arg.starts_with("-W") ||
         Arg.starts_with("-g") || Arg.starts_with("-std=") ||

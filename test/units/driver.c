@@ -108,6 +108,12 @@
 // RUN: grep -q -- '-lm' %t.llog
 // RUN: rcc -o %t.lbin %t.l.c -lc
 // RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.lbin
+// [277] Add -s option
+// RUN: echo 'int main() { return 0; }' > %t.sopt.c
+// RUN: rcc -### -o %t.sbin %t.sopt.c -s > /dev/null 2> %t.slog
+// RUN: grep -q -- ' -s' %t.slog
+// RUN: rcc -o %t.sbin %t.sopt.c -s
+// RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.sbin
 // RUN: rcc --help
 
 int main() {

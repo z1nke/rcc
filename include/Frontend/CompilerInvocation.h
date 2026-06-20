@@ -50,12 +50,17 @@ public:
   /// Emit tentative definitions as common symbols (default true).
   bool shouldEmitCommon() const { return EmitCommon; }
   FileType getForcedFileType() const { return ForcedFileType; }
+  /// Extra arguments forwarded to the linker (e.g. -s).
+  const std::vector<std::string> &getLinkerExtraArgs() const {
+    return LinkerExtraArgs;
+  }
 
 private:
   std::vector<const char *> Inputs;
   std::vector<std::string> IncludePaths;
   std::vector<std::string> ForcedIncludes;
   std::vector<CommandLineMacro> CommandLineMacros;
+  std::vector<std::string> LinkerExtraArgs;
   std::string CC1InputPath;
   std::string OutputPath;
   std::string ErrMsg;
