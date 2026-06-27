@@ -114,6 +114,10 @@
 // RUN: grep -q -- ' -s' %t.slog
 // RUN: rcc -o %t.sbin %t.sopt.c -s
 // RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.sbin
+// [278] Emit size and type for symbols
+// RUN: echo 'int x = 1;' | rcc -S -o- - | grep -q '\.type x, @object'
+// RUN: echo 'int x = 1;' | rcc -S -o- - | grep -q '\.size x, 4'
+// RUN: echo 'int main() { return 0; }' | rcc -S -o- - | grep -q '\.type main, @function'
 // RUN: rcc --help
 
 int main() {

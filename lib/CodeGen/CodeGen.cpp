@@ -369,10 +369,9 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
         emit("  .globl {}", getVarSymbol(Var));
       else
         emit("  .local {}", getVarSymbol(Var));
-      // Align global variables.
+
       assert(Var->getAlign() != 0);
       std::size_t Align = getVarEmitAlign(Var);
-      emit("  .align {}", simpleLog2(static_cast<int>(Align)));
 
       // Tentative definitions become common symbols when -fcommon is enabled
       // (the default). With -fno-common they are regular .bss definitions.
@@ -391,6 +390,14 @@ void CodeGen::emitData(const TranslationUnitDecl *TU) {
       } else {
         emit("  {}", shouldEmitInBss(Var) ? ".bss" : ".data");
       }
+
+      // Initialized objects get ELF type/size metadata.
+      if (Var->getInit()) {
+        const auto &VarSym = getVarSymbol(Var);
+        emit("  .type {}, @object", VarSym);
+        emit("  .size {}, {}", VarSym, Var->getType()->getSize());
+      }
+      emit("  .align {}", simpleLog2(static_cast<int>(Align)));
       emitGlobalVarInit(Var, Var->getInit());
     }
   }
@@ -1231,6 +1238,7 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
     emit("  .local {}", Name);
 
   emit("  .text");
+  emit("  .type {}, @function", Name);
   emit("{}:", Name);
 
   // stack frame (variadic):
