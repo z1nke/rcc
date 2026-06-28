@@ -184,10 +184,16 @@ static std::string replaceExtension(const char *Input,
 
 static FileType getFileType(const char *Filename, FileType Forced) {
   std::string Extension = std::filesystem::path(Filename).extension().string();
+
+  // Linker inputs recognized by extension (same as .o).
+  if (Extension == ".a")
+    return FileType::Archive;
+  if (Extension == ".so")
+    return FileType::SharedObject;
   if (Extension == ".o")
     return FileType::Object;
 
-  // -x overrides the extension (except for .o above).
+  // -x overrides the extension (except for linker inputs above).
   if (Forced != FileType::None)
     return Forced;
 
@@ -284,7 +290,9 @@ int main(int Argc, char **Argv) {
 
     FileType Ty = getFileType(Input, Invocation->getForcedFileType());
 
-    if (Ty == FileType::Object) {
+    // .o / .a / .so are passed straight to the linker.
+    if (Ty == FileType::Object || Ty == FileType::Archive ||
+        Ty == FileType::SharedObject) {
       LinkerInputs.emplace_back(Input);
       continue;
     }

@@ -9,12 +9,14 @@
 
 namespace rcc {
 
-/// Language / file kind forced by -x (driver).
+/// Language / file kind forced by -x (driver), or inferred from extension.
 enum class FileType {
   None,
   C,
   Assembler,
   Object,
+  Archive,       // .a static library
+  SharedObject,  // .so dynamic library
 };
 
 class CompilerInvocation {

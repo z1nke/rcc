@@ -118,6 +118,18 @@
 // RUN: echo 'int x = 1;' | rcc -S -o- - | grep -q '\.type x, @object'
 // RUN: echo 'int x = 1;' | rcc -S -o- - | grep -q '\.size x, 4'
 // RUN: echo 'int main() { return 0; }' | rcc -S -o- - | grep -q '\.type main, @function'
+// [279] Recognize .a and .so files
+// RUN: echo 'void foo() {}' | rcc -c -xc -o %t.afoo.o -
+// RUN: echo 'void bar() {}' | rcc -c -xc -o %t.abar.o -
+// RUN: riscv64-unknown-linux-gnu-ar rcs %t.foo.a %t.afoo.o %t.abar.o
+// RUN: echo 'void foo(); void bar(); int main() { foo(); bar(); }' > %t.amain.c
+// RUN: rcc -o %t.aout %t.amain.c %t.foo.a
+// RUN: qemu-riscv64 -L $(riscv64-unknown-linux-gnu-gcc -print-sysroot) %t.aout
+// RUN: echo 'void foo() {}' | riscv64-unknown-linux-gnu-gcc -fPIC -c -xc -o %t.sofoo.o -
+// RUN: echo 'void bar() {}' | riscv64-unknown-linux-gnu-gcc -fPIC -c -xc -o %t.sobar.o -
+// RUN: riscv64-unknown-linux-gnu-gcc -shared -o %t.foo.so %t.sofoo.o %t.sobar.o
+// RUN: echo 'void foo(); void bar(); int main() { foo(); bar(); }' > %t.somain.c
+// RUN: rcc -o %t.soout %t.somain.c %t.foo.so
 // RUN: rcc --help
 
 int main() {
