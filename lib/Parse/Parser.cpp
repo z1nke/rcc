@@ -1569,6 +1569,9 @@ Expr *Parser::parsePrimaryExpr() {
     case Token::NumericLiteralKind::Double:
       Ty = Ctx.DoubleTy;
       break;
+    case Token::NumericLiteralKind::LongDouble:
+      Ty = Ctx.LongDoubleTy;
+      break;
     }
     if (CurTok->isFloatingLiteral()) {
       double FVal = CurTok->getFVal();

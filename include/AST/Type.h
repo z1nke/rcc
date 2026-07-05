@@ -71,6 +71,9 @@ public:
   bool isVoidType() const;
   bool isIntegerType() const;
   bool isFloatingType() const;
+  /// float or double (hardware floating-point), not long double.
+  bool isHardFloatType() const;
+  bool isLongDoubleType() const;
 
   friend bool operator==(const QualType &LHS, const QualType &RHS) {
     return LHS.Value == RHS.Value;
@@ -120,6 +123,9 @@ public:
   bool isArithmeticType() const;
   bool isIntegerType() const;
   bool isFloatingType() const;
+  /// float or double (hardware FP / fa* registers), not long double.
+  bool isHardFloatType() const;
+  bool isLongDoubleType() const;
   bool isBooleanType() const;
   bool isUnsignedIntegerType() const;
   bool isSignedIntegerType() const;
@@ -174,6 +180,7 @@ public:
     BK_UnsignedLongLong,
     BK_Float,
     BK_Double,
+    BK_LongDouble,
   };
 
   static bool classof(const Type *T) {
@@ -183,6 +190,8 @@ public:
   bool isBooleanType() const;
   bool isIntegerType() const;
   bool isFloatingType() const;
+  bool isHardFloatType() const;
+  bool isLongDoubleType() const;
   bool isVoidType() const;
 
   Kind getKind() const { return BK; }

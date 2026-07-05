@@ -377,8 +377,7 @@ void Lexer::convertPPNumber(Token *Tok) {
     NumKind = NLK::Float;
     ++End;
   } else if (*End == 'l' || *End == 'L') {
-    // long double is treated as double (RV64).
-    NumKind = NLK::Double;
+    NumKind = NLK::LongDouble;
     ++End;
   }
 

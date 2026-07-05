@@ -28,6 +28,7 @@ public:
     ULongLong,
     Float,
     Double,
+    LongDouble,
   };
 
   constexpr Token() = default;

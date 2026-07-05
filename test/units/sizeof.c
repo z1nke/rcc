@@ -108,7 +108,8 @@ int main() {
   ASSERT(8, sizeof(1.0/2));
 
   // [149] Add "long double" as an alias for "double"
-  ASSERT(8, sizeof(long double));
+  // [280] Add long double (real 16-byte type)
+  ASSERT(16, sizeof(long double));
 
   // [257] [GNU] Allow sizeof(<function type>)
   ASSERT(1, sizeof(main));

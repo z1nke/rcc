@@ -101,7 +101,7 @@ void Preprocessor::initMacros() {
   defineMacro("__SIZEOF_DOUBLE__", "8");
   defineMacro("__SIZEOF_FLOAT__", "4");
   defineMacro("__SIZEOF_INT__", "4");
-  defineMacro("__SIZEOF_LONG_DOUBLE__", "8");
+  defineMacro("__SIZEOF_LONG_DOUBLE__", "16");
   defineMacro("__SIZEOF_LONG_LONG__", "8");
   defineMacro("__SIZEOF_LONG__", "8");
   defineMacro("__SIZEOF_POINTER__", "8");

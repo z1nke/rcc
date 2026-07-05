@@ -9,6 +9,7 @@ void assert(int expected, int actual, char *code, int line);
 // [107] Handle union initializers for global variable
 int strcmp(char *p, char *q);
 int memcmp(char *p, char *q, long n);
+int strncmp(char *p, char *q, long n);
 
 // [127] Allow to call a variadic function
 int sprintf(char *buf, char *fmt, ...);

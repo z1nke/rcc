@@ -20,6 +20,7 @@ void ASTContext::initBuiltinTypes() {
   initBuiltinType(UnsignedLongLongTy, BuiltinType::BK_UnsignedLongLong, 8, 8);
   initBuiltinType(FloatTy, BuiltinType::BK_Float, 4, 4);
   initBuiltinType(DoubleTy, BuiltinType::BK_Double, 8, 8);
+  initBuiltinType(LongDoubleTy, BuiltinType::BK_LongDouble, 16, 16);
 }
 
 void ASTContext::initBuiltinType(CanQualType &R, BuiltinType::Kind Kind,

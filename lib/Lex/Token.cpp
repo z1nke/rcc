@@ -29,7 +29,8 @@ Token::NumericLiteralKind Token::getNumericLiteralKind() const {
 
 bool Token::isFloatingLiteral() const {
   return NumKind == NumericLiteralKind::Float ||
-         NumKind == NumericLiteralKind::Double;
+         NumKind == NumericLiteralKind::Double ||
+         NumKind == NumericLiteralKind::LongDouble;
 }
 
 void Token::becomeIntegerLiteral(std::int64_t Value, NumericLiteralKind Kind) {

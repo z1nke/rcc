@@ -2258,8 +2258,11 @@ QualType Sema::usualArithConv(Expr *&LHS, Expr *&RHS, ArithConvKind ACK) const {
   // Floating types take precedence over integer types (C99 6.3.1.8).
   if (LType.isFloatingType() || RType.isFloatingType()) {
     QualType Result = Ctx.FloatTy;
-    if (Ctx.hasSameType(LType, Ctx.DoubleTy) ||
-        Ctx.hasSameType(RType, Ctx.DoubleTy))
+    if (Ctx.hasSameType(LType, Ctx.LongDoubleTy) ||
+        Ctx.hasSameType(RType, Ctx.LongDoubleTy))
+      Result = Ctx.LongDoubleTy;
+    else if (Ctx.hasSameType(LType, Ctx.DoubleTy) ||
+             Ctx.hasSameType(RType, Ctx.DoubleTy))
       Result = Ctx.DoubleTy;
 
     auto CastTo = [this](Expr *&E, QualType To) {
@@ -2771,7 +2774,8 @@ QualType Sema::convertDeclSpecToType(const DeclSpec &DS) const {
         DS.getTypeSpecWidth() != DeclSpec::TSW_Long)
       Diag.fatalAt(DS.getTypeSpecLoc(), "cannot combine '{}' with 'double'",
                    DeclSpec::getSpecifierName(DS.getTypeSpecWidth()));
-    T = Ctx.DoubleTy;
+    T = DS.getTypeSpecWidth() == DeclSpec::TSW_Long ? Ctx.LongDoubleTy
+                                                    : Ctx.DoubleTy;
     break;
   case DeclSpec::TST_Unspecified:
   case DeclSpec::TST_Int: {

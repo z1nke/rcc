@@ -167,6 +167,18 @@ bool QualType::isFloatingType() const {
   return false;
 }
 
+bool QualType::isHardFloatType() const {
+  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
+    return BT->isHardFloatType();
+  return false;
+}
+
+bool QualType::isLongDoubleType() const {
+  if (const auto *BT = dynCast<BuiltinType>(getCanonicalType()))
+    return BT->isLongDoubleType();
+  return false;
+}
+
 void Type::dump() const {
   QualType T(this);
   std::println(stderr, "{}", T.getAsString());
@@ -258,6 +270,20 @@ bool Type::isFloatingType() const {
   QualType CanonicalType = getCanonicalType();
   if (const auto *BT = dynCast<BuiltinType>(CanonicalType))
     return BT->isFloatingType();
+  return false;
+}
+
+bool Type::isHardFloatType() const {
+  QualType CanonicalType = getCanonicalType();
+  if (const auto *BT = dynCast<BuiltinType>(CanonicalType))
+    return BT->isHardFloatType();
+  return false;
+}
+
+bool Type::isLongDoubleType() const {
+  QualType CanonicalType = getCanonicalType();
+  if (const auto *BT = dynCast<BuiltinType>(CanonicalType))
+    return BT->isLongDoubleType();
   return false;
 }
 
@@ -372,8 +398,14 @@ bool BuiltinType::isIntegerType() const {
 }
 
 bool BuiltinType::isFloatingType() const {
+  return BK == BK_Float || BK == BK_Double || BK == BK_LongDouble;
+}
+
+bool BuiltinType::isHardFloatType() const {
   return BK == BK_Float || BK == BK_Double;
 }
+
+bool BuiltinType::isLongDoubleType() const { return BK == BK_LongDouble; }
 
 bool BuiltinType::isVoidType() const { return BK == BK_Void; }
 
@@ -409,6 +441,8 @@ const char *BuiltinType::getKindStr() const {
     return "float";
   case BK_Double:
     return "double";
+  case BK_LongDouble:
+    return "long double";
   default:
     RCC_UNREACHABLE("Unknown builtin type");
   }

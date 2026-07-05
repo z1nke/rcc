@@ -117,6 +117,9 @@ private:
   void pop(const char *Reg);
   void pushF();
   void popF(const char *Reg);
+  /// Soft-float long double live values on fs0–fs11 pairs.
+  void pushLD();
+  void popLD(int Reg);
   void load(const Type *Ty);
   void store(const Type *Ty);
 
@@ -165,6 +168,8 @@ private:
   const FunctionDecl *CurrFunc = nullptr;
   int Depth = 0;
   int BigStructDepth = 0;
+  /// Long-double soft-float stack pointer into fs0–fs11 (steps of 2).
+  int LDSP = 0;
   std::vector<int> BreakCounts;
   std::vector<int> ContinueCounts;
   std::vector<int> SwitchCounts;

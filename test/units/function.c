@@ -92,6 +92,44 @@ inline int inline_fn(void) {
   return 3;
 }
 
+// [280] Add long double
+int add_long_double(int a, long double b, float c);
+double to_double(long double x) { return x; }
+long double to_ldouble(int x) { return x; }
+int ldouble_half(int a0, int a1, int a2, int a3, int a4, int a5, int a6,
+                 long double x) {
+  return x;
+}
+typedef struct {
+  int a;
+  long double b;
+} LDSt_1;
+int ld_struct_test_1(LDSt_1 x, int n);
+int ld_struct_test_2(LDSt_1 x, int n) {
+  switch (n) {
+  case 0:
+    return x.a;
+    break;
+  case 1:
+    return x.b;
+    break;
+  default:
+    return -1;
+    break;
+  }
+}
+
+long double ld_num1(void) {
+  return 3.670483941958478115406838693246527327573858201503753662109375e-04L;
+}
+
+long double ld_num2(long double A, long double B) {
+  long double X[20] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                       0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  long double Y = 45;
+  return Y / X[19] + 1 + A + B;
+}
+
 // [87] Decay an array to a pointer in the func param context
 int param_decay(int x[]) { return x[0]; }
 
@@ -1183,6 +1221,74 @@ int main() {
 
   // [260] Handle inline functions as static functions
   ASSERT(3, inline_fn());
+
+  // [280] Add long double
+  ASSERT(10, ({ add_long_double(2, 3.8, 5.2); }));
+  ASSERT(0, ({
+           char buf[100];
+           sprintf(buf, "%Lf", (long double)12.3);
+           strncmp(buf, "12.3", 4);
+         }));
+  ASSERT(0, ({
+           char buf[100];
+           sprintf(buf, "%d %Lf", 9, (long double)12.3);
+           strncmp(buf, "9 12.3", 6);
+         }));
+
+  ASSERT(1, to_double(3.5) == 3.5);
+  ASSERT(0, to_double(3.5) == 3);
+
+  ASSERT(1, (long double)5.0 == (long double)5.0);
+  ASSERT(0, (long double)5.0 == (long double)5.2);
+  ASSERT(1, (long double)5.0 != (long double)5.2);
+  ASSERT(1, (long double)51.0 < (long double)51.2);
+  ASSERT(0, (long double)53.0 <= (long double)51.2);
+  ASSERT(1, (long double)53.0 >= (long double)51.2);
+
+  ASSERT(1, to_ldouble(5.0) == 5.0);
+  ASSERT(0, to_ldouble(5.0) == 5.2);
+  ASSERT(1, to_ldouble(5.0) != 5.2);
+  ASSERT(1, to_ldouble(5.0) < 5.2);
+  ASSERT(1, to_ldouble(5.0) <= 5.2);
+  ASSERT(0, to_ldouble(5.0) > 5.2);
+  ASSERT(0, to_ldouble(5.0) >= 5.2);
+
+  ASSERT(10, ({ ldouble_half(0, 1, 2, 3, 4, 5, 6, 10); }));
+
+  ASSERT(10, ({
+           LDSt_1 x = {10, 20};
+           ld_struct_test_1(x, 0);
+         }));
+  ASSERT(20, ({
+           LDSt_1 x = {10, 20};
+           ld_struct_test_1(x, 1);
+         }));
+
+  ASSERT(10, ({
+           LDSt_1 x = {10, 20};
+           ld_struct_test_2(x, 0);
+         }));
+  ASSERT(20, ({
+           LDSt_1 x = {10, 20};
+           ld_struct_test_2(x, 1);
+         }));
+
+  ASSERT(1, ({
+           ld_num1() ==
+               3.670483941958478115406838693246527327573858201503753662109375e-04L;
+         }));
+  ASSERT(1, ({
+           ld_num1() !=
+               0.00001 +
+                   3.670483941958478115406838693246527327573858201503753662109375e-04L;
+         }));
+  ASSERT(0, ({
+           ld_num1() + 0.0002 ==
+               0.0001 +
+                   3.670483941958478115406838693246527327573858201503753662109375e-04L;
+         }));
+
+  ASSERT(10, ({ ld_num2(3, 1); }));
 
   printf("OK\n");
   // [219] Make "main" to implicitly return 0

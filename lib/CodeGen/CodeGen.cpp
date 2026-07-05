@@ -82,13 +82,13 @@ static FloatStructPassInfo getFloatStructPassInfo(const Type *Ty, int GP,
   if (Idx > 2)
     return Info;
 
-  if ((RegsTy[0] && RegsTy[0]->isFloatingType() && !RegsTy[1] && FP < FPMAX) ||
-      (RegsTy[0] && RegsTy[0]->isFloatingType() && RegsTy[1] &&
+  if ((RegsTy[0] && RegsTy[0]->isHardFloatType() && !RegsTy[1] && FP < FPMAX) ||
+      (RegsTy[0] && RegsTy[0]->isHardFloatType() && RegsTy[1] &&
        RegsTy[1]->isIntegerType() && FP < FPMAX && GP < GPMAX) ||
       (RegsTy[0] && RegsTy[0]->isIntegerType() && RegsTy[1] &&
-       RegsTy[1]->isFloatingType() && FP < FPMAX && GP < GPMAX) ||
-      (RegsTy[0] && RegsTy[0]->isFloatingType() && RegsTy[1] &&
-       RegsTy[1]->isFloatingType() && FP + 1 < FPMAX)) {
+       RegsTy[1]->isHardFloatType() && FP < FPMAX && GP < GPMAX) ||
+      (RegsTy[0] && RegsTy[0]->isHardFloatType() && RegsTy[1] &&
+       RegsTy[1]->isHardFloatType() && FP + 1 < FPMAX)) {
     Info.Reg1Ty = RegsTy[0];
     Info.Reg2Ty = RegsTy[1];
     Info.IsFloatStruct = true;
@@ -122,7 +122,7 @@ static void countStructArgRegs(const Type *Ty, int &GP, int &FP,
     for (int I = 0; I < 2; ++I) {
       if (!Regs[I])
         break;
-      if (Regs[I]->isFloatingType())
+      if (Regs[I]->isHardFloatType())
         ++FPNeeded;
       else
         ++GPNeeded;
@@ -154,9 +154,9 @@ static int countStructArgStackSlots(const Type *Ty) {
 static bool useFloatStructStackPass(const FloatStructPassInfo &PassInfo) {
   if (!PassInfo.IsFloatStruct)
     return false;
-  if (PassInfo.Reg2Ty && PassInfo.Reg2Ty->isFloatingType())
+  if (PassInfo.Reg2Ty && PassInfo.Reg2Ty->isHardFloatType())
     return true;
-  return PassInfo.Reg1Ty && PassInfo.Reg1Ty->isFloatingType() &&
+  return PassInfo.Reg1Ty && PassInfo.Reg1Ty->isHardFloatType() &&
          PassInfo.Reg2Ty;
 }
 
@@ -203,11 +203,18 @@ static int countNamedParamGPs(const FunctionDecl *FD) {
     ++GP;
   for (const auto *Param : FD->getParams()) {
     const Type *Ty = Param->getType().getTypePtr();
-    if (Ty->isFloatingType()) {
+    if (Ty->isHardFloatType()) {
       if (FP < FPMAX)
         ++FP;
       else
         ++GP;
+      continue;
+    }
+    if (Ty->isLongDoubleType()) {
+      if (GP == GPMAX - 1)
+        ++GP;
+      else if (GP < GPMAX - 1)
+        GP += 2;
       continue;
     }
     if (Ty->isRecordType()) {
@@ -217,7 +224,7 @@ static int countNamedParamGPs(const FunctionDecl *FD) {
         for (int I = 0; I < 2; ++I) {
           if (!Regs[I])
             break;
-          if (Regs[I]->isFloatingType())
+          if (Regs[I]->isHardFloatType())
             ++FP;
           if (Regs[I]->isIntegerType())
             ++GP;
@@ -249,7 +256,7 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
   for (auto *Param : FD->getParams()) {
     const Type *Ty = Param->getType().getTypePtr();
     bool PassByStack = false;
-    if (Ty->isFloatingType()) {
+    if (Ty->isHardFloatType()) {
       if (FP < FPMAX) {
         ++FP;
         continue;
@@ -259,6 +266,19 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
         continue;
       }
       PassByStack = true;
+    } else if (Ty->isLongDoubleType()) {
+      // long double uses a consecutive GP pair; if only a7 remains, the upper
+      // half is passed on the stack.
+      if (GP == GPMAX - 1) {
+        Param->setHalfByStack(true);
+        ++GP;
+        PassByStack = true;
+      } else if (GP < GPMAX - 1) {
+        GP += 2;
+        continue;
+      } else {
+        PassByStack = true;
+      }
     } else if (Ty->isRecordType()) {
       FloatStructPassInfo PassInfo = getFloatStructPassInfo(Ty, GP, FP);
       if (PassInfo.IsFloatStruct) {
@@ -266,7 +286,7 @@ static std::size_t assignLVarOffsets(const FunctionDecl *FD) {
         for (int I = 0; I < 2; ++I) {
           if (!Regs[I])
             break;
-          if (Regs[I]->isFloatingType())
+          if (Regs[I]->isHardFloatType())
             ++FP;
           if (Regs[I]->isIntegerType())
             ++GP;
@@ -693,6 +713,13 @@ void CodeGen::emitGlobalInit(const Expr *Init, QualType Ty,
       static_assert(sizeof(FVal) == sizeof(Bits));
       memcpy(&Bits, &FVal, sizeof(Bits));
       emit("  .4byte {}", Bits);
+    } else if (Ty->getSize() == 16) {
+      // Cross-build host cannot form IEEE binary128 constants; emit +0.0.
+      if (*DblVal != 0.0)
+        Diag.fatalAt(Init->getBeginLoc(),
+                     "non-zero global long double initializer is unsupported");
+      emit("  .8byte 0");
+      emit("  .8byte 0");
     } else {
       assert(Ty->getSize() == 8);
       double DVal = *DblVal;
@@ -998,6 +1025,11 @@ void CodeGen::writeGlobalInitToBuf(std::vector<std::uint8_t> &Buf,
     if (Ty->getSize() == 4) {
       float FVal = static_cast<float>(*DblVal);
       std::memcpy(Buf.data() + Offset, &FVal, 4);
+    } else if (Ty->getSize() == 16) {
+      if (*DblVal != 0.0)
+        Diag.fatalAt(Init->getBeginLoc(),
+                     "non-zero global long double initializer is unsupported");
+      std::memset(Buf.data() + Offset, 0, 16);
     } else {
       double DVal = *DblVal;
       std::memcpy(Buf.data() + Offset, &DVal, 8);
@@ -1231,6 +1263,7 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
   CurrStackSize = StackSize;
   VLASizeExtra = 0;
   VLASizeMap.clear();
+  LDSP = 0;
   const char *Name = FD->getName().c_str();
   if (FD->getLinkage() == Linkage::ExternalLinkage)
     emit("  .globl {}", Name);
@@ -1312,7 +1345,20 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
       }
 
       int Size = static_cast<int>(Ty->getSize());
-      if (Ty->isFloatingType()) {
+      if (Ty->isLongDoubleType()) {
+        if (Param->isHalfByStack()) {
+          emit("  # store long double param '{}' half from a{}, half from stack",
+               Param->getName(), GP);
+          storeGenReg(GP++, Offset, 8);
+          emit("  ld t0, 16(fp)");
+          emit("  sd t0, {}(fp)", Offset + 8);
+        } else {
+          emit("  # store long double param '{}' from a{},a{}", Param->getName(),
+               GP, GP + 1);
+          storeGenReg(GP++, Offset, 8);
+          storeGenReg(GP++, Offset + 8, 8);
+        }
+      } else if (Ty->isHardFloatType()) {
         if (FP < 8) {
           emit("  # store float param '{}' from fa{}", Param->getName(), FP);
           storeFloatReg(FP++, Offset, Size);
@@ -1392,6 +1438,9 @@ void CodeGen::genStmt(const Stmt *S) {
           copyStructReg();
         else
           copyStructMem();
+      } else if (Ty->isLongDoubleType()) {
+        emit("  # long double return in a0,a1");
+        popLD(0);
       }
     }
     emit("  j .L.return.{}", CurrFunc->getName());
@@ -1811,13 +1860,24 @@ void CodeGen::genInitListElement(const VarDecl *Var, const Expr *ElemInit,
   }
 
   genExpr(ElemInit);
-  if (ElemTy->isFloatingType()) {
-    if (!ElemInit->getType().isFloatingType())
+  if (ElemTy->isLongDoubleType()) {
+    if (!ElemInit->getType().isLongDoubleType())
+      genScalarCast(ElemInit->getTypePtr(), ElemTy.getTypePtr());
+    genAddr(Var);
+    emit("  addi a1, a0, {}", Offset);
+    LDSP -= 2;
+    assert(LDSP >= 0 && "LDSP underflow");
+    emit("  fsd fs{}, 8(a1)", LDSP + 1);
+    emit("  fsd fs{}, 0(a1)", LDSP);
+    return;
+  }
+  if (ElemTy->isHardFloatType()) {
+    if (!ElemInit->getType().isHardFloatType())
       genScalarCast(ElemInit->getTypePtr(), ElemTy.getTypePtr());
     genAddr(Var);
     emit("  addi a1, a0, {}", Offset);
     if (ElemTy->getSize() == 4) {
-      if (ElemInit->getType().isFloatingType() &&
+      if (ElemInit->getType().isHardFloatType() &&
           ElemInit->getTypePtr()->getSize() == 8)
         emit("  fcvt.s.d fa0, fa0");
       emit("  fsw fa0, 0(a1)");
@@ -2112,7 +2172,16 @@ void CodeGen::genExpr(const Expr *E) {
       std::uint32_t U32;
       std::uint64_t U64;
     } U;
-    if (FL->getType().isFloatingType() && FL->getTypePtr()->getSize() == 4) {
+    if (FL->getType().isLongDoubleType()) {
+      // Host stores the literal as double; extend to binary128 via libgcc.
+      // __extenddftf2 takes the double in fa0 (hard-float ABI).
+      U.F64 = FVal;
+      emit("  # long double {}L", FVal);
+      emit("  li a0, {}", U.U64);
+      emit("  fmv.d.x fa0, a0");
+      emit("  call __extenddftf2");
+      pushLD();
+    } else if (FL->getTypePtr()->getSize() == 4) {
       U.F32 = static_cast<float>(FVal);
       emit("  # fa0 = {}f", FVal);
       emit("  li a0, {}", U.U32);
@@ -2213,7 +2282,70 @@ void CodeGen::genScalarCast(const Type *From, const Type *To) {
 
   if (To->isBooleanType()) {
     emitIsNotZero(From);
-    emit("  snez a0, a0");
+    if (!From->isLongDoubleType())
+      emit("  snez a0, a0");
+    return;
+  }
+
+  // Soft-float long double <-> other scalars via libgcc.
+  if (From->isLongDoubleType() || To->isLongDoubleType()) {
+    if (From->isLongDoubleType())
+      popLD(0);
+
+    if (To->isLongDoubleType()) {
+      if (From->isHardFloatType()) {
+        if (From->getSize() == 4)
+          emit("  call __extendsftf2");
+        else
+          emit("  call __extenddftf2");
+      } else if (From->isUnsignedIntegerType()) {
+        if (From->getSize() <= 4)
+          emit("  call __floatunsitf");
+        else
+          emit("  call __floatunditf");
+      } else {
+        if (From->getSize() <= 4)
+          emit("  call __floatsitf");
+        else
+          emit("  call __floatditf");
+      }
+      pushLD();
+      return;
+    }
+
+    // From long double to hard float / integer.
+    if (To->isHardFloatType()) {
+      if (To->getSize() == 4)
+        emit("  call __trunctfsf2");
+      else
+        emit("  call __trunctfdf2");
+      return;
+    }
+    if (To->isUnsignedIntegerType()) {
+      if (To->getSize() <= 4) {
+        emit("  call __fixunstfsi");
+        emit("  slli a0, a0, 32");
+        emit("  srli a0, a0, 32");
+      } else {
+        emit("  call __fixunstfdi");
+      }
+      return;
+    }
+    if (To->getSize() <= 4) {
+      emit("  call __fixtfsi");
+      emit("  slli a0, a0, 32");
+      emit("  srai a0, a0, 32");
+    } else {
+      emit("  call __fixtfdi");
+    }
+    // Narrow further for char/short.
+    if (To->getSize() == 1) {
+      emit("  slli a0, a0, 56");
+      emit("  srai a0, a0, 56");
+    } else if (To->getSize() == 2) {
+      emit("  slli a0, a0, 48");
+      emit("  srai a0, a0, 48");
+    }
     return;
   }
 
@@ -2498,16 +2630,51 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
 
     auto BaseOp = BO->getOpForCompoundAssign();
 
-    if (LType.isFloatingType() || RType.isFloatingType()) {
+    if (LType.isLongDoubleType() || RType.isLongDoubleType()) {
+      QualType CompTy = LType.isLongDoubleType() ? LType : RType;
+      genExpr(RHS);
+      if (!RType.isLongDoubleType())
+        genScalarCast(RType.getTypePtr(), CompTy.getTypePtr());
+      genExpr(LHS);
+      if (!LType.isLongDoubleType())
+        genScalarCast(LType.getTypePtr(), CompTy.getTypePtr());
+      popLD(2);
+      popLD(0);
+      switch (BaseOp) {
+      case BinaryOperator::BO_Add:
+        emit("  call __addtf3");
+        break;
+      case BinaryOperator::BO_Sub:
+        emit("  call __subtf3");
+        break;
+      case BinaryOperator::BO_Mul:
+        emit("  call __multf3");
+        break;
+      case BinaryOperator::BO_Div:
+        emit("  call __divtf3");
+        break;
+      default:
+        Diag.fatalAt(BO->getOpLocation(),
+                     "invalid long double compound assignment: {}",
+                     BO->getOpcodeStr());
+      }
+      pushLD();
+      if (!LType.isLongDoubleType())
+        genScalarCast(CompTy.getTypePtr(), LType.getTypePtr());
+      store(LType.getTypePtr());
+      return;
+    }
+
+    if (LType.isHardFloatType() || RType.isHardFloatType()) {
       QualType CompTy = LType;
-      if (RType.isFloatingType() &&
-          (!LType.isFloatingType() || RType->getSize() > LType->getSize()))
+      if (RType.isHardFloatType() &&
+          (!LType.isHardFloatType() || RType->getSize() > LType->getSize()))
         CompTy = RType;
 
       genExpr(RHS);
       pushF();
       genExpr(LHS);
-      if (!LType.isFloatingType() || LType->getSize() != CompTy->getSize())
+      if (!LType.isHardFloatType() || LType->getSize() != CompTy->getSize())
         genScalarCast(LType.getTypePtr(), CompTy.getTypePtr());
       popF("fa1");
 
@@ -2535,7 +2702,7 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
                      BO->getOpcodeStr());
       }
 
-      if (!LType.isFloatingType() || LType->getSize() != CompTy->getSize())
+      if (!LType.isHardFloatType() || LType->getSize() != CompTy->getSize())
         genScalarCast(CompTy.getTypePtr(), LType.getTypePtr());
       if (const auto *Member = dynCast<MemberExpr>(LHS);
           Member && Member->getMemberDecl()->isBitField()) {
@@ -2571,7 +2738,61 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
   }
 
   // a0 op a1 (or fa0 op fa1 for floating types)
-  if (LType.isFloatingType()) {
+  // Evaluate LHS first so left-associative chains stay O(1) on the LD stack.
+  if (LType.isLongDoubleType()) {
+    genExpr(LHS);
+    genExpr(RHS);
+    popLD(2);
+    popLD(0);
+    switch (Op) {
+    case BinaryOperator::BO_Add:
+      emit("  call __addtf3");
+      pushLD();
+      return;
+    case BinaryOperator::BO_Sub:
+      emit("  call __subtf3");
+      pushLD();
+      return;
+    case BinaryOperator::BO_Mul:
+      emit("  call __multf3");
+      pushLD();
+      return;
+    case BinaryOperator::BO_Div:
+      emit("  call __divtf3");
+      pushLD();
+      return;
+    case BinaryOperator::BO_EQ:
+      emit("  call __eqtf2");
+      emit("  seqz a0, a0");
+      return;
+    case BinaryOperator::BO_NE:
+      emit("  call __netf2");
+      emit("  snez a0, a0");
+      return;
+    case BinaryOperator::BO_LT:
+      emit("  call __lttf2");
+      emit("  slti a0, a0, 0");
+      return;
+    case BinaryOperator::BO_LE:
+      emit("  call __letf2");
+      emit("  slti a0, a0, 1");
+      return;
+    case BinaryOperator::BO_GT:
+      emit("  call __gttf2");
+      emit("  sgtz a0, a0");
+      return;
+    case BinaryOperator::BO_GE:
+      emit("  call __getf2");
+      emit("  slti a0, a0, 0");
+      emit("  xori a0, a0, 1");
+      return;
+    default:
+      Diag.fatalAt(BO->getOpLocation(), "invalid long double binary op: {}",
+                   BO->getOpcodeStr());
+    }
+  }
+
+  if (LType.isHardFloatType()) {
     genExpr(RHS);
     pushF();
     genExpr(LHS);
@@ -2692,14 +2913,20 @@ void CodeGen::genBinaryOperator(const BinaryOperator *BO) {
 
 void CodeGen::genConditionalOperator(const ConditionalOperator *CO) {
   int Count = getCount();
+  int SavedLDSP = LDSP;
   genExpr(CO->getCond());
   emitIsNotZero(CO->getCond()->getTypePtr());
   emit("  beqz a0, .L.else.{}", Count);
   genExpr(CO->getTrueExpr());
+  int AfterTrue = LDSP;
   emit("  j .L.end.{}", Count);
   emit(".L.else.{}:", Count);
+  LDSP = SavedLDSP;
   genExpr(CO->getFalseExpr());
   emit(".L.end.{}:", Count);
+  // Both branches must leave the same LD stack depth for a long double result.
+  if (AfterTrue != LDSP)
+    LDSP = AfterTrue;
 }
 
 void CodeGen::genBinaryConditionalOperator(
@@ -2707,17 +2934,33 @@ void CodeGen::genBinaryConditionalOperator(
   int Count = getCount();
   const Expr *Common = BCO->getCommon();
   QualType CommonTy = Common->getType();
+  int SavedLDSP = LDSP;
   genExpr(Common);
-  // Common's value stays in a0/fa0; emitIsNotZero only writes the boolean to
-  // a0.
-  emitIsNotZero(CommonTy.getTypePtr());
+  // Common's value stays in a0/fa0/LD stack; emitIsNotZero for long double pops
+  // the value, so re-push it when the true branch needs the common value.
+  if (CommonTy.isLongDoubleType()) {
+    popLD(0);
+    pushLD();
+    emit("  li a2, 0");
+    emit("  li a3, 0");
+    emit("  call __netf2");
+    emit("  snez a0, a0");
+  } else {
+    emitIsNotZero(CommonTy.getTypePtr());
+  }
   emit("  beqz a0, .L.else.{}", Count);
   if (CommonTy != BCO->getType())
     genScalarCast(CommonTy.getTypePtr(), BCO->getTypePtr());
+  int AfterTrue = LDSP;
   emit("  j .L.end.{}", Count);
   emit(".L.else.{}:", Count);
+  if (CommonTy.isLongDoubleType())
+    popLD(0); // discard common
+  LDSP = SavedLDSP;
   genExpr(BCO->getFalseExpr());
   emit(".L.end.{}:", Count);
+  if (AfterTrue != LDSP)
+    LDSP = AfterTrue;
 }
 
 void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
@@ -2729,7 +2972,14 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
   case UnaryOperator::UO_Minus: {
     genExpr(UO->getSubExpr());
     QualType Ty = UO->getType();
-    if (Ty.isFloatingType())
+    if (Ty.isLongDoubleType()) {
+      popLD(0);
+      emit("  # negate long double");
+      emit("  li t0, -1");
+      emit("  slli t0, t0, 63");
+      emit("  xor a1, a1, t0");
+      pushLD();
+    } else if (Ty.isHardFloatType())
       emit("  fneg.{} fa0, fa0", Ty->getSize() == 4 ? "s" : "d");
     else
       emit("  neg{} a0, a0", Ty->getSize() <= 4 ? "w" : "");
@@ -2770,7 +3020,7 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     load(SubType.getTypePtr());
     if (BitField)
       loadBitField(BitField);
-    if (SubType.isFloatingType()) {
+    if (SubType.isHardFloatType()) {
       const char *FSuffix = SubType->getSize() == 4 ? "s" : "d";
       // fa1 = 1.0
       if (SubType->getSize() == 4) {
@@ -2824,7 +3074,7 @@ void CodeGen::genUnaryOperator(const UnaryOperator *UO) {
     load(SubType.getTypePtr());
     if (BitField)
       loadBitField(BitField);
-    if (SubType.isFloatingType()) {
+    if (SubType.isHardFloatType()) {
       const char *FSuffix = SubType->getSize() == 4 ? "s" : "d";
       emit("  fmv.{} ft0, fa0", FSuffix);
       if (SubType->getSize() == 4) {
@@ -2928,7 +3178,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   const bool LargeRet = RetBuf && CE->getTypePtr()->getSize() > 16;
 
   int NumArgs = static_cast<int>(CE->getNumArgs());
-  enum class ArgKind { Scalar, Struct };
+  enum class ArgKind { Scalar, Struct, LongDouble };
   std::vector<ArgKind> ArgKinds(NumArgs, ArgKind::Scalar);
   std::vector<std::pair<bool, const char *>> ArgDest(NumArgs);
   std::vector<bool> PassByStack(NumArgs, false);
@@ -2943,6 +3193,19 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     const bool VariadicTail =
         IsVariadic && static_cast<unsigned>(I) >= NumParams;
     if (VariadicTail) {
+      if (Ty->isLongDoubleType()) {
+        ArgKinds[I] = ArgKind::LongDouble;
+        // Variadic long double occupies an even-aligned GP pair.
+        if (GP < GPMAX && (GP % 2) == 1)
+          ++GP;
+        for (int K = 0; K < 2; ++K) {
+          if (GP < GPMAX)
+            ++GP;
+          else
+            ++Stack;
+        }
+        continue;
+      }
       if (GP < GPMAX)
         ArgDest[I] = {false, ArgReg[GP++]};
       else {
@@ -2966,7 +3229,20 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
       continue;
     }
 
-    if (Ty->isFloatingType()) {
+    if (Ty->isLongDoubleType()) {
+      ArgKinds[I] = ArgKind::LongDouble;
+      // Never mark PassByStack: always spill 16 bytes then pop into GPs; any
+      // leftover words remain as stack arguments.
+      for (int K = 0; K < 2; ++K) {
+        if (GP < GPMAX)
+          ++GP;
+        else
+          ++Stack;
+      }
+      continue;
+    }
+
+    if (Ty->isHardFloatType()) {
       if (FP < FPMAX)
         ArgDest[I] = {true, FaArgReg[FP++]};
       else if (GP < GPMAX)
@@ -2993,12 +3269,20 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
     ++Stack;
   }
 
-  auto PushArg = [this, &PassByStack](const Expr *Arg, int I) {
+  auto PushArg = [this, &PassByStack, &ArgKinds](const Expr *Arg, int I) {
     genExpr(Arg);
     const Type *Ty = Arg->getType().getTypePtr();
     if (Ty->isRecordType())
       pushStructArg(Ty, PassByStack[I]);
-    else if (Arg->getType().isFloatingType())
+    else if (ArgKinds[I] == ArgKind::LongDouble) {
+      LDSP -= 2;
+      assert(LDSP >= 0 && "LDSP underflow");
+      emit("  # spill long double arg from LD stack");
+      emit("  addi sp, sp, -16");
+      emit("  fsd fs{}, 8(sp)", LDSP + 1);
+      emit("  fsd fs{}, 0(sp)", LDSP);
+      Depth += 2;
+    } else if (Arg->getType().isHardFloatType())
       pushF();
     else
       push();
@@ -3007,6 +3291,7 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   if (NumArgs != 0)
     emit("  # set call args");
 
+  // Stack-passed args first, then register-passed (including long double).
   for (int I = NumArgs - 1; I >= 0; --I) {
     if (PassByStack[I])
       PushArg(CE->getArg(I), I);
@@ -3041,6 +3326,20 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
                          PassByStack[I]);
       continue;
     }
+    if (ArgKinds[I] == ArgKind::LongDouble) {
+      // Pop into GP pair; if only a7 remains, one half stays on the stack.
+      const bool VariadicTail =
+          IsVariadic && static_cast<unsigned>(I) >= NumParams;
+      if (VariadicTail && GP < GPMAX && (GP % 2) == 1)
+        ++GP;
+      if (GP == GPMAX - 1)
+        pop(ArgReg[GP++]);
+      if (GP < GPMAX - 1) {
+        pop(ArgReg[GP++]);
+        pop(ArgReg[GP++]);
+      }
+      continue;
+    }
     if (PassByStack[I])
       continue;
     if (ArgDest[I].first) {
@@ -3070,7 +3369,10 @@ void CodeGen::genCallExpr(const CallExpr *CE) {
   BigStructDepth = 0;
 
   const Type *RetTy = CE->getTypePtr();
-  if (const auto *BT = dynCast<BuiltinType>(RetTy)) {
+  if (RetTy->isLongDoubleType()) {
+    emit("  # save long double return value");
+    pushLD();
+  } else if (const auto *BT = dynCast<BuiltinType>(RetTy)) {
     switch (BT->getKind()) {
     case BuiltinType::BK_Bool:
       emit("  # clear high bits for bool return");
@@ -3368,7 +3670,7 @@ void CodeGen::popStructArgToRegs(const Type *Ty, int &GP, int &FP,
     for (int I = 0; I < 2; ++I) {
       if (!Regs[I])
         break;
-      if (Regs[I]->isFloatingType()) {
+      if (Regs[I]->isHardFloatType()) {
         if (FP >= FPMAX)
           continue;
         if (Regs[I]->getSize() == 4) {
@@ -3417,7 +3719,7 @@ void CodeGen::storeStructParam(const Type *Ty, int Offset, int &GP, int &FP,
     for (int I = 0; I < 2; ++I) {
       if (!Regs[I])
         break;
-      if (Regs[I]->isFloatingType())
+      if (Regs[I]->isHardFloatType())
         storeFloatReg(FP++, Offset + PartOff,
                       static_cast<int>(Regs[I]->getSize()));
       else
@@ -3465,7 +3767,7 @@ void CodeGen::copyRetBuffer(const VarDecl *Buf) {
     for (int I = 0; I < 2; ++I) {
       if (!Regs[I])
         break;
-      if (Regs[I]->isFloatingType())
+      if (Regs[I]->isHardFloatType())
         storeFloatReg(FP++, Offset + PartOff,
                       static_cast<int>(Regs[I]->getSize()));
       else
@@ -3510,7 +3812,7 @@ void CodeGen::copyStructReg() {
     for (int I = 0; I < 2; ++I) {
       if (!Regs[I])
         break;
-      if (Regs[I]->isFloatingType())
+      if (Regs[I]->isHardFloatType())
         loadFloatRegFromT1(FP++, PartOff, static_cast<int>(Regs[I]->getSize()));
       else
         loadGenRegFromT1(GP++, PartOff, static_cast<int>(Regs[I]->getSize()));
@@ -3601,9 +3903,35 @@ void CodeGen::popF(const char *Reg) {
   --Depth;
 }
 
+void CodeGen::pushLD() {
+  emit("  # LD push a0,a1 -> fs{}", LDSP);
+  emit("  fmv.d.x fs{}, a1", LDSP + 1);
+  emit("  fmv.d.x fs{}, a0", LDSP);
+  LDSP += 2;
+  assert(LDSP <= 12 && "LDSP overflow");
+}
+
+
+void CodeGen::popLD(int Reg) {
+  LDSP -= 2;
+  assert(LDSP >= 0 && "LDSP underflow");
+  emit("  # LD pop fs{} -> a{},a{}", LDSP, Reg, Reg + 1);
+  emit("  fmv.x.d a{}, fs{}", Reg + 1, LDSP + 1);
+  emit("  fmv.x.d a{}, fs{}", Reg, LDSP);
+}
+
 void CodeGen::emitIsNotZero(const Type *Ty) {
   if (!Ty->isFloatingType())
     return;
+
+  if (Ty->isLongDoubleType()) {
+    popLD(0);
+    emit("  li a2, 0");
+    emit("  li a3, 0");
+    emit("  call __netf2");
+    emit("  snez a0, a0");
+    return;
+  }
 
   // Compare fa0 against +0.0; result is 1 if non-zero (incl. NaN), else 0.
   if (Ty->getSize() == 4) {
@@ -3621,7 +3949,16 @@ void CodeGen::load(const Type *Ty) {
   if (Ty->isArraryType() || Ty->isRecordType() || Ty->isFunctionType())
     return;
 
-  if (Ty->isFloatingType()) {
+  if (Ty->isLongDoubleType()) {
+    emit("  # load long double");
+    emit("  fld fs{}, 8(a0)", LDSP + 1);
+    emit("  fld fs{}, 0(a0)", LDSP);
+    LDSP += 2;
+    assert(LDSP <= 12 && "LDSP overflow");
+    return;
+  }
+
+  if (Ty->isHardFloatType()) {
     emit("  # load float");
     if (Ty->getSize() == 4)
       emit("  flw fa0, 0(a0)");
@@ -3682,7 +4019,15 @@ void CodeGen::store(const Type *Ty) {
     return;
   }
 
-  if (Ty->isFloatingType()) {
+  if (Ty->isLongDoubleType()) {
+    LDSP -= 2;
+    assert(LDSP >= 0 && "LDSP underflow");
+    emit("  fsd fs{}, 8(a1)", LDSP + 1);
+    emit("  fsd fs{}, 0(a1)", LDSP);
+    return;
+  }
+
+  if (Ty->isHardFloatType()) {
     if (Ty->getSize() == 4)
       emit("  fsw fa0, 0(a1)");
     else
