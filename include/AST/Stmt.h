@@ -911,15 +911,23 @@ private:
   unsigned UnionFieldIndex = 0;
 };
 
-/// C99/GNU designator in a designated initializer: [index] or .field
+/// C99/GNU designator in a designated initializer:
+/// - [index]
+/// - [lo ... hi]
+/// - .field
 class Designator {
 public:
   enum DesignatorKind { DK_ArrayIndex, DK_Field };
 
   static Designator createArrayIndex(std::uint64_t Index) {
+    return createArrayRange(Index, Index);
+  }
+
+  static Designator createArrayRange(std::uint64_t Begin, std::uint64_t End) {
     Designator D;
     D.Kind = DK_ArrayIndex;
-    D.ArrayIndex = Index;
+    D.ArrayIndex = Begin;
+    D.ArrayIndexEnd = End;
     return D;
   }
 
@@ -932,13 +940,18 @@ public:
 
   bool isArrayIndex() const { return Kind == DK_ArrayIndex; }
   bool isField() const { return Kind == DK_Field; }
+  bool isArrayRange() const {
+    return isArrayIndex() && ArrayIndexEnd != ArrayIndex;
+  }
 
   std::uint64_t getArrayIndex() const { return ArrayIndex; }
+  std::uint64_t getArrayIndexEnd() const { return ArrayIndexEnd; }
   const std::string &getFieldName() const { return FieldName; }
 
 private:
   DesignatorKind Kind = DK_ArrayIndex;
   std::uint64_t ArrayIndex = 0;
+  std::uint64_t ArrayIndexEnd = 0;
   std::string FieldName;
 };
 

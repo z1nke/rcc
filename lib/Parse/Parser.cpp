@@ -873,8 +873,27 @@ Expr *Parser::parseInitExpr() {
           if (*Idx < 0)
             Diag.fatalAt(IdxExpr->getBeginLoc(),
                          "array designator index is negative");
+          std::int64_t Begin = *Idx;
+          std::int64_t End = Begin;
+          // [GNU] [low ... high]
+          if (tryConsume(Token::TK_Ellipsis)) {
+            Expr *EndExpr = parseConstantExpr();
+            auto EndVal = EndExpr->evaluateAsInt();
+            if (!EndVal)
+              Diag.fatalAt(EndExpr->getBeginLoc(),
+                           "array designator is not an integer constant");
+            if (*EndVal < 0)
+              Diag.fatalAt(EndExpr->getBeginLoc(),
+                           "array designator index is negative");
+            End = *EndVal;
+            if (End < Begin)
+              Diag.fatalAt(IdxExpr->getBeginLoc(),
+                           "array designator range [{}, {}] is empty", Begin,
+                           End);
+          }
           Designators.push_back(
-              Designator::createArrayIndex(static_cast<std::uint64_t>(*Idx)));
+              Designator::createArrayRange(static_cast<std::uint64_t>(Begin),
+                                           static_cast<std::uint64_t>(End)));
           skip(Token::TK_RSquare);
         } else {
           skip(Token::TK_Dot);

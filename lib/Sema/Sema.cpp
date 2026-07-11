@@ -264,14 +264,24 @@ static void applyDesignation(InitTree &Node,
     if (!CAT)
       Diag.fatalAt(Init->getBeginLoc(), "array index in non-array initializer");
 
-    std::uint64_t I = D.getArrayIndex();
-    if (I >= CAT->getLength())
+    std::uint64_t Begin = D.getArrayIndex();
+    std::uint64_t End = D.getArrayIndexEnd();
+    if (End >= CAT->getLength())
       Diag.fatalAt(Init->getBeginLoc(),
                    "array designator index exceeds array bounds");
+    if (End < Begin)
+      Diag.fatalAt(Init->getBeginLoc(),
+                   "array designator range [{}, {}] is empty", Begin, End);
 
-    applyDesignation(Node.Kids[static_cast<std::size_t>(I)], Desigs,
-                     DesigPos + 1, Init, ParentList, ListIdx, Diag, Ctx);
-    continueArrayFrom(Node, static_cast<unsigned>(I + 1), ParentList, ListIdx,
+    // [GNU] Apply the same designation to every index in [Begin, End].
+    unsigned SavedIdx = ListIdx;
+    for (std::uint64_t I = Begin; I <= End; ++I) {
+      unsigned TmpIdx = SavedIdx;
+      applyDesignation(Node.Kids[static_cast<std::size_t>(I)], Desigs,
+                       DesigPos + 1, Init, ParentList, TmpIdx, Diag, Ctx);
+      ListIdx = TmpIdx;
+    }
+    continueArrayFrom(Node, static_cast<unsigned>(End + 1), ParentList, ListIdx,
                       Diag, Ctx);
     return;
   }
@@ -318,11 +328,11 @@ static void fillTreeFromList(InitTree &Node, const InitListExpr *List,
           Diag.fatalAt(DIE->getBeginLoc(),
                        "array designator expected in array initializer");
         I = static_cast<unsigned>(Desigs[0].getArrayIndex());
-        if (I >= CAT->getLength())
+        if (Desigs[0].getArrayIndexEnd() >= CAT->getLength())
           Diag.fatalAt(DIE->getBeginLoc(),
                        "array designator index exceeds array bounds");
         applyDesignation(Node, Desigs, 0, DIE->getInit(), List, Idx, Diag, Ctx);
-        ++I;
+        I = static_cast<unsigned>(Desigs[0].getArrayIndexEnd()) + 1;
         continue;
       }
 
@@ -639,9 +649,9 @@ static void skipDesignation(QualType Ty, const std::vector<Designator> &Desigs,
     const auto *CAT = Ty->getAs<ConstantArrayType>();
     if (!CAT)
       return;
-    std::uint64_t I = D.getArrayIndex();
+    std::uint64_t End = D.getArrayIndexEnd();
     skipDesignation(CAT->getElementType(), Desigs, Pos + 1, Init, List, Idx);
-    for (unsigned J = static_cast<unsigned>(I + 1);
+    for (unsigned J = static_cast<unsigned>(End + 1);
          J < CAT->getLength() && Idx < List->getNumInits(); ++J) {
       if (isa<DesignatedInitExpr>(List->getInit(Idx)))
         return;
@@ -699,13 +709,19 @@ static unsigned countArrayInitElements(const InitListExpr *List,
   while (Idx < List->getNumInits()) {
     if (const auto *DIE = dynCast<DesignatedInitExpr>(List->getInit(Idx))) {
       const auto &Desigs = DIE->getDesignators();
-      if (!Desigs.empty() && Desigs[0].isArrayIndex())
+      if (!Desigs.empty() && Desigs[0].isArrayIndex()) {
         I = static_cast<unsigned>(Desigs[0].getArrayIndex());
-      skipDesignation(ElemTy, Desigs, 1, DIE->getInit(), List, Idx);
+        unsigned End = static_cast<unsigned>(Desigs[0].getArrayIndexEnd());
+        skipDesignation(ElemTy, Desigs, 1, DIE->getInit(), List, Idx);
+        I = End + 1;
+      } else {
+        skipDesignation(ElemTy, Desigs, 1, DIE->getInit(), List, Idx);
+        ++I;
+      }
     } else {
       consumeOneInitElement(List, ElemTy, Idx);
+      ++I;
     }
-    ++I;
     if (I > Max)
       Max = I;
   }
