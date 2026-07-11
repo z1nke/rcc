@@ -119,15 +119,18 @@ SwitchStmt *SwitchStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
 }
 
 CaseStmt::CaseStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *LHS,
-                   Stmt *SubStmt, std::int64_t CaseValue, unsigned LabelId)
+                   Expr *RHS, Stmt *SubStmt, std::int64_t CaseValue,
+                   std::int64_t CaseValueEnd, unsigned LabelId)
     : SwitchCaseStmt(SK_CaseStmt, BegLoc, EndLoc, SubStmt, LabelId), LHS(LHS),
-      CaseValue(CaseValue) {}
+      RHS(RHS), CaseValue(CaseValue), CaseValueEnd(CaseValueEnd) {}
 
 CaseStmt *CaseStmt::create(ASTContext &Ctx, SourceLocation BegLoc,
-                           SourceLocation EndLoc, Expr *LHS, Stmt *SubStmt,
-                           std::int64_t CaseValue, unsigned LabelId) {
+                           SourceLocation EndLoc, Expr *LHS, Expr *RHS,
+                           Stmt *SubStmt, std::int64_t CaseValue,
+                           std::int64_t CaseValueEnd, unsigned LabelId) {
   void *Mem = Ctx.allocate(sizeof(CaseStmt), alignof(CaseStmt));
-  return new (Mem) CaseStmt(BegLoc, EndLoc, LHS, SubStmt, CaseValue, LabelId);
+  return new (Mem) CaseStmt(BegLoc, EndLoc, LHS, RHS, SubStmt, CaseValue,
+                            CaseValueEnd, LabelId);
 }
 
 DefaultStmt::DefaultStmt(SourceLocation BegLoc, SourceLocation EndLoc,
@@ -829,8 +832,8 @@ AbstractConditionalOperator::AbstractConditionalOperator(
     SourceLocation QuestionLoc, SourceLocation ColonLoc, Expr *Cond,
     Expr *TrueExpr, Expr *FalseExpr)
     : Expr(Kind, BegLoc, EndLoc, T), QuestionLoc(QuestionLoc),
-      ColonLoc(ColonLoc), Cond(Cond), TrueExpr(TrueExpr),
-      FalseExpr(FalseExpr) {}
+      ColonLoc(ColonLoc), Cond(Cond), TrueExpr(TrueExpr), FalseExpr(FalseExpr) {
+}
 
 ConditionalOperator::ConditionalOperator(SourceLocation BegLoc,
                                          SourceLocation EndLoc, QualType T,
@@ -841,10 +844,11 @@ ConditionalOperator::ConditionalOperator(SourceLocation BegLoc,
                                   QuestionLoc, ColonLoc, Cond, TrueExpr,
                                   FalseExpr) {}
 
-ConditionalOperator *ConditionalOperator::create(
-    ASTContext &Ctx, SourceLocation BegLoc, SourceLocation EndLoc, QualType T,
-    SourceLocation QuestionLoc, SourceLocation ColonLoc, Expr *Cond,
-    Expr *TrueExpr, Expr *FalseExpr) {
+ConditionalOperator *
+ConditionalOperator::create(ASTContext &Ctx, SourceLocation BegLoc,
+                            SourceLocation EndLoc, QualType T,
+                            SourceLocation QuestionLoc, SourceLocation ColonLoc,
+                            Expr *Cond, Expr *TrueExpr, Expr *FalseExpr) {
   void *Mem =
       Ctx.allocate(sizeof(ConditionalOperator), alignof(ConditionalOperator));
   return new (Mem) ConditionalOperator(BegLoc, EndLoc, T, QuestionLoc, ColonLoc,

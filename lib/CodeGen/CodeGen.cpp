@@ -1347,14 +1347,15 @@ void CodeGen::genFunction(const FunctionDecl *FD) {
       int Size = static_cast<int>(Ty->getSize());
       if (Ty->isLongDoubleType()) {
         if (Param->isHalfByStack()) {
-          emit("  # store long double param '{}' half from a{}, half from stack",
-               Param->getName(), GP);
+          emit(
+              "  # store long double param '{}' half from a{}, half from stack",
+              Param->getName(), GP);
           storeGenReg(GP++, Offset, 8);
           emit("  ld t0, 16(fp)");
           emit("  sd t0, {}(fp)", Offset + 8);
         } else {
-          emit("  # store long double param '{}' from a{},a{}", Param->getName(),
-               GP, GP + 1);
+          emit("  # store long double param '{}' from a{},a{}",
+               Param->getName(), GP, GP + 1);
           storeGenReg(GP++, Offset, 8);
           storeGenReg(GP++, Offset + 8, 8);
         }
@@ -2066,16 +2067,32 @@ void CodeGen::genSwitchStmt(const SwitchStmt *Switch) {
   for (const auto *SC = Switch->getSwitchCaseList(); SC;
        SC = SC->getNextSwitchCase()) {
     if (const auto *CS = dynCast<CaseStmt>(SC)) {
-      std::int64_t CaseVal = CS->getCaseValue();
+      std::int64_t CaseBegin = CS->getCaseValue();
+      std::int64_t CaseEnd = CS->getCaseValueEnd();
       if (Is32) {
-        auto U32 = static_cast<std::uint32_t>(CaseVal);
-        CaseVal =
-            IsUnsigned
-                ? static_cast<std::int64_t>(U32)
-                : static_cast<std::int64_t>(static_cast<std::int32_t>(U32));
+        auto Narrow = [&](std::int64_t V) -> std::int64_t {
+          auto U32 = static_cast<std::uint32_t>(V);
+          return IsUnsigned ? static_cast<std::int64_t>(U32)
+                            : static_cast<std::int64_t>(
+                                  static_cast<std::int32_t>(U32));
+        };
+        CaseBegin = Narrow(CaseBegin);
+        CaseEnd = Narrow(CaseEnd);
       }
-      emit("  li t0, {}", CaseVal);
-      emit("  beq a0, t0, .L.case.{}.{}", Count, CS->getLabelId());
+
+      // Single case value.
+      if (CaseBegin == CaseEnd) {
+        emit("  li t0, {}", CaseBegin);
+        emit("  beq a0, t0, .L.case.{}.{}", Count, CS->getLabelId());
+        continue;
+      }
+
+      // [GNU] case low ... high : match if 0 <= (a0 - Begin) <= (End - Begin).
+      emit("  mv t1, a0");
+      emit("  li t0, {}", CaseBegin);
+      emit("  sub t1, t1, t0");
+      emit("  li t2, {}", CaseEnd - CaseBegin);
+      emit("  bleu t1, t2, .L.case.{}.{}", Count, CS->getLabelId());
       continue;
     }
     Default = cast<DefaultStmt>(SC);
@@ -3910,7 +3927,6 @@ void CodeGen::pushLD() {
   LDSP += 2;
   assert(LDSP <= 12 && "LDSP overflow");
 }
-
 
 void CodeGen::popLD(int Reg) {
   LDSP -= 2;

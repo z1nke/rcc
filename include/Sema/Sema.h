@@ -87,7 +87,8 @@ public:
                          Stmt *Body, Expr *Cond);
   void actOnSwitchStmtStart();
   Stmt *actOnSwitchStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Body);
-  Stmt *actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt);
+  Stmt *actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Expr *RHS,
+                      Stmt *SubStmt);
   Stmt *actOnDefaultStmt(SourceLocation BegLoc, Stmt *SubStmt);
   Stmt *actOnBreakStmt(SourceLocation BegLoc, SourceLocation EndLoc);
   Stmt *actOnContinueStmt(SourceLocation BegLoc, SourceLocation EndLoc);
@@ -209,7 +210,8 @@ private:
 
   std::vector<VarDecl *> LocalVars;
   std::vector<ParamVarDecl *> Params;
-  // Saved Params from enclosing function declarators (parseTypeSuffix push/pop).
+  // Saved Params from enclosing function declarators (parseTypeSuffix
+  // push/pop).
   std::vector<std::vector<ParamVarDecl *>> ParamLists;
   std::vector<FunctionDecl *> Funcs;
   std::unordered_map<std::string, LabelDecl *> Labels;

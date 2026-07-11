@@ -347,6 +347,10 @@ void ASTDumper::visit(const CaseStmt *Case) {
     ScopedIndent SI(*this, false);
     visit(Case->getLHS());
   }
+  if (Case->getRHS()) {
+    ScopedIndent SI(*this, false);
+    visit(Case->getRHS());
+  }
   {
     ScopedIndent SI(*this, true);
     visit(Case->getSubStmt());

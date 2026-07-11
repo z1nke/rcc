@@ -1664,7 +1664,8 @@ Stmt *Sema::actOnSwitchStmt(SourceLocation BegLoc, Expr *Cond, Stmt *Body) {
   return SwitchStmt::create(Ctx, BegLoc, EndLoc, Cond, Body, SI.FirstCase);
 }
 
-Stmt *Sema::actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt) {
+Stmt *Sema::actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Expr *RHS,
+                          Stmt *SubStmt) {
   if (SwitchStack.empty())
     Diag.fatalAt(BegLoc, "'case' statement not in switch statement");
 
@@ -1674,18 +1675,33 @@ Stmt *Sema::actOnCaseStmt(SourceLocation BegLoc, Expr *LHS, Stmt *SubStmt) {
     Diag.fatalAt(BegLoc, "case label does not reduce to an integer constant");
 
   std::int64_t CaseValue = *Val;
+  std::int64_t CaseValueEnd = CaseValue;
+
+  if (RHS) {
+    checkIntType(RHS);
+    auto EndVal = RHS->evaluateAsInt();
+    if (!EndVal)
+      Diag.fatalAt(BegLoc, "case label does not reduce to an integer constant");
+    CaseValueEnd = *EndVal;
+    if (CaseValueEnd < CaseValue)
+      Diag.fatalAt(BegLoc, "empty case range specified");
+  }
 
   SwitchInfo &SI = SwitchStack.back();
   for (const auto *SC = SI.FirstCase; SC; SC = SC->getNextSwitchCase()) {
     const auto *CS = dynCast<CaseStmt>(SC);
-    if (CS && CS->getCaseValue() == CaseValue)
+    if (!CS)
+      continue;
+    // Ranges overlap if CaseValue <= CS->End && CS->Begin <= CaseValueEnd.
+    if (CaseValue <= CS->getCaseValueEnd() &&
+        CS->getCaseValue() <= CaseValueEnd)
       Diag.fatalAt(BegLoc, "duplicate case value");
   }
 
   auto EndLoc = SubStmt->getEndLoc();
   auto LabelId = SI.NextLabelId++;
-  auto *CS =
-      CaseStmt::create(Ctx, BegLoc, EndLoc, LHS, SubStmt, CaseValue, LabelId);
+  auto *CS = CaseStmt::create(Ctx, BegLoc, EndLoc, LHS, RHS, SubStmt, CaseValue,
+                              CaseValueEnd, LabelId);
   CS->setNextSwitchCase(SI.FirstCase);
   SI.FirstCase = CS;
   return CS;

@@ -296,21 +296,28 @@ private:
 class CaseStmt final : public SwitchCaseStmt {
 public:
   static CaseStmt *create(ASTContext &Ctx, SourceLocation BegLoc,
-                          SourceLocation EndLoc, Expr *LHS, Stmt *SubStmt,
-                          std::int64_t CaseValue, unsigned LabelId);
+                          SourceLocation EndLoc, Expr *LHS, Expr *RHS,
+                          Stmt *SubStmt, std::int64_t CaseValue,
+                          std::int64_t CaseValueEnd, unsigned LabelId);
 
   static bool classof(const Stmt *S) { return S->getKind() == SK_CaseStmt; }
 
   Expr *getLHS() const { return LHS; }
+  Expr *getRHS() const { return RHS; }
   std::int64_t getCaseValue() const { return CaseValue; }
+  std::int64_t getCaseValueEnd() const { return CaseValueEnd; }
+  bool isCaseRange() const { return RHS != nullptr; }
 
 private:
-  CaseStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *LHS,
-           Stmt *SubStmt, std::int64_t CaseValue, unsigned LabelId);
+  CaseStmt(SourceLocation BegLoc, SourceLocation EndLoc, Expr *LHS, Expr *RHS,
+           Stmt *SubStmt, std::int64_t CaseValue, std::int64_t CaseValueEnd,
+           unsigned LabelId);
 
 private:
   Expr *LHS;
+  Expr *RHS;
   std::int64_t CaseValue;
+  std::int64_t CaseValueEnd;
 };
 
 class DefaultStmt final : public SwitchCaseStmt {

@@ -440,9 +440,14 @@ Stmt *Parser::parseCaseStmt() {
   auto BegLoc = SM.createBeginLocation(CurTok);
   skip();
   Expr *LHS = parseConstantExpr();
+  Expr *RHS = nullptr;
+  // [GNU] case low ... high :
+  if (tryConsume(Token::TK_Ellipsis))
+    RHS = parseConstantExpr();
+
   skip(Token::TK_Colon);
   Stmt *SubStmt = parseStmt();
-  return S.actOnCaseStmt(BegLoc, LHS, SubStmt);
+  return S.actOnCaseStmt(BegLoc, LHS, RHS, SubStmt);
 }
 
 // default-stmt: 'default' ':' stmt
