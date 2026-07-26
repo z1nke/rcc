@@ -359,6 +359,73 @@ static void consumeOneInitElement(const InitListExpr *List, QualType ElemTy,
   ++Idx;
 }
 
+/// Skip list elements consumed by a designation into \p Ty.
+/// \p Idx points at the DesignatedInitExpr; Desigs[Pos..] remain to apply.
+static void skipDesignation(QualType Ty,
+                            const std::vector<std::uint64_t> &Desigs,
+                            unsigned Pos, const Expr *Init,
+                            const InitListExpr *List, unsigned &Idx) {
+  if (Pos == Desigs.size()) {
+    // Braced init is self-contained inside the DesignatedInitExpr.
+    if (isa<InitListExpr>(Init)) {
+      ++Idx;
+      return;
+    }
+
+    ++Idx; // consume the DesignatedInitExpr (holds the first value)
+    const auto *CAT = Ty->getAs<ConstantArrayType>();
+    if (!CAT)
+      return;
+
+    // Bare scalar into array continues like arrayInitializer2 from 1.
+    for (unsigned I = 1; I < CAT->getLength() && Idx < List->getNumInits();
+         ++I) {
+      if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+        return;
+      consumeOneInitElement(List, CAT->getElementType(), Idx);
+    }
+    return;
+  }
+
+  const auto *CAT = Ty->getAs<ConstantArrayType>();
+  if (!CAT)
+    return;
+
+  std::uint64_t I = Desigs[Pos];
+  skipDesignation(CAT->getElementType(), Desigs, Pos + 1, Init, List, Idx);
+  for (unsigned J = static_cast<unsigned>(I + 1);
+       J < CAT->getLength() && Idx < List->getNumInits(); ++J) {
+    if (isa<DesignatedInitExpr>(List->getInit(Idx)))
+      return;
+    consumeOneInitElement(List, CAT->getElementType(), Idx);
+  }
+}
+
+/// Count outer elements for an incomplete array initializer, including
+/// designator indices.
+static unsigned countArrayInitElements(const InitListExpr *List,
+                                       QualType ElemTy) {
+  unsigned Idx = 0;
+  unsigned I = 0;
+  unsigned Max = 0;
+
+  while (Idx < List->getNumInits()) {
+    if (const auto *DIE = dynCast<DesignatedInitExpr>(List->getInit(Idx))) {
+      const auto &Desigs = DIE->getDesignators();
+      if (!Desigs.empty())
+        I = static_cast<unsigned>(Desigs[0]);
+      // Remaining designators apply to the element type at index I.
+      skipDesignation(ElemTy, Desigs, 1, DIE->getInit(), List, Idx);
+    } else {
+      consumeOneInitElement(List, ElemTy, Idx);
+    }
+    ++I;
+    if (I > Max)
+      Max = I;
+  }
+  return Max;
+}
+
 static QualType materializeFlexibleArrayRecordType(ASTContext &Ctx,
                                                    const RecordType *RT,
                                                    std::size_t NumFamElems) {
@@ -852,7 +919,10 @@ void Sema::complete(VarDecl *Var, Expr *Init) {
     } else if (const auto *ILE = dynCast<InitListExpr>(Init)) {
       if (ILE->getNumInits() == 0)
         Diag.fatalAt(Init->getBeginLoc(), "array size must be positive");
-      VarType = Ctx.getConstantArrayType(ElemTy, ILE->getNumInits());
+      unsigned Len = countArrayInitElements(ILE, ElemTy);
+      if (Len == 0)
+        Diag.fatalAt(Init->getBeginLoc(), "array size must be positive");
+      VarType = Ctx.getConstantArrayType(ElemTy, Len);
       Var->setType(VarType);
     }
   }
